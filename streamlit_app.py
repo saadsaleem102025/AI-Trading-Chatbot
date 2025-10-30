@@ -1,15 +1,16 @@
 import streamlit as st
-import openai
-st.title("💹 AI Trading Chatbot MVP")
+from openai import OpenAI
 
-# Initialize client
+st.title("💯🚀🎯 AI Trading Chatbot MVP")
+
+# Initialize the OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Input box for user query
+# Input for user query
 user_input = st.text_input("Ask about crypto, forex, or stocks:")
 
 if user_input:
-    # Call GPT model
+    # Send query to GPT
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -18,6 +19,7 @@ if user_input:
         ],
     )
 
-    # Display response
+    # Show the model's response
     st.write(response.choices[0].message.content)
+
 
