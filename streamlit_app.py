@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 from openai import OpenAI
+import pytz
 
 # -------------------------------
 # 🔑 API Keys
@@ -10,7 +11,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 TWELVEDATA_API_KEY = st.secrets["TWELVEDATA_API_KEY"]
 
 # -------------------------------
-# 📈 Function to get real-time price
+# 📈 Real-Time Price Fetch
 # -------------------------------
 def get_price(symbol):
     """Fetch real-time price for crypto, stock, or forex symbol using Twelve Data API"""
@@ -28,7 +29,7 @@ def get_price(symbol):
 # 🌐 Market Context Panel
 # -------------------------------
 def get_market_context():
-    """Fetch global crypto market data"""
+    """Fetch BTC, ETH, SOL, XRP prices"""
     url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd"
     try:
         data = requests.get(url).json()
@@ -45,7 +46,7 @@ def get_market_context():
 # 📊 RSI Indicator
 # -------------------------------
 def get_rsi(symbol):
-    """Fetch RSI (Relative Strength Index) from Twelve Data"""
+    """Fetch RSI (Relative Strength Index)"""
     try:
         url = f"https://api.twelvedata.com/rsi?symbol={symbol}&interval=1h&apikey={TWELVEDATA_API_KEY}"
         data = requests.get(url).json()
@@ -71,67 +72,66 @@ def get_bollinger(symbol):
     return None, None
 
 # -------------------------------
-# 🕒 FX Market Sessions
+# 🌍 FX Market Session (Auto-Timezone)
 # -------------------------------
-def fx_market_session():
-    """Return active FX session based on PKT (Pakistan Time)"""
-    now = datetime.utcnow()
-    hour = (now.hour + 5) % 24  # Convert UTC → PKT
+def fx_market_session(user_tz="Asia/Karachi"):
+    """Return active FX session based on user's local timezone"""
+    try:
+        tz = pytz.timezone(user_tz)
+    except:
+        tz = pytz.timezone("UTC")
 
+    now = datetime.now(tz)
+    hour = now.hour
+
+    # FX Sessions (local)
     if 5 <= hour < 14:
-        return "Asian Session (Tokyo/Hong Kong Open)"
+        return "🔹 Asian Session – Active (Tokyo & Hong Kong Open)"
     elif 12 <= hour < 20:
-        return "European Session (London Active)"
+        return "🔹 European Session – Active (London Market)"
     elif 17 <= hour or hour < 2:
-        return "US Session (Wall Street Active)"
+        return "🔹 US Session – Active (Wall Street)"
     else:
-        return "Low Liquidity (Off Sessions)"
+        return "🌙 Off Session – Low Liquidity Period"
 
 # -------------------------------
 # 📰 Market Sentiment (Stable)
 # -------------------------------
 def get_market_sentiment():
-    """Fetch crypto news sentiment (always returns summary even if API fails)"""
+    """Fetch crypto sentiment; AI summarization fallback"""
     try:
         url = "https://newsdata.io/api/1/news?apikey=pub_31594e22e5b9e1f63777d5e8b3e4db8dbca&q=crypto&language=en"
         data = requests.get(url).json()
-
         if "results" in data and len(data["results"]) > 0:
-            headlines = [article["title"] for article in data["results"][:5]]
+            headlines = [a["title"] for a in data["results"][:5]]
         else:
             headlines = [
                 "Bitcoin consolidates after strong rally",
-                "Ethereum network upgrades gain investor confidence",
-                "Altcoins show mixed performance as traders eye US policy",
-                "Crypto markets show moderate optimism amid volatility",
-                "Stablecoin activity increases on major exchanges"
+                "Ethereum upgrade boosts investor sentiment",
+                "Altcoins trade sideways amid low volume",
+                "Regulatory clarity expected to boost adoption",
+                "Crypto markets show cautious optimism"
             ]
 
         joined = " ".join(headlines)
-        sentiment_prompt = f"Summarize the overall crypto market sentiment (bullish, bearish, or neutral) from these headlines:\n{joined}"
+        sentiment_prompt = f"Summarize crypto sentiment (bullish, bearish, or neutral) from these headlines:\n{joined}"
         sentiment = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": sentiment_prompt}],
         )
         return sentiment.choices[0].message.content
-    except Exception as e:
-        # Guarantee safe fallback
-        return "Market sentiment appears mixed — mild optimism with some caution due to volatility."
+    except:
+        return "Market sentiment appears balanced — cautious optimism with mild volatility."
 
 # -------------------------------
-# ⚙️ Streamlit Setup
+# ⚙️ Streamlit App UI
 # -------------------------------
 st.set_page_config(page_title="AI Trading Chatbot MVP", page_icon="💬", layout="centered")
 st.title("💯🚀🎯 AI Trading Chatbot MVP")
-st.markdown("Ask about any **crypto**, **stock**, or **forex** pair to get live data and AI insights.")
+st.markdown("Ask about any **crypto**, **stock**, or **forex** pair to get live data and AI-powered insights.")
 
 # -------------------------------
-# 🧠 User Input
-# -------------------------------
-user_input = st.text_input("💭 Enter crypto, stock, or forex symbol (e.g. BTC/USD, ETH, EUR/USD):")
-
-# -------------------------------
-# 🌐 Market Context (Sidebar)
+# Sidebar – Market Context + FX Session
 # -------------------------------
 with st.sidebar:
     st.subheader("🌐 Market Context")
@@ -140,17 +140,24 @@ with st.sidebar:
         for k, v in context.items():
             st.metric(k, f"${v:,.2f}")
     else:
-        st.info("Unable to load market context right now.")
+        st.info("Unable to load market data.")
     st.divider()
+
     st.subheader("🕒 FX Market Session")
-    st.write(fx_market_session())
+    user_timezone = st.selectbox(
+        "Select Your Timezone:",
+        pytz.all_timezones,
+        index=pytz.all_timezones.index("Asia/Karachi")
+    )
+    st.info(fx_market_session(user_timezone))
 
 # -------------------------------
-# 💬 Main Chat & Analysis
+# Main Chat & AI Section
 # -------------------------------
+user_input = st.text_input("💭 Enter a symbol or question (e.g., BTC/USD, ETH, EUR/USD, Tesla, Inc.):")
+
 if user_input:
     st.markdown("---")
-
     words = user_input.upper().replace(",", " ").split()
     prices_found = False
     for w in words:
@@ -158,21 +165,16 @@ if user_input:
         if price:
             st.success(f"💰 **{w}** current price: **${price:,.2f}**")
             prices_found = True
-
     if not prices_found:
-        st.info("No specific symbol detected, generating AI insight...")
+        st.info("No symbol detected, generating general market insight...")
 
-    # -------------------------------
-    # 📊 Technical Indicators
-    # -------------------------------
+    # Indicators
     symbol = words[0]
     rsi = get_rsi(symbol)
     upper_band, lower_band = get_bollinger(symbol)
 
     if rsi:
         st.metric(f"RSI (1H) for {symbol}", f"{rsi:.2f}")
-
-        # Interpret KDE RSI Rules
         if rsi < 10 or rsi > 90:
             rsi_msg = "🚨 Reversal Danger Zone – Very High Reversal Probability."
         elif rsi < 20:
@@ -188,36 +190,28 @@ if user_input:
         st.info(rsi_msg)
 
     if upper_band and lower_band:
-        st.metric(f"Bollinger Upper Band", f"${upper_band:,.2f}")
-        st.metric(f"Bollinger Lower Band", f"${lower_band:,.2f}")
+        st.metric("Bollinger Upper Band", f"${upper_band:,.2f}")
+        st.metric("Bollinger Lower Band", f"${lower_band:,.2f}")
 
-    # -------------------------------
-    # 🧩 AI Market Prediction
-    # -------------------------------
+    # AI Market Prediction
     prediction_prompt = f"""
     Analyze {symbol} with RSI={rsi}, Bollinger Bands=({upper_band}, {lower_band}), and Market Context={context}.
     Predict whether the trend is bullish, bearish, or neutral.
     Suggest short entry and exit zones in 2 lines.
     """
-
     prediction = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prediction_prompt}],
     )
-
     st.markdown("### 📊 AI Market Prediction:")
     st.write(prediction.choices[0].message.content)
 
-    # -------------------------------
-    # 📰 Market Sentiment (Never Fails)
-    # -------------------------------
+    # Sentiment
     st.markdown("### 📰 Market Sentiment:")
     st.write(get_market_sentiment())
 
-    # -------------------------------
-    # 💪 Motivation
-    # -------------------------------
-    if any(word in user_input.lower() for word in ["loss", "down", "bad day", "fear"]):
+    # Motivation
+    if any(word in user_input.lower() for word in ["loss", "down", "fear", "panic"]):
         st.info("💪 Stay calm and disciplined — consistency beats emotion in trading.")
 
 
