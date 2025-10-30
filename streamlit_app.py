@@ -33,7 +33,7 @@ st.markdown("Ask about any **crypto**, **stock**, or **forex** pair to get live 
 # -------------------------------
 # 🧠 Chat Logic
 # -------------------------------
-user_input = st.text_input("💭 Type your question or trading pair:")
+user_input = st.text_input("💭 Type crypto,forex,crypto trading pair:")
 
 if user_input:
     st.markdown("---")
