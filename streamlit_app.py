@@ -26,8 +26,8 @@ def get_price(symbol):
 # -------------------------------
 # 💬 Streamlit UI
 # -------------------------------
-st.set_page_config(page_title="AI Trading Chatbot MVP", page_icon="💯🚀🎯", layout="centered")
-st.title("💬 AI Trading Chatbot MVP")
+st.set_page_config(page_title="AI Trading Chatbot MVP", page_icon="💬", layout="centered")
+st.title("💯🚀🎯 AI Trading Chatbot MVP")
 st.markdown("Ask about any **crypto**, **stock**, or **forex** pair to get live data and AI insights.")
 
 # -------------------------------
