@@ -18,12 +18,12 @@ def get_price(symbol):
         r = requests.get(url).json()
         if "price" in r:
             return float(r["price"])
-    except Exception as e:
-        st.error(f"Error fetching {symbol}: {e}")
+    except:
+        pass
     return None
 
 # -------------------------------
-# 🌐 MARKET CONTEXT (COINGECKO)
+# 🌐 MARKET CONTEXT
 # -------------------------------
 def get_market_context():
     try:
@@ -35,7 +35,7 @@ def get_market_context():
         return None, None
 
 # -------------------------------
-# 📊 RSI, BOLLINGER, SUPERTREND
+# 📊 INDICATORS
 # -------------------------------
 def get_rsi(symbol):
     try:
@@ -44,7 +44,7 @@ def get_rsi(symbol):
         if "values" in d:
             return float(d["values"][0]["rsi"])
     except:
-        return None
+        pass
     return None
 
 def get_bollinger(symbol):
@@ -55,7 +55,7 @@ def get_bollinger(symbol):
             v = d["values"][0]
             return float(v["upper_band"]), float(v["lower_band"])
     except:
-        return None, None
+        pass
     return None, None
 
 def get_supertrend(symbol):
@@ -63,67 +63,73 @@ def get_supertrend(symbol):
         url = f"https://api.twelvedata.com/supertrend?symbol={symbol}&interval=1h&apikey={TWELVEDATA_API_KEY}"
         d = requests.get(url).json()
         if "values" in d:
-            v = d["values"][0]
-            return float(v["supertrend"])
+            return float(d["values"][0]["supertrend"])
     except:
-        return None
+        pass
     return None
 
 # -------------------------------
-# 🕐 FX MARKET SESSION (PKT)
+# 🕐 FX SESSION (PKT)
 # -------------------------------
 def get_fx_session():
     now = datetime.now().time()
-
-    def between(t1, t2):
-        return t1 <= now <= t2
+    def between(t1, t2): return t1 <= now <= t2
 
     if between(time(5, 0), time(14, 0)):
-        return "🇯🇵 Asian Session (5:00 AM – 2:00 PM)", "Medium", "Tokyo & Hong Kong volatility"
+        return "🇯🇵 Asian (5 AM–2 PM)", "Medium"
     elif between(time(12, 0), time(20, 0)):
-        return "🇪🇺 European Session (12:00 PM – 8:00 PM)", "High", "London Open hours"
-    elif between(time(17, 0), time(1, 0)):
-        return "🇺🇸 US Session (5:00 PM – 1:00 AM Next Day)", "High", "Wall Street active period"
+        return "🇪🇺 European (12 PM–8 PM)", "High"
+    elif between(time(17, 0), time(23, 59)) or between(time(0, 0), time(1, 0)):
+        return "🇺🇸 US (5 PM–1 AM)", "High"
     else:
-        return "🌙 Low Volatility – Off Hours", "Low", "Session overlap ended"
+        return "🌙 Off-Hours", "Low"
 
 # -------------------------------
 # 🧠 KDE RSI INTERPRETATION
 # -------------------------------
 def interpret_rsi(rsi):
-    if rsi is None:
-        return "No RSI data available."
+    if rsi is None: return "No RSI data available."
     if rsi < 10 or rsi > 90:
-        return "🟣 <10% or >90% → Reversal Danger Zones 🚨 Very High Reversal Probability"
+        return "🟣 <10% or >90% → Reversal Danger Zone 🚨"
     elif rsi < 20:
-        return "🔴 RSI <20% → Extreme Oversold 📈 High chance of Bullish Reversal → Look for long trades."
+        return "🔴 <20% → Extreme Oversold 📈 Possible Bullish Reversal."
     elif rsi < 40:
-        return "🟠 RSI 20–40% → Weak Bearish 📊 Possible Bullish Trend Starting → Early long setups."
+        return "🟠 20–40% → Weak Bearish 📊 Early Bullish Setup."
     elif rsi < 60:
-        return "🟡 RSI 40–60% → Neutral Zone 🔁 Trend continuation or consolidation."
+        return "🟡 40–60% → Neutral 🔁 Consolidation or Continuation."
     elif rsi < 80:
-        return "🟢 RSI 60–80% → Strong Bullish ⚠ Trend likely continuing → Prefer longs but watch exhaustion."
+        return "🟢 60–80% → Strong Bullish ⚠ Possible Exhaustion."
     else:
-        return "🔵 RSI >80% → Extreme Overbought 📉 High chance of Bearish Reversal → Look for shorts."
+        return "🔵 >80% → Overbought 📉 Reversal Risk."
 
 # -------------------------------
-# 📰 SENTIMENT + MOTIVATION
+# 📰 SENTIMENT (no external API fail)
 # -------------------------------
 def get_news_sentiment():
     try:
-        data = requests.get("https://cryptopanic.com/api/v1/posts/?auth_token=demo&kind=news").json()
-        headlines = " ".join([p["title"] for p in data["results"][:5]])
-        prompt = f"Summarize the crypto market sentiment (bullish/bearish/neutral) from these headlines:\n{headlines}"
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return resp.choices[0].message.content
+        # Try CryptoPanic
+        data = requests.get("https://cryptopanic.com/api/v1/posts/?auth_token=demo&kind=news", timeout=5).json()
+        headlines = " ".join([p["title"] for p in data.get("results", [])[:5]])
+        if headlines:
+            prompt = f"Summarize crypto sentiment (bullish/bearish/neutral) from these headlines:\n{headlines}"
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return resp.choices[0].message.content
     except:
-        return "Could not fetch sentiment."
+        pass
+
+    # fallback AI-only sentiment
+    fallback_prompt = "Give a short 2-line summary of overall crypto market mood today (bullish/bearish/neutral)."
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": fallback_prompt}]
+    )
+    return resp.choices[0].message.content
 
 # -------------------------------
-# 💬 STREAMLIT UI
+# 💬 UI
 # -------------------------------
 st.set_page_config(page_title="AI Trading Chatbot MVP", page_icon="💬", layout="centered")
 st.title("💯🚀🎯 AI Trading Chatbot MVP")
@@ -132,7 +138,7 @@ st.markdown("Ask about any **crypto**, **stock**, or **forex** pair to get live 
 user_input = st.text_input("💭 Enter symbol or question:")
 
 # -------------------------------
-# 🌐 SIDEBAR: MARKET CONTEXT
+# 🌐 SIDEBAR CONTEXT
 # -------------------------------
 with st.sidebar:
     st.subheader("🌐 Market Context")
@@ -141,18 +147,17 @@ with st.sidebar:
         st.metric("BTC Dominance", f"{btc_d}%")
         st.metric("Total Market Cap", f"${mcap} B")
     else:
-        st.info("Unable to load market data.")
-
-    session, volatility, note = get_fx_session()
-    st.markdown(f"**🕐 FX Session:** {session}")
-    st.caption(f"Volatility: {volatility} — {note}")
+        st.info("Context unavailable.")
+    session, vol = get_fx_session()
+    st.caption(f"🕐 {session} | Volatility: {vol}")
 
 # -------------------------------
-# 🧩 MAIN CHAT LOGIC
+# ⚙ MAIN LOGIC
 # -------------------------------
 if user_input:
     st.markdown("---")
-    words = user_input.upper().replace(",", " ").split()
+    stop_words = {"FOR", "OF", "THE", "PRICE", "SHOW", "WHAT", "IS", "TO"}
+    words = [w for w in user_input.upper().replace(",", " ").split() if w not in stop_words]
     prices_found = False
 
     for w in words:
@@ -161,24 +166,22 @@ if user_input:
             st.success(f"💰 **{w}** = ${price}")
             prices_found = True
 
-            # RSI, Bollinger, Supertrend
             rsi = get_rsi(w)
             upper, lower = get_bollinger(w)
             supertrend = get_supertrend(w)
 
-            if rsi:
-                st.metric("RSI (1H)", f"{rsi:.2f}")
-                st.write(interpret_rsi(rsi))
+            if rsi: st.metric("RSI (1H)", f"{rsi:.2f}")
+            st.write(interpret_rsi(rsi))
             if upper and lower:
-                st.info(f"📊 **Bollinger Bands:** Upper = {upper:.2f}, Lower = {lower:.2f}")
+                st.info(f"📊 Bollinger: Upper={upper:.2f}, Lower={lower:.2f}")
             if supertrend:
-                st.info(f"📈 **Supertrend (1H):** {supertrend:.2f}")
+                st.info(f"📈 Supertrend: {supertrend:.2f}")
 
             if btc_d and mcap:
                 prompt = (
-                    f"Analyze {w} with RSI={rsi}, Bollinger=({upper},{lower}), "
+                    f"Analyze {w} using RSI={rsi}, Bollinger=({upper},{lower}), "
                     f"Supertrend={supertrend}, BTC Dominance={btc_d}%, Market Cap=${mcap} B. "
-                    "Predict trend direction (bullish/bearish/neutral) and give 2-line entry/exit suggestion."
+                    "Predict trend (bullish/bearish/neutral) and give 2-line entry/exit zones."
                 )
                 pred = client.chat.completions.create(
                     model="gpt-4o-mini",
@@ -188,11 +191,11 @@ if user_input:
                 st.write(pred.choices[0].message.content)
 
     if not prices_found:
-        with st.spinner("Analyzing market context..."):
+        with st.spinner("Analyzing..."):
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are an AI trading assistant providing cross-market insights."},
+                    {"role": "system", "content": "You are an AI trading assistant."},
                     {"role": "user", "content": user_input}
                 ]
             )
@@ -206,6 +209,7 @@ if user_input:
 
     if any(x in user_input.lower() for x in ["loss", "down", "bad", "fear"]):
         st.info("💪 Stay calm and disciplined — consistency beats emotion in trading.")
+
 
 
 
