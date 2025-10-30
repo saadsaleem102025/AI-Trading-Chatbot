@@ -1,7 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 
-st.title("💯🚀🎯 AI Trading Chatbot MVP")
+st.title("💯🚀🎯 AI Trading Chatbot ")
 
 # Initialize the OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
