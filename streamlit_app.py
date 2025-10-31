@@ -25,7 +25,7 @@ def get_price(symbol):
         if "price" in j:
             return float(j["price"])
     except:
-        return None
+        pass
     return None
 
 def get_series(symbol, indicator):
@@ -72,7 +72,7 @@ def get_supertrend(symbol):
             ema_prev = float(data["values"][1]["ema"])
             return "🟢 Uptrend" if ema_now > ema_prev else "🔴 Downtrend"
     except:
-        return "❓ Unknown"
+        pass
     return "❓ Unknown"
 
 # ==============================
@@ -145,7 +145,7 @@ def get_social_sentiment():
         )
         return res.choices[0].message.content
     except:
-        return "Social sentiment data temporarily unavailable."
+        return "Social sentiment temporarily unavailable."
 
 # ==============================
 # ⏰ Watchlist Alerts
@@ -179,7 +179,6 @@ with st.sidebar:
     st.subheader("🌐 Market Overview")
     ctx = get_market_context()
 
-    # FIX: Full BTC & ETH prices visible
     st.markdown(
         f"""
         **BTC:** ${ctx['BTC']['price']:.2f} ({ctx['BTC']['change']:.2f}%)
@@ -187,16 +186,21 @@ with st.sidebar:
         """
     )
 
+    # 🌍 User Timezone Selector
+    st.subheader("🕒 Market Session & Volatility")
+    user_timezone = st.selectbox("Select your timezone:", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"))
+    st.info(fx_market_session(user_timezone))
     st.info(get_volatility(ctx))
-    st.info(fx_market_session())
 
     st.subheader("👁 Watchlist Alerts")
     wl = {"BTC/USD": 68000, "ETH/USD": 4000}
     for a in watchlist_alert(wl):
         st.success(a)
 
-# Main Input
-symbol = st.text_input("Enter crypto/forex/stock symbol :")
+# ==============================
+# MAIN CONTENT
+# ==============================
+symbol = st.text_input("Enter crypto/forex/stock symbol (e.g. BTC/USD, EUR/USD, AAPL):")
 
 if symbol:
     price = get_price(symbol)
@@ -228,7 +232,7 @@ if symbol:
     st.markdown("### 📊 AI Market Prediction:")
     st.write(pred.choices[0].message.content)
 
-    # Sentiment
+    # Sentiments
     st.markdown("### 📰 News Sentiment:")
     st.write(get_news_sentiment())
     st.markdown("### 🐦 Social Sentiment:")
@@ -241,6 +245,7 @@ if symbol:
     # Motivation
     st.markdown("### 💡 Motivation:")
     st.info("Stay patient — discipline outperforms emotion every time.")
+
 
 
 
