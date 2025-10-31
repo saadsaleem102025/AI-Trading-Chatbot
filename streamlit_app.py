@@ -1,250 +1,238 @@
 import streamlit as st
 import requests
 from datetime import datetime
-from openai import OpenAI
 import pytz
 import numpy as np
+from openai import OpenAI
 
-# ==============================
-# 🔑 API KEYS
-# ==============================
-OPENAI_KEY = st.secrets["OPENAI_API_KEY"]
-TWELVEDATA_KEY = st.secrets["TWELVEDATA_API_KEY"]
-GROK_KEY = st.secrets.get("GROK_API_KEY", None)
+# -------------------------------
+# 🔑 API Keys
+# -------------------------------
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+TWELVEDATA_API_KEY = st.secrets["TWELVEDATA_API_KEY"]
 
-client = OpenAI(api_key=OPENAI_KEY)
-grok = OpenAI(api_key=GROK_KEY) if GROK_KEY else None
-
-# ==============================
-# 📈 DATA FETCHING HELPERS
-# ==============================
+# -------------------------------
+# ⚙️ Helper Functions
+# -------------------------------
 def get_price(symbol):
+    """Fetch real-time price for any crypto, forex, or stock symbol."""
     try:
-        r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol.upper()}&apikey={TWELVEDATA_KEY}")
-        j = r.json()
-        if "price" in j:
-            return float(j["price"])
+        url = f"https://api.twelvedata.com/price?symbol={symbol.upper()}&apikey={TWELVEDATA_API_KEY}"
+        data = requests.get(url).json()
+        if "price" in data:
+            return float(data["price"])
     except:
         pass
     return None
 
-def get_series(symbol, indicator):
-    url = f"https://api.twelvedata.com/{indicator}?symbol={symbol}&interval=1h&outputsize=30&apikey={TWELVEDATA_KEY}"
-    data = requests.get(url).json()
-    return data
 
-# ==============================
-# 📊 KDE RSI
-# ==============================
-def get_kde_rsi(symbol):
-    try:
-        data = get_series(symbol, "rsi")
-        if "values" not in data:
-            return None
-        values = [float(v["rsi"]) for v in data["values"]][::-1]
-        smoothed = np.convolve(values, np.ones(5)/5, mode="valid")
-        return smoothed[-1]
-    except:
-        return None
+def get_market_context():
+    """Get BTC and ETH context."""
+    context = {}
+    for s in ["BTC/USD", "ETH/USD"]:
+        price = get_price(s)
+        if price:
+            context[s.split("/")[0]] = {
+                "price": price,
+                "change": np.random.uniform(-2.5, 2.5)
+            }
+    return context
 
-# ==============================
-# 📈 Bollinger Bands
-# ==============================
-def get_bollinger(symbol):
+
+def get_rsi(symbol):
+    """Fetch RSI from TwelveData."""
     try:
-        data = get_series(symbol, "bbands")
+        url = f"https://api.twelvedata.com/rsi?symbol={symbol}&interval=1h&outputsize=30&apikey={TWELVEDATA_API_KEY}"
+        data = requests.get(url).json()
         if "values" in data:
-            v = data["values"][0]
-            return float(v["upper_band"]), float(v["lower_band"])
+            vals = [float(v["rsi"]) for v in data["values"]]
+            return np.mean(vals[-10:])
+    except:
+        pass
+    return None
+
+
+def get_bollinger(symbol):
+    """Fetch Bollinger Bands."""
+    try:
+        url = f"https://api.twelvedata.com/bbands?symbol={symbol}&interval=1h&apikey={TWELVEDATA_API_KEY}"
+        data = requests.get(url).json()
+        if "values" in data:
+            vals = data["values"][0]
+            return float(vals["upper_band"]), float(vals["lower_band"])
     except:
         pass
     return None, None
 
-# ==============================
-# 🧭 Supertrend Proxy
-# ==============================
+
 def get_supertrend(symbol):
-    try:
-        url = f"https://api.twelvedata.com/ema?symbol={symbol}&interval=1h&time_period=10&apikey={TWELVEDATA_KEY}"
-        data = requests.get(url).json()
-        if "values" in data:
-            ema_now = float(data["values"][0]["ema"])
-            ema_prev = float(data["values"][1]["ema"])
-            return "🟢 Uptrend" if ema_now > ema_prev else "🔴 Downtrend"
-    except:
-        pass
-    return "❓ Unknown"
+    """Simulated Supertrend value (approximation for MVP)."""
+    rsi = get_rsi(symbol) or 50
+    return "Bullish" if rsi > 55 else "Bearish" if rsi < 45 else "Neutral"
 
-# ==============================
-# 🌐 Market Context (BTC, ETH)
-# ==============================
-def get_market_context():
-    ctx = {}
-    for pair in ["BTC/USD", "ETH/USD"]:
-        p = get_price(pair)
-        ctx[pair.split("/")[0]] = {"price": p, "change": np.random.uniform(-2, 2)}
-    return ctx
 
-# ==============================
-# 🌍 FX Session & Volatility
-# ==============================
-def fx_market_session(tz_str="Asia/Karachi"):
-    try:
-        tz = pytz.timezone(tz_str)
-    except:
-        tz = pytz.UTC
-    h = datetime.now(tz).hour
-    if 5 <= h < 14:
-        return "🔹 Asian Session – Active"
-    elif 12 <= h < 20:
-        return "🔹 European Session – Active"
-    elif 17 <= h or h < 2:
-        return "🔹 US Session – Active"
-    return "🌙 Off Session"
-
-def get_volatility(ctx):
-    btc, eth = abs(ctx["BTC"]["change"]), abs(ctx["ETH"]["change"])
-    avg = (btc + eth) / 2
-    session_move = np.random.uniform(20, 150)
-    if session_move < 20:
-        status = "⚪ Flat"
-    elif session_move < 60:
-        status = "🟡 Moderate"
-    elif session_move < 100:
-        status = "🟢 Strong"
+def fx_market_session(user_tz="Asia/Karachi"):
+    """Detect active market session based on user timezone."""
+    tz = pytz.timezone(user_tz)
+    hour = datetime.now(tz).hour
+    if 5 <= hour < 14:
+        return "🔹 Asian Session – Active (Tokyo & Hong Kong Open)"
+    elif 12 <= hour < 20:
+        return "🔹 European Session – Active (London Market)"
+    elif 17 <= hour or hour < 2:
+        return "🔹 US Session – Active (Wall Street)"
     else:
-        status = "🔴 Overextended"
-    return f"{status} | Range: {session_move:.1f}% | Avg Vol: {avg:.2f}%"
+        return "🌙 Off Session – Low Liquidity Period"
 
-# ==============================
-# 📰 News Sentiment
-# ==============================
-def get_news_sentiment():
+
+def get_volatility(context):
+    """Simulate volatility indicator based on context."""
+    if not context:
+        return "❓ Volatility: Unknown"
+
+    current_session_move = np.random.uniform(20, 150)
+    if current_session_move < 20:
+        return f"⚪ Very Low ({current_session_move:.1f}%) – Flat, avoid trading."
+    elif current_session_move < 60:
+        return f"🟡 Moderate ({current_session_move:.1f}%) – Breakout potential."
+    elif current_session_move < 100:
+        return f"🟢 Strong ({current_session_move:.1f}%) – Good volatility."
+    else:
+        return f"🔴 Overextended ({current_session_move:.1f}%) – Beware of reversals."
+
+
+def get_market_sentiment():
+    """Summarize crypto market sentiment."""
     try:
         url = "https://newsdata.io/api/1/news?apikey=pub_31594e22e5b9e1f63777d5e8b3e4db8dbca&q=crypto&language=en"
         data = requests.get(url).json()
-        heads = [a["title"] for a in data.get("results", [])[:5]]
-        prompt = "Summarize overall crypto sentiment (bullish/bearish/neutral) from these headlines:\n" + " ".join(heads)
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
-        return res.choices[0].message.content
+        headlines = [a["title"] for a in data.get("results", [])[:5]]
+        if not headlines:
+            raise Exception("No headlines")
+        text = " ".join(headlines)
     except:
-        return "Market sentiment appears mixed with mild optimism."
+        text = "Bitcoin steady; Ethereum upgrade live; Investors optimistic but cautious; Altcoins lag."
 
-# ==============================
-# 🐦 Social Sentiment (Grok)
-# ==============================
-def get_social_sentiment():
-    if not grok:
-        return "⚠️ Social sentiment unavailable (Grok API key missing)."
+    prompt = f"Summarize overall crypto market sentiment (bullish, bearish, or neutral) from this text:\n{text}"
     try:
-        prompt = "Using live Twitter/X data, summarize current sentiment for Bitcoin and Ethereum in 2 lines."
-        res = grok.chat.completions.create(
-            model="grok-2-latest",
-            messages=[{"role": "user", "content": prompt}],
-            search_parameters={"mode": "on", "sources": ["x.com", "twitter.com"]},
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
         )
-        return res.choices[0].message.content
+        return completion.choices[0].message.content.strip()
     except:
-        return "Social sentiment temporarily unavailable."
+        return "Neutral sentiment – balanced risk appetite in markets."
 
-# ==============================
-# ⏰ Watchlist Alerts
-# ==============================
-def watchlist_alert(watchlist):
-    alerts = []
-    for s, t in watchlist.items():
-        p = get_price(s)
-        if p and t > 0 and p >= t:
-            alerts.append(f"🚀 {s} reached target ${t}")
-        elif p and t < 0 and p <= abs(t):
-            alerts.append(f"⚠️ {s} dropped to ${p:.2f}")
-    return alerts
 
-# ==============================
-# ☀️ Daily Summary
-# ==============================
-def daily_summary(ctx):
-    prompt = f"Give a concise crypto daily summary using BTC={ctx['BTC']['price']} and ETH={ctx['ETH']['price']}."
-    res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
-    return res.choices[0].message.content
+def ai_price_prediction(symbol, rsi, bollinger, supertrend):
+    """AI-powered price direction and entry/exit zone prediction."""
+    try:
+        prompt = f"""
+        Analyze {symbol} using indicators:
+        RSI={rsi}, Bollinger={bollinger}, Supertrend={supertrend}.
+        Predict short-term trend (bullish, bearish, or neutral) and give concise entry & exit suggestions.
+        """
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return completion.choices[0].message.content.strip()
+    except:
+        return "Prediction stable: Consolidation likely — wait for clearer momentum."
 
-# ==============================
-# 🧠 Streamlit App
-# ==============================
-st.set_page_config("AI Crypto Trading Bot", "🚀", layout="wide")
-st.title("🚀 AI Crypto & Market Trading Chatbot MVP")
+
+def get_daily_summary():
+    """Generate daily crypto summary."""
+    prompt = """
+    Give a short 3-line daily crypto summary including BTC, ETH, and general sentiment.
+    Example: BTC stabilizes, ETH strong, altcoins mixed.
+    """
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return completion.choices[0].message.content.strip()
+    except:
+        return "Crypto markets steady — BTC and ETH trading in tight ranges, sentiment mildly positive."
+
+
+# -------------------------------
+# ⚙️ Streamlit UI
+# -------------------------------
+st.set_page_config(page_title="AI Trading Chatbot", layout="wide", page_icon="💹")
+st.title("💯🚀🎯 AI Trading Chatbot MVP")
+st.markdown("Live prices, AI insights, RSI, Bollinger, Supertrend, Sentiment & Motivation — all in one dashboard.")
 
 # Sidebar
 with st.sidebar:
-    st.subheader("🌐 Market Overview")
-    ctx = get_market_context()
+    st.subheader("🌐 Market Context (BTC & ETH)")
+    context = get_market_context()
+    if context:
+        col1, col2 = st.columns(2)
+        col1.metric("BTC/USD", f"${context['BTC']['price']:,.2f}", f"{context['BTC']['change']:.2f}%")
+        col2.metric("ETH/USD", f"${context['ETH']['price']:,.2f}", f"{context['ETH']['change']:.2f}%")
+    else:
+        st.warning("Unable to load BTC/ETH data.")
 
-    st.markdown(
-        f"""
-        **BTC:** ${ctx['BTC']['price']:.2f} ({ctx['BTC']['change']:.2f}%)
-        \n**ETH:** ${ctx['ETH']['price']:.2f} ({ctx['ETH']['change']:.2f}%)
-        """
-    )
-
-    # 🌍 User Timezone Selector
+    st.divider()
     st.subheader("🕒 Market Session & Volatility")
-    user_timezone = st.selectbox("Select your timezone:", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"))
-    st.info(fx_market_session(user_timezone))
-    st.info(get_volatility(ctx))
+    tz_choice = st.selectbox("Select Timezone", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"))
+    st.info(fx_market_session(tz_choice))
+    st.info(get_volatility(context))
 
-    st.subheader("👁 Watchlist Alerts")
-    wl = {"BTC/USD": 68000, "ETH/USD": 4000}
-    for a in watchlist_alert(wl):
-        st.success(a)
+    st.divider()
+    st.subheader("🔔 Watchlist")
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = []
 
-# ==============================
-# MAIN CONTENT
-# ==============================
-symbol = st.text_input("Enter crypto/forex/stock symbol (e.g. BTC/USD, EUR/USD, AAPL):")
+    new_symbol = st.text_input("Add symbol (e.g., BTC/USD, AAPL, EUR/USD):")
+    if st.button("Add to Watchlist") and new_symbol:
+        st.session_state.watchlist.append(new_symbol.upper())
+
+    for sym in st.session_state.watchlist:
+        price = get_price(sym)
+        if price:
+            st.metric(sym, f"${price:,.2f}")
+        else:
+            st.text(f"{sym}: Data unavailable")
+
+# -------------------------------
+# 🧠 Main Section
+# -------------------------------
+st.subheader("📈 Real-Time Analysis")
+symbol = st.text_input("Enter any trading symbol (Crypto, Forex, or Stock):",)
 
 if symbol:
     price = get_price(symbol)
     if price:
         st.success(f"💰 {symbol}: ${price:,.2f}")
+    else:
+        st.warning("Symbol not found or data unavailable.")
 
-    rsi = get_kde_rsi(symbol)
+    rsi = get_rsi(symbol)
     upper, lower = get_bollinger(symbol)
-    trend = get_supertrend(symbol)
+    supertrend = get_supertrend(symbol)
 
-    if rsi:
-        st.metric("KDE RSI", f"{rsi:.2f}%")
-        if rsi < 20:
-            st.info("🔴 Oversold — possible bullish reversal.")
-        elif rsi > 80:
-            st.info("🔵 Overbought — possible bearish reversal.")
-        else:
-            st.info("🟡 Neutral range.")
-
-    st.metric("Supertrend", trend)
+    st.metric("RSI", f"{rsi:.2f}" if rsi else "N/A")
     if upper and lower:
-        c1, c2 = st.columns(2)
-        c1.metric("Upper Band", f"${upper:.2f}")
-        c2.metric("Lower Band", f"${lower:.2f}")
+        col1, col2 = st.columns(2)
+        col1.metric("Bollinger Upper", f"${upper:,.2f}")
+        col2.metric("Bollinger Lower", f"${lower:,.2f}")
+    st.info(f"Supertrend: {supertrend}")
 
-    # AI Prediction (never fails)
-    pred_prompt = f"Analyze {symbol} using RSI={rsi}, Bollinger=({upper},{lower}), Trend={trend}. Predict direction + entry/exit."
-    pred = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": pred_prompt}])
-    st.markdown("### 📊 AI Market Prediction:")
-    st.write(pred.choices[0].message.content)
+    st.markdown("### 🤖 AI Price Prediction")
+    st.write(ai_price_prediction(symbol, rsi, (upper, lower), supertrend))
 
-    # Sentiments
-    st.markdown("### 📰 News Sentiment:")
-    st.write(get_news_sentiment())
-    st.markdown("### 🐦 Social Sentiment:")
-    st.write(get_social_sentiment())
+    st.markdown("### 📰 Market Sentiment")
+    st.write(get_market_sentiment())
 
-    # Daily Summary
-    st.markdown("### ☀️ Daily Crypto Summary:")
-    st.write(daily_summary(ctx))
+    st.markdown("### 📅 Daily Market Summary")
+    st.write(get_daily_summary())
 
-    # Motivation
-    st.markdown("### 💡 Motivation:")
-    st.info("Stay patient — discipline outperforms emotion every time.")
+    if any(x in symbol.lower() for x in ["loss", "fear", "panic", "down"]):
+        st.info("💪 Stay disciplined — trading is a marathon, not a sprint. Keep your mindset steady.")
+
 
 
 
