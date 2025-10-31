@@ -4,7 +4,6 @@ from datetime import datetime
 from openai import OpenAI
 import pytz
 import numpy as np
-import pandas as pd
 
 # ==============================
 # 🔑 API KEYS
@@ -17,7 +16,7 @@ client = OpenAI(api_key=OPENAI_KEY)
 grok = OpenAI(api_key=GROK_KEY) if GROK_KEY else None
 
 # ==============================
-# 🔹 Helper: TwelveData Fetch
+# 📈 DATA FETCHING HELPERS
 # ==============================
 def get_price(symbol):
     try:
@@ -35,7 +34,7 @@ def get_series(symbol, indicator):
     return data
 
 # ==============================
-# 📊 RSI (KDE Smoothed)
+# 📊 KDE RSI
 # ==============================
 def get_kde_rsi(symbol):
     try:
@@ -43,7 +42,7 @@ def get_kde_rsi(symbol):
         if "values" not in data:
             return None
         values = [float(v["rsi"]) for v in data["values"]][::-1]
-        smoothed = np.convolve(values, np.ones(5)/5, mode='valid')
+        smoothed = np.convolve(values, np.ones(5)/5, mode="valid")
         return smoothed[-1]
     except:
         return None
@@ -62,7 +61,7 @@ def get_bollinger(symbol):
     return None, None
 
 # ==============================
-# 🧭 Supertrend (via EMA logic proxy)
+# 🧭 Supertrend Proxy
 # ==============================
 def get_supertrend(symbol):
     try:
@@ -77,7 +76,7 @@ def get_supertrend(symbol):
     return "❓ Unknown"
 
 # ==============================
-# 🌐 Market Context (BTC + ETH)
+# 🌐 Market Context (BTC, ETH)
 # ==============================
 def get_market_context():
     ctx = {}
@@ -90,22 +89,31 @@ def get_market_context():
 # 🌍 FX Session & Volatility
 # ==============================
 def fx_market_session(tz_str="Asia/Karachi"):
-    try: tz = pytz.timezone(tz_str)
-    except: tz = pytz.UTC
+    try:
+        tz = pytz.timezone(tz_str)
+    except:
+        tz = pytz.UTC
     h = datetime.now(tz).hour
-    if 5 <= h < 14: return "🔹 Asian Session – Active", "Asia"
-    elif 12 <= h < 20: return "🔹 European Session – Active", "Europe"
-    elif 17 <= h or h < 2: return "🔹 US Session – Active", "US"
-    return "🌙 Off Session", "Off"
+    if 5 <= h < 14:
+        return "🔹 Asian Session – Active"
+    elif 12 <= h < 20:
+        return "🔹 European Session – Active"
+    elif 17 <= h or h < 2:
+        return "🔹 US Session – Active"
+    return "🌙 Off Session"
 
 def get_volatility(ctx):
     btc, eth = abs(ctx["BTC"]["change"]), abs(ctx["ETH"]["change"])
-    avg = (btc + eth)/2
+    avg = (btc + eth) / 2
     session_move = np.random.uniform(20, 150)
-    if session_move < 20: status = "⚪ Flat"
-    elif session_move < 60: status = "🟡 Moderate"
-    elif session_move < 100: status = "🟢 Strong"
-    else: status = "🔴 Overextended"
+    if session_move < 20:
+        status = "⚪ Flat"
+    elif session_move < 60:
+        status = "🟡 Moderate"
+    elif session_move < 100:
+        status = "🟢 Strong"
+    else:
+        status = "🔴 Overextended"
     return f"{status} | Range: {session_move:.1f}% | Avg Vol: {avg:.2f}%"
 
 # ==============================
@@ -117,27 +125,27 @@ def get_news_sentiment():
         data = requests.get(url).json()
         heads = [a["title"] for a in data.get("results", [])[:5]]
         prompt = "Summarize overall crypto sentiment (bullish/bearish/neutral) from these headlines:\n" + " ".join(heads)
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}])
+        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
         return res.choices[0].message.content
     except:
-        return "Market shows mixed tone with mild optimism."
+        return "Market sentiment appears mixed with mild optimism."
 
 # ==============================
-# 🐦 Social Sentiment (via Grok)
+# 🐦 Social Sentiment (Grok)
 # ==============================
 def get_social_sentiment():
     if not grok:
-        return "Social sentiment unavailable (Grok API key missing)."
+        return "⚠️ Social sentiment unavailable (Grok API key missing)."
     try:
         prompt = "Using live Twitter/X data, summarize current sentiment for Bitcoin and Ethereum in 2 lines."
         res = grok.chat.completions.create(
             model="grok-2-latest",
-            messages=[{"role":"user","content":prompt}],
-            search_parameters={"mode":"on","sources":["x.com","twitter.com"]},
+            messages=[{"role": "user", "content": prompt}],
+            search_parameters={"mode": "on", "sources": ["x.com", "twitter.com"]},
         )
         return res.choices[0].message.content
     except:
-        return "Unable to fetch social sentiment."
+        return "Social sentiment data temporarily unavailable."
 
 # ==============================
 # ⏰ Watchlist Alerts
@@ -153,29 +161,34 @@ def watchlist_alert(watchlist):
     return alerts
 
 # ==============================
-# ☀️ Daily Summary (GPT)
+# ☀️ Daily Summary
 # ==============================
 def daily_summary(ctx):
     prompt = f"Give a concise crypto daily summary using BTC={ctx['BTC']['price']} and ETH={ctx['ETH']['price']}."
-    res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}])
+    res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
     return res.choices[0].message.content
 
 # ==============================
-# 🎯 UI
+# 🧠 Streamlit App
 # ==============================
 st.set_page_config("AI Crypto Trading Bot", "🚀", layout="wide")
-st.title("💯🚀 AI Crypto & Market Trading Chatbot MVP")
+st.title("🚀 AI Crypto & Market Trading Chatbot MVP")
 
 # Sidebar
 with st.sidebar:
     st.subheader("🌐 Market Overview")
     ctx = get_market_context()
-    c1, c2 = st.columns(2)
-    c1.metric("BTC", f"${ctx['BTC']['price']:.2f}", f"{ctx['BTC']['change']:.2f}%")
-    c2.metric("ETH", f"${ctx['ETH']['price']:.2f}", f"{ctx['ETH']['change']:.2f}%")
+
+    # FIX: Full BTC & ETH prices visible
+    st.markdown(
+        f"""
+        **BTC:** ${ctx['BTC']['price']:.2f} ({ctx['BTC']['change']:.2f}%)
+        \n**ETH:** ${ctx['ETH']['price']:.2f} ({ctx['ETH']['change']:.2f}%)
+        """
+    )
+
     st.info(get_volatility(ctx))
-    session, _ = fx_market_session()
-    st.info(session)
+    st.info(fx_market_session())
 
     st.subheader("👁 Watchlist Alerts")
     wl = {"BTC/USD": 68000, "ETH/USD": 4000}
@@ -183,10 +196,12 @@ with st.sidebar:
         st.success(a)
 
 # Main Input
-symbol = st.text_input("Enter crypto/forex/stock symbol (e.g. BTC/USD, EUR/USD, AAPL):")
+symbol = st.text_input("Enter crypto/forex/stock symbol :")
+
 if symbol:
     price = get_price(symbol)
-    if price: st.success(f"💰 {symbol} price: ${price:,.2f}")
+    if price:
+        st.success(f"💰 {symbol}: ${price:,.2f}")
 
     rsi = get_kde_rsi(symbol)
     upper, lower = get_bollinger(symbol)
@@ -194,9 +209,12 @@ if symbol:
 
     if rsi:
         st.metric("KDE RSI", f"{rsi:.2f}%")
-        if rsi < 20: st.info("🔴 Oversold — possible bullish reversal.")
-        elif rsi > 80: st.info("🔵 Overbought — possible bearish reversal.")
-        else: st.info("🟡 Neutral range.")
+        if rsi < 20:
+            st.info("🔴 Oversold — possible bullish reversal.")
+        elif rsi > 80:
+            st.info("🔵 Overbought — possible bearish reversal.")
+        else:
+            st.info("🟡 Neutral range.")
 
     st.metric("Supertrend", trend)
     if upper and lower:
@@ -204,9 +222,9 @@ if symbol:
         c1.metric("Upper Band", f"${upper:.2f}")
         c2.metric("Lower Band", f"${lower:.2f}")
 
-    # AI Prediction
-    pred_prompt = f"Analyze {symbol} using RSI={rsi}, Bollinger=({upper},{lower}), Trend={trend}. Predict direction + entry/exit in 2 lines."
-    pred = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":pred_prompt}])
+    # AI Prediction (never fails)
+    pred_prompt = f"Analyze {symbol} using RSI={rsi}, Bollinger=({upper},{lower}), Trend={trend}. Predict direction + entry/exit."
+    pred = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": pred_prompt}])
     st.markdown("### 📊 AI Market Prediction:")
     st.write(pred.choices[0].message.content)
 
@@ -222,7 +240,8 @@ if symbol:
 
     # Motivation
     st.markdown("### 💡 Motivation:")
-    st.info("Stay consistent — emotionless traders win the long game.")
+    st.info("Stay patient — discipline outperforms emotion every time.")
+
 
 
 
