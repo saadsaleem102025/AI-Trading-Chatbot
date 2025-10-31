@@ -106,15 +106,15 @@ def get_volatility(context):
         current_session_move = np.random.uniform(20, 150)
 
         if current_session_move < 20:
-            interpretation = "⚪ Very Low – Market flat, avoid or reduce risk."
+            interpretation = "⚪ Flat market."
         elif current_session_move < 60:
-            interpretation = "🟡 Moderate – Room for breakout trades."
+            interpretation = "🟡 Room for breakout."
         elif current_session_move < 100:
-            interpretation = "🟢 Strong – Active range, good volatility."
+            interpretation = "🟢 Good volatility."
         else:
-            interpretation = "🔴 Overextended – Beware of reversals."
+            interpretation = "🔴 Overextended."
 
-        return f"{interpretation}\n📈 Session Move: {current_session_move:.1f}% | Avg Volatility: {avg_chg:.2f}%"
+        return f"{interpretation} {current_session_move:.1f}% | Avg: {avg_chg:.2f}%"
     except Exception:
         return "❓ Volatility data unavailable."
 
@@ -127,58 +127,72 @@ def get_market_sentiment():
         data = requests.get(url).json()
         headlines = [a["title"] for a in data.get("results", [])[:5]]
         joined = " ".join(headlines)
-        prompt = f"Summarize crypto sentiment (bullish, bearish, or neutral) briefly:\n{joined}"
+        prompt = f"Summarize crypto sentiment briefly:\n{joined}"
         resp = client.chat.completions.create(
             model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
         )
         return resp.choices[0].message.content
     except Exception:
-        return "Market sentiment appears balanced — mild optimism."
+        return "Market sentiment balanced — mild optimism."
 
 # -------------------------------
 # ⚙️ Streamlit UI
 # -------------------------------
 st.set_page_config(page_title="💯🚀🎯 AI Trading Chatbot", page_icon="💹", layout="wide")
+
+# Compact Sidebar Styling
+st.markdown("""
+<style>
+section[data-testid="stSidebar"] div.stButton button, section[data-testid="stSidebar"] select, section[data-testid="stSidebar"] input {
+    font-size: 13px !important;
+    padding: 2px 6px !important;
+}
+section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] h4 {
+    font-size: 15px !important;
+    margin-bottom: 0.3em !important;
+}
+section[data-testid="stSidebar"] div.block-container {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("💯🚀🎯 AI Trading Chatbot")
-st.markdown("Get **real-time crypto, stock & forex insights** — AI-powered predictions,KDE RSI, Bollinger, and more.")
+st.markdown("Get **real-time crypto, stock & forex insights** — AI-powered predictions, RSI, Bollinger, and more.")
 
 # -------------------------------
-# Sidebar – Market Context
+# Sidebar – Compact Layout
 # -------------------------------
 with st.sidebar:
-    st.subheader("🌐 Market Context (BTC & ETH)")
+    st.subheader("🌐 Market Context")
     context = get_market_context()
     if context:
         st.metric("BTC", f"${context['BTC']['price']:,.2f}", f"{context['BTC']['change']:.2f}%")
         st.metric("ETH", f"${context['ETH']['price']:,.2f}", f"{context['ETH']['change']:.2f}%")
     else:
-        st.info("Unable to load BTC/ETH data.")
-    st.divider()
+        st.info("No BTC/ETH data.")
 
     st.subheader("🕒 Session & Volatility")
-    tz = st.selectbox("Select Timezone:", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"))
-    st.info(fx_market_session(tz))
-    st.info(get_volatility(context))
+    tz = st.selectbox("Timezone", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"))
+    st.caption(fx_market_session(tz))
+    st.caption(get_volatility(context))
+
+    st.subheader("📋 Watchlist")
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = []
+
+    new_symbol = st.text_input("Add asset (e.g., BTC/USD, AAPL):")
+    if st.button("➕ Add") and new_symbol:
+        st.session_state.watchlist.append(new_symbol.upper())
+
+    for s in st.session_state.watchlist:
+        price = get_price(s)
+        if price:
+            st.caption(f"{s}: ${price:,.2f}")
 
 # -------------------------------
-# Watchlist
-# -------------------------------
-st.sidebar.subheader("📋 Watchlist")
-if "watchlist" not in st.session_state:
-    st.session_state.watchlist = []
-
-new_symbol = st.sidebar.text_input("Add to Watchlist (e.g., BTC/USD, EUR/USD, AAPL):")
-if st.sidebar.button("➕ Add") and new_symbol:
-    st.session_state.watchlist.append(new_symbol.upper())
-
-for s in st.session_state.watchlist:
-    price = get_price(s)
-    if price:
-        st.sidebar.write(f"**{s}**: ${price:,.2f}")
-st.sidebar.divider()
-
-# -------------------------------
-# Main Symbol Input
+# Main Input
 # -------------------------------
 symbol_input = st.text_input("💭 Enter asset (symbol or name):")
 
@@ -188,7 +202,7 @@ if symbol_input:
     if price:
         st.success(f"💰 {symbol} current price: **${price:,.2f}**")
     else:
-        st.warning("⚠ Could not fetch live price. Please check symbol name (e.g., BTC/USD, EUR/USD, AAPL).")
+        st.warning("⚠ Could not fetch live price. Check symbol name.")
 
     rsi_series = get_rsi_series(symbol)
     smoothed = smooth_rsi(rsi_series)
@@ -197,17 +211,17 @@ if symbol_input:
     if rsi:
         st.metric("KDE RSI (1H)", f"{rsi:.2f}%")
         if rsi < 10 or rsi > 90:
-            msg = "🟣 <10% or >90% → Reversal Danger Zone 🚨"
+            msg = "🟣 <10% or >90% → Reversal Zone 🚨"
         elif rsi < 20:
-            msg = "🔴 <20% → Extreme Oversold → Long setups"
+            msg = "🔴 <20% → Oversold → Long setups"
         elif rsi < 40:
             msg = "🟠 20–40% → Weak Bearish → Early Long setups"
         elif rsi < 60:
-            msg = "🟡 40–60% → Neutral → Wait or scalp"
+            msg = "🟡 40–60% → Neutral → Wait"
         elif rsi < 80:
-            msg = "🟢 60–80% → Strong Bullish → Prefer longs"
+            msg = "🟢 60–80% → Bullish → Prefer longs"
         else:
-            msg = "🔵 >80% → Overbought → Possible short setups"
+            msg = "🔵 >80% → Overbought → Short setups"
         st.info(msg)
 
     upper, lower = get_bollinger(symbol)
@@ -215,18 +229,16 @@ if symbol_input:
         st.metric("Upper Band", f"${upper:,.2f}")
         st.metric("Lower Band", f"${lower:,.2f}")
 
-    # AI Prediction (never fail)
     try:
-        prompt = f"Predict short-term trend for {symbol} using RSI={rsi}, Bollinger=({upper},{lower}). Give 2-line summary with entry & exit suggestion."
+        prompt = f"Predict short-term trend for {symbol} using RSI={rsi}, Bollinger=({upper},{lower}). 2-line summary with entry & exit."
         pred = client.chat.completions.create(
             model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
         )
         st.subheader("📊 AI Market Prediction")
         st.write(pred.choices[0].message.content)
     except Exception:
-        st.write("📊 Trend: Neutral — Data stable. No strong bias currently.")
+        st.write("📊 Trend: Neutral — stable conditions.")
 
-    # Sentiment
     st.subheader("📰 Market Sentiment")
     st.write(get_market_sentiment())
 
@@ -235,16 +247,22 @@ if symbol_input:
 # -------------------------------
 st.markdown("---")
 st.subheader("📅 Daily Market Summary")
-summary_prompt = (
-    "Give a concise 3-line summary of today's global markets (crypto, stocks, forex) with sentiment tone."
-)
+summary_prompt = "Give a concise 3-line summary of today's global markets (crypto, stocks, forex) with sentiment tone."
 try:
     summary = client.chat.completions.create(
         model="gpt-4o-mini", messages=[{"role": "user", "content": summary_prompt}]
     )
     st.success(summary.choices[0].message.content)
 except Exception:
-    st.info("Global markets steady — modest movement and neutral sentiment.")
+    st.info("Global markets steady — neutral sentiment.")
+
+# -------------------------------
+# Motivation
+# -------------------------------
+st.markdown("---")
+st.subheader("💬 Trading Motivation")
+st.info("💪 Stay disciplined. Avoid chasing moves — patience and consistency always win.")
+
 
 # motivational nudges 
     if any(w in user_query.lower() for w in ["loss","down","fear","panic"]):
