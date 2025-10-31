@@ -259,9 +259,8 @@ except Exception:
 # motivational nudges 
 st.markdown("---")
 st.subheader("💬 Trading Motivation")
-st.info("💪 Stay disciplined. Avoid chasing moves — patience and consistency always win.")
-    if any(w in user_query.lower() for w in ["loss","down","fear","panic"]):
-        st.info("💪 Stay disciplined — trading is a marathon, not a sprint. Keep your mindset steady.")
+st.info("💪 Stay disciplined. Avoid chasing moves — patience and consistency always win." Stay disciplined — trading is a marathon, not a sprint. Keep your mindset steady.)
+  
 
 
 
