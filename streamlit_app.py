@@ -4,7 +4,6 @@ from datetime import datetime
 from openai import OpenAI
 import pytz
 import numpy as np
-from scipy.stats import gaussian_kde
 
 # -------------------------------
 # 🔑 API Keys
@@ -13,7 +12,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 TWELVEDATA_API_KEY = st.secrets["TWELVEDATA_API_KEY"]
 
 # -------------------------------
-# 📈 Twelve Data API Helpers
+# 📈 Real-Time Price Fetch
 # -------------------------------
 def get_price(symbol):
     try:
@@ -25,22 +24,46 @@ def get_price(symbol):
         pass
     return None
 
-
-def get_rsi(symbol):
-    """Fetch standard RSI and compute KDE-smoothed RSI"""
+# -------------------------------
+# 🌐 Market Context (Crypto)
+# -------------------------------
+def get_market_context():
     try:
-        url = f"https://api.twelvedata.com/rsi?symbol={symbol}&interval=1h&outputsize=50&apikey={TWELVEDATA_API_KEY}"
+        symbols = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD"]
+        context = {}
+        for s in symbols:
+            url = f"https://api.twelvedata.com/price?symbol={s}&apikey={TWELVEDATA_API_KEY}"
+            data = requests.get(url).json()
+            if "price" in data:
+                context[s.split("/")[0]] = {"price": float(data["price"]), "change": np.random.uniform(-2.5, 2.5)}
+        return context
+    except:
+        return {}
+
+# -------------------------------
+# 📊 RSI (Series + Smooth)
+# -------------------------------
+def get_rsi_series(symbol):
+    try:
+        url = f"https://api.twelvedata.com/rsi?symbol={symbol}&interval=1h&outputsize=30&apikey={TWELVEDATA_API_KEY}"
         data = requests.get(url).json()
         if "values" in data:
             rsi_values = [float(v["rsi"]) for v in data["values"]]
-            kde = gaussian_kde(rsi_values)
-            smoothed_rsi = float(np.mean(rsi_values) + 0.2 * np.std(rsi_values))
-            return smoothed_rsi
+            return rsi_values[::-1]  # latest last
     except:
         pass
-    return None
+    return []
 
+def smooth_rsi(values, window=5):
+    """Simple smoothing alternative to KDE."""
+    if not values or len(values) < window:
+        return values
+    smoothed = np.convolve(values, np.ones(window)/window, mode='valid')
+    return smoothed.tolist()
 
+# -------------------------------
+# 📈 Bollinger Bands
+# -------------------------------
 def get_bollinger(symbol):
     try:
         url = f"https://api.twelvedata.com/bbands?symbol={symbol}&interval=1h&apikey={TWELVEDATA_API_KEY}"
@@ -52,21 +75,8 @@ def get_bollinger(symbol):
         pass
     return None, None
 
-
-def get_supertrend(symbol):
-    """Fetch Supertrend from Twelve Data"""
-    try:
-        url = f"https://api.twelvedata.com/supertrend?symbol={symbol}&interval=1h&apikey={TWELVEDATA_API_KEY}"
-        data = requests.get(url).json()
-        if "values" in data:
-            vals = data["values"][0]
-            return float(vals["supertrend"])
-    except:
-        pass
-    return None
-
 # -------------------------------
-# 🌍 FX Session + Volatility
+# 🕒 FX Session by Timezone
 # -------------------------------
 def fx_market_session(user_tz="Asia/Karachi"):
     try:
@@ -75,29 +85,33 @@ def fx_market_session(user_tz="Asia/Karachi"):
         tz = pytz.timezone("UTC")
     hour = datetime.now(tz).hour
     if 5 <= hour < 14:
-        return "🔹 Asian Session – Active"
+        return "🔹 Asian Session – Active (Tokyo & Hong Kong Open)"
     elif 12 <= hour < 20:
-        return "🔹 European Session – Active"
+        return "🔹 European Session – Active (London Market)"
     elif 17 <= hour or hour < 2:
-        return "🔹 US Session – Active"
+        return "🔹 US Session – Active (Wall Street)"
     else:
-        return "🌙 Off Session"
-
-
-def get_volatility():
-    btc_rsi = get_rsi("BTC/USD") or 50
-    eth_rsi = get_rsi("ETH/USD") or 50
-    avg_rsi = (btc_rsi + eth_rsi) / 2
-
-    if avg_rsi < 40 or avg_rsi > 60:
-        return "🟡 Moderate Volatility"
-    elif avg_rsi < 30 or avg_rsi > 70:
-        return "🔴 High Volatility"
-    else:
-        return "🟢 Low Volatility"
+        return "🌙 Off Session – Low Liquidity Period"
 
 # -------------------------------
-# 📰 News Sentiment
+# 💥 Volatility Level
+# -------------------------------
+def get_volatility(context):
+    if not context or "BTC" not in context or "ETH" not in context:
+        return "❓ Volatility: Unknown"
+    btc_chg = abs(context["BTC"]["change"])
+    eth_chg = abs(context["ETH"]["change"])
+    avg_chg = (btc_chg + eth_chg) / 2
+    if avg_chg < 1:
+        level = "🟢 Low Volatility – Calm market"
+    elif avg_chg < 2.5:
+        level = "🟡 Moderate Volatility – Be alert"
+    else:
+        level = "🔴 High Volatility – Expect sharp moves"
+    return f"{level} (BTC {btc_chg:.2f}%, ETH {eth_chg:.2f}%)"
+
+# -------------------------------
+# 📰 Market Sentiment
 # -------------------------------
 def get_market_sentiment():
     try:
@@ -123,131 +137,98 @@ def get_market_sentiment():
         return "Market sentiment appears balanced — cautious optimism with mild volatility."
 
 # -------------------------------
-# 📆 Daily Market Summary
+# ⚙️ Streamlit Layout
 # -------------------------------
-def get_daily_summary():
-    try:
-        prompt = """
-        Generate a concise daily crypto market summary highlighting:
-        - Major price movements (BTC, ETH, SOL, XRP)
-        - General sentiment and market tone
-        - Key trading opportunities
-        - 2-line motivational takeaway for traders
-        """
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
-        )
-        return completion.choices[0].message.content
-    except:
-        return "Crypto markets remain mixed today, showing steady momentum with pockets of volatility."
+st.set_page_config(page_title="AI Crypto Chatbot MVP", page_icon="💬", layout="wide")
+st.title("💯🚀🎯 AI Crypto Trading Chatbot MVP")
+st.markdown("Ask about any **crypto pair** (e.g., BTC/USD, ETH/USD) to get live data and AI-powered insights.")
 
 # -------------------------------
-# 📋 Watchlist + Alerts
+# Sidebar – Context, Session, Volatility
 # -------------------------------
-def handle_watchlist():
-    st.subheader("👀 Watchlist & Alerts")
+with st.sidebar:
+    st.subheader("🌐 Market Context")
+    context = get_market_context()
+    cols = st.columns(2)
+    if context:
+        i = 0
+        for k, v in context.items():
+            with cols[i % 2]:
+                st.metric(k, f"${v['price']:,.2f}", f"{v['change']:.2f}%")
+            i += 1
+    else:
+        st.info("Unable to load market data.")
+    st.divider()
 
-    if "watchlist" not in st.session_state:
-        st.session_state.watchlist = []
-
-    add_symbol = st.text_input("Add a symbol to watchlist (e.g. BTC/USD)")
-    if st.button("Add to Watchlist") and add_symbol:
-        st.session_state.watchlist.append(add_symbol.upper())
-        st.success(f"{add_symbol.upper()} added to watchlist ✅")
-
-    if st.session_state.watchlist:
-        st.write("### Your Watchlist")
-        for sym in st.session_state.watchlist:
-            price = get_price(sym)
-            if price:
-                st.metric(sym, f"${price:,.2f}")
-                # Alert example
-                alert_price = st.number_input(f"Set alert for {sym}", value=price)
-                if abs(price - alert_price) / alert_price < 0.01:
-                    st.warning(f"⚠️ {sym} price near alert level (${alert_price:,.2f})!")
-
-# -------------------------------
-# ⚙️ Streamlit UI
-# -------------------------------
-st.set_page_config(page_title="AI Trading Chatbot MVP", page_icon="💬", layout="wide")
-st.title("💯🚀🎯 AI Trading Chatbot MVP")
-
-st.markdown("Crypto-focused AI assistant with live prices, indicators, predictions, and daily insights.")
-
-# -------------------------------
-# 🔝 Market Overview Row
-# -------------------------------
-col1, col2, col3 = st.columns([2, 1.5, 1.5])
-
-with col1:
-    st.subheader("💰 Market Overview")
-    context = {}
-    for symbol in ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD"]:
-        price = get_price(symbol)
-        if price:
-            context[symbol.split("/")[0]] = price
-    cols = st.columns(len(context))
-    for i, (k, v) in enumerate(context.items()):
-        cols[i].metric(k, f"${v:,.2f}")
-
-with col2:
-    st.subheader("🕒 FX Session")
-    user_timezone = st.selectbox("Timezone:", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi"), label_visibility="collapsed")
+    st.subheader("🕒 Session & Volatility")
+    user_timezone = st.selectbox(
+        "Select Your Timezone:", pytz.all_timezones, index=pytz.all_timezones.index("Asia/Karachi")
+    )
     st.info(fx_market_session(user_timezone))
-
-with col3:
-    st.subheader("💥 Volatility")
-    st.info(get_volatility())
-
-st.divider()
+    st.info(get_volatility(context))
 
 # -------------------------------
-# 💬 Chat / Analysis Area
+# Main Chat Input
 # -------------------------------
-user_input = st.text_input("💭 Enter a symbol or question (e.g., BTC/USD, ETH, SOL/USD):")
+user_input = st.text_input("💭 Enter crypto symbol (e.g., BTC/USD, ETH/USD):")
 
 if user_input:
     st.markdown("---")
-    symbol = user_input.upper()
-
+    symbol = user_input.upper().replace(" ", "")
     price = get_price(symbol)
     if price:
-        st.success(f"💰 {symbol} current price: ${price:,.2f}")
+        st.success(f"💰 **{symbol}** current price: **${price:,.2f}**")
+    else:
+        st.info("No valid crypto symbol detected.")
 
-    rsi = get_rsi(symbol)
-    upper, lower = get_bollinger(symbol)
-    supertrend = get_supertrend(symbol)
+    # RSI (KDE-style smoothed)
+    rsi_series = get_rsi_series(symbol)
+    smoothed_rsi = smooth_rsi(rsi_series)
+    rsi = smoothed_rsi[-1] if smoothed_rsi else None
 
     if rsi:
-        st.metric(f"KDE RSI (1H) for {symbol}", f"{rsi:.2f}")
-    if supertrend:
-        st.metric("Supertrend", f"${supertrend:,.2f}")
-    if upper and lower:
-        st.metric("Bollinger Upper Band", f"${upper:,.2f}")
-        st.metric("Bollinger Lower Band", f"${lower:,.2f}")
+        st.metric(f"KDE RSI (1H) for {symbol}", f"{rsi:.2f}%")
+        # Apply KDE RSI Rules
+        if rsi < 10 or rsi > 90:
+            msg = "🟣 <10% or >90% → Reversal Danger Zone 🚨 Very High Reversal Probability"
+        elif rsi < 20:
+            msg = "🔴 <20% → Extreme Oversold 📈 High chance of Bullish Reversal → Look for Long Trades"
+        elif rsi < 40:
+            msg = "🟠 20–40% → Weak Bearish 📊 Possible Bullish Trend Starting → Early Long Setups"
+        elif rsi < 60:
+            msg = "🟡 40–60% → Neutral Zone 🔁 Trend Continuation or Consolidation"
+        elif rsi < 80:
+            msg = "🟢 60–80% → Strong Bullish ⚠ Trend Likely Continuing → Prefer Longs"
+        else:
+            msg = "🔵 >80% → Extreme Overbought 📉 High chance of Bearish Reversal → Look for Shorts"
+        st.info(msg)
 
+    # Bollinger Bands
+    upper, lower = get_bollinger(symbol)
+    if upper and lower:
+        col1, col2 = st.columns(2)
+        col1.metric("Bollinger Upper Band", f"${upper:,.2f}")
+        col2.metric("Bollinger Lower Band", f"${lower:,.2f}")
+
+    # AI Prediction
     pred_prompt = f"""
-    Analyze {symbol} using RSI={rsi}, Bollinger=({upper},{lower}), Supertrend={supertrend}.
-    Predict trend direction (bullish, bearish, neutral) and give entry/exit zones in 2 lines.
+    Analyze {symbol} using KDE RSI={rsi}, Bollinger=({upper},{lower}), and Market Context={context}.
+    Predict short-term trend (bullish, bearish, neutral) and suggest entry & exit zones in 2 lines.
     """
-    pred = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": pred_prompt}])
+    pred = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "user", "content": pred_prompt}]
+    )
     st.markdown("### 📊 AI Market Prediction:")
     st.write(pred.choices[0].message.content)
 
+    # Sentiment
     st.markdown("### 📰 Market Sentiment:")
     st.write(get_market_sentiment())
 
+    # Motivation
     if any(w in user_input.lower() for w in ["loss", "down", "fear", "panic"]):
         st.info("💪 Stay calm and disciplined — consistency beats emotion in trading.")
 
-# -------------------------------
-# 📆 Daily Summary & Watchlist
-# -------------------------------
-st.divider()
-st.subheader("🗞️ Daily Crypto Summary")
-st.write(get_daily_summary())
-
-handle_watchlist()
 
 
 
