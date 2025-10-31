@@ -255,11 +255,12 @@ try:
     st.success(summary.choices[0].message.content)
 except Exception:
     st.info("Global markets steady — neutral sentiment.")
-
-# motivational nudges 
+# -------------------------------
+# Motivation
+# -------------------------------
 st.markdown("---")
 st.subheader("💬 Trading Motivation")
-st.info("💪 Stay disciplined. Avoid chasing moves — patience and consistency always win." Stay disciplined — trading is a marathon, not a sprint. Keep your mindset steady.)
+st.info("💪 Stay disciplined. Avoid chasing moves — patience and consistency always win.")
   
 
 
