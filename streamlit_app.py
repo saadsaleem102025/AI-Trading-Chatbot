@@ -141,8 +141,8 @@ def get_daily_summary():
 # -------------------------------
 # ⚙️ Streamlit Layout
 # -------------------------------
-st.set_page_config(page_title="💯🚀🎯 AI Trading Chatbot", page_icon="💬", layout="wide")
-st.title("💯🚀🎯 AI Trading Chatbot")
+st.set_page_config(page_title=" AI Trading Chatbot", page_icon="💬", layout="wide")
+st.title(" AI Trading Chatbot")
 st.markdown("Get **real-time insights** across crypto, stocks, and forex — AI-powered with RSI, Bollinger, volatility, and daily summary.")
 
 # -------------------------------
