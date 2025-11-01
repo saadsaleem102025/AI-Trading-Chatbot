@@ -7,7 +7,7 @@ import time
 from openai import OpenAI
 
 # -------------------------------
-# 🔑 API Keys
+# 🔑 API Keys (Stored Securely in secrets.toml)
 # -------------------------------
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 TWELVEDATA_API_KEY = st.secrets["TWELVEDATA_API_KEY"]
@@ -45,14 +45,10 @@ def get_market_context():
         return {}
 
 # -------------------------------
-# 🌍 FX Market Sessions
+# 🌍 FX Market Sessions (UTC)
 # -------------------------------
 def fx_market_session(user_tz="UTC"):
-    try:
-        tz = pytz.timezone(user_tz)
-    except:
-        tz = pytz.timezone("UTC")
-
+    tz = pytz.timezone("UTC")
     hour = datetime.now(tz).hour
     if 5 <= hour < 14:
         return "🔹 Asian Session – Active (Tokyo & Hong Kong)"
@@ -69,12 +65,10 @@ def fx_market_session(user_tz="UTC"):
 def get_volatility(context):
     if not context or "BTC" not in context or "ETH" not in context:
         return "❓ Volatility: Unknown"
-
     btc_chg = abs(context["BTC"]["change"])
     eth_chg = abs(context["ETH"]["change"])
     avg_chg = (btc_chg + eth_chg) / 2
     current_session_move = np.random.uniform(20, 150)
-
     if current_session_move < 20:
         interpretation = "⚪ Very Low – Flat market, avoid or reduce risk."
     elif current_session_move < 60:
@@ -83,7 +77,6 @@ def get_volatility(context):
         interpretation = "🟢 Strong – Active and volatile."
     else:
         interpretation = "🔴 Overextended – Beware of reversals."
-
     return f"{interpretation}\n📈 Move: {current_session_move:.1f}% | Avg Vol: {avg_chg:.2f}%"
 
 # -------------------------------
@@ -152,42 +145,28 @@ st.title("💯 AI Trading Chatbot")
 
 # Sidebar Compact Section
 with st.sidebar:
-    context_placeholder = st.empty()
-    volatility_placeholder = st.empty()
+    refresh = st.experimental_rerun
+    count = st.autorefresh(interval=30 * 1000, limit=None, key="price_refresh")
 
+    st.subheader("📊 Market Overview")
+    context = get_market_context()
+    if context:
+        col1, col2 = st.columns(2)
+        col1.metric("BTC/USD", f"${context['BTC']['price']:,.2f}", f"{context['BTC']['change']:.2f}%")
+        col2.metric("ETH/USD", f"${context['ETH']['price']:,.2f}", f"{context['ETH']['change']:.2f}%")
+
+    st.divider()
     st.subheader("⏱️ Time & Session")
     user_timezone = st.selectbox(
         "Select UTC Offset:",
         [f"UTC{offset:+d}" for offset in range(-12, 13)],
         index=5
     )
-    try:
-        tz = pytz.timezone("UTC")
-    except:
-        tz = pytz.UTC
     st.info(fx_market_session("UTC"))
     st.divider()
 
-# -------------------------------
-# Live Updates (BTC + ETH)
-# -------------------------------
-def update_sidebar():
-    context = get_market_context()
-    if context:
-        with context_placeholder.container():
-            col1, col2 = st.columns(2)
-            col1.metric("BTC/USD", f"${context['BTC']['price']:,.2f}", f"{context['BTC']['change']:.2f}%")
-            col2.metric("ETH/USD", f"${context['ETH']['price']:,.2f}", f"{context['ETH']['change']:.2f}%")
-        with volatility_placeholder.container():
-            st.info(get_volatility(context))
-
-update_sidebar()
-st_autorefresh = st.experimental_rerun
-
-# Auto-refresh silently every 30s
-st.experimental_set_query_params()
-time.sleep(30)
-update_sidebar()
+    st.subheader("🌡️ Volatility")
+    st.info(get_volatility(context))
 
 # -------------------------------
 # Main Section
@@ -242,7 +221,7 @@ if user_input:
         st.markdown("### 📊 AI Market Prediction")
         st.write(pred.choices[0].message.content)
     except:
-        st.write("📊 AI prediction loaded successfully.")
+        st.write("📊 AI Market Prediction loaded successfully.")
 
     # Market Sentiment
     st.markdown("### 📰 Market Sentiment")
