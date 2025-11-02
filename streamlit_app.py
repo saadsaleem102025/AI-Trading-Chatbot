@@ -148,14 +148,27 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
 
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
+
+# Custom BTC/ETH large view (no truncation)
+st.sidebar.markdown("### 🪙 Crypto Snapshot")
+
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    st.metric("BTC (USD)", f"${btc_price:,.2f}", f"{btc_change:.2f}%")
-with col2:
-    st.metric("ETH (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
+btc_col, eth_col = st.sidebar.columns([1, 1])
+with btc_col:
+    st.markdown(f"""
+    <div style='font-size:20px; font-weight:700;'>BTC</div>
+    <div style='font-size:22px;'>${btc_price:,.2f}</div>
+    <div style='font-size:16px; color:{"green" if btc_change >= 0 else "red"};'>{btc_change:+.2f}%</div>
+    """, unsafe_allow_html=True)
+
+with eth_col:
+    st.markdown(f"""
+    <div style='font-size:20px; font-weight:700;'>ETH</div>
+    <div style='font-size:22px;'>${eth_price:,.2f}</div>
+    <div style='font-size:16px; color:{"green" if eth_change >= 0 else "red"};'>{eth_change:+.2f}%</div>
+    """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
@@ -177,7 +190,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(f"💬 **Motivation:** {st.session_state.quote}")
 
 # === MAIN SECTION ===
-st.title("🤖 AI Trading Chatbot")
+st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
