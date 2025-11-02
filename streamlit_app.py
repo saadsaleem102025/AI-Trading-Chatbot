@@ -16,19 +16,9 @@ TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 # === AUTO REFRESH EVERY 30 SECONDS ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
-if "quote" not in st.session_state:
-    st.session_state.quote = "Stay patient — great setups always return."
 
 if time.time() - st.session_state.last_refresh > 30:
     st.session_state.last_refresh = time.time()
-    st.session_state.quote = random.choice([
-        "Discipline beats impulse — trade the plan, not emotions.",
-        "Patience is also a position.",
-        "Focus on setups, not outcomes.",
-        "Stay consistent — every small win builds your edge.",
-        "Calm minds trade best.",
-        "Great traders react less, prepare more."
-    ])
     st.rerun()
 
 # === UTILITIES ===
@@ -49,7 +39,6 @@ def get_crypto_price(symbol_id, vs_currency="usd"):
             raise ValueError("Zero price fallback")
         return round(price, 3), round(change, 2)
     except:
-        # fallback to TwelveData if CoinGecko fails
         try:
             url = f"https://api.twelvedata.com/price?symbol={symbol_id.upper()}/USD&apikey={TWELVE_API_KEY}"
             res = requests.get(url, timeout=10).json()
@@ -137,7 +126,6 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
 
     Suggest a realistic trading plan with:
     Entry ≈ {entry}, Target ≈ {target}, Stop Loss ≈ {stop}.
-    End with one motivational message for the trader.
     """
     try:
         res = openai.chat.completions.create(
@@ -149,15 +137,15 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         return f"{symbol} analysis temporarily unavailable — stay focused and follow your plan."
 
 # === SIDEBAR ===
-st.sidebar.title("📊 Market Context Panel")
+st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>", unsafe_allow_html=True)
 
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-st.sidebar.markdown(f"**BTC:** ${btc_price:,.2f} ({btc_change:+.2f}%)")
-st.sidebar.markdown(f"**ETH:** ${eth_price:,.2f} ({eth_change:+.2f}%)")
+st.sidebar.markdown(f"<p style='font-size:18px;'><b>BTC:</b> ${btc_price:,.2f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p style='font-size:18px;'><b>ETH:</b> ${eth_price:,.2f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
 
-st.sidebar.markdown("### 🌍 Select Your Timezone (UTC)")
+st.sidebar.markdown("<h3 style='font-size:22px;'>🌍 Select Your Timezone (UTC)</h3>", unsafe_allow_html=True)
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
 offset_hours = int(user_offset.replace("UTC", ""))
@@ -165,11 +153,9 @@ offset_hours = int(user_offset.replace("UTC", ""))
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 session, vol = fx_session_volatility(user_time.hour)
 
-st.sidebar.markdown(f"**Session:** {session}")
-st.sidebar.info(interpret_vol(vol))
+st.sidebar.markdown(f"<p style='font-size:18px;'><b>Session:</b> {session}</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p style='font-size:16px;'>{interpret_vol(vol)}</p>", unsafe_allow_html=True)
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"💡 **Motivation:** {st.session_state.quote}")
 
 # === MAIN PANEL ===
 st.title("🤖 AI Trading Chatbot")
