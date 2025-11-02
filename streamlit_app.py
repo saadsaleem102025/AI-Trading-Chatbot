@@ -4,19 +4,17 @@ import requests
 import datetime
 import pandas as pd
 import numpy as np
-import openai
 import random
 
 # === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# === API KEYS ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
 # === AUTO REFRESH EVERY 30 SECONDS ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
-
 if time.time() - st.session_state.last_refresh > 30:
     st.session_state.last_refresh = time.time()
     st.rerun()
@@ -32,20 +30,19 @@ CRYPTO_ID_MAP = {
 def detect_symbol_type(symbol):
     return "crypto" if symbol.upper() in CRYPTO_ID_MAP else "noncrypto"
 
-# === PRICE FETCHER (SAFE + ACCURATE) ===
+# === PRICE FETCHER ===
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
 
-    # Try CoinGecko first
+    # CoinGecko first
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
         res = requests.get(url, params=params, timeout=10)
-        res.raise_for_status()
         data = res.json().get(sid, {})
         price = data.get(vs_currency, 0)
         change = data.get(f"{vs_currency}_24h_change", 0)
-        if 0.00001 < price < 1000000:
+        if 0.0001 < price < 1000000:
             return round(price, 6), round(change, 2)
     except:
         pass
@@ -53,20 +50,18 @@ def get_crypto_price(symbol, vs_currency="usd"):
     # Binance fallback
     try:
         pair = f"{symbol.upper()}USDT"
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
-        res = requests.get(url, timeout=10).json()
+        res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={pair}", timeout=10).json()
         price = float(res.get("price", 0))
-        if 0.00001 < price < 1000000:
+        if 0.0001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
 
     # TwelveData fallback
     try:
-        url = f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}"
-        res = requests.get(url, timeout=10).json()
+        res = requests.get(f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}", timeout=10).json()
         price = float(res.get("price", 0))
-        if 0.00001 < price < 1000000:
+        if 0.0001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
@@ -87,6 +82,7 @@ def get_twelve_data(symbol):
         return None
 
 
+# === INDICATORS ===
 def calculate_rsi(df):
     try:
         deltas = np.diff(df["close"].values)
@@ -99,11 +95,9 @@ def calculate_rsi(df):
 
 
 def interpret_rsi(rsi):
-    if rsi < 20: return "🔴 <20% → Extreme Oversold | Bullish Reversal Chance"
-    if rsi < 40: return "🟠 20–40% → Weak Bearish | Early Long Setup"
-    if rsi < 60: return "🟡 40–60% → Neutral | Consolidation"
-    if rsi < 80: return "🟢 60–80% → Strong Bullish | Trend Continuation"
-    return "🔵 >80% → Overbought | Bearish Reversal Risk"
+    if rsi < 30: return "RSI indicates an oversold condition, hinting at a potential bullish reversal."
+    if rsi > 70: return "RSI indicates overbought levels, suggesting a possible correction."
+    return "RSI indicates a neutral position, suggesting consolidation may prevail."
 
 
 def bollinger_signal(df):
@@ -113,11 +107,11 @@ def bollinger_signal(df):
         df["Upper"] = df["MA20"] + 2 * df["STD"]
         df["Lower"] = df["MA20"] - 2 * df["STD"]
         c = df["close"].iloc[-1]
-        if c > df["Upper"].iloc[-1]: return "Above Upper Band → Overbought"
-        if c < df["Lower"].iloc[-1]: return "Below Lower Band → Oversold"
-        return "Inside Bands → Normal"
+        if c > df["Upper"].iloc[-1]: return "Bollinger Bands show that the asset is overbought, caution is advised."
+        if c < df["Lower"].iloc[-1]: return "Bollinger Bands show that the asset is currently oversold, which could present a buying opportunity."
+        return "Bollinger Bands show the price is within a normal range."
     except:
-        return "Neutral"
+        return "Bollinger Bands data unavailable."
 
 
 def supertrend_signal(df):
@@ -126,11 +120,15 @@ def supertrend_signal(df):
         atr = df["high"] - df["low"]
         lower = hl2 - 3 * atr
         close = df["close"].iloc[-1]
-        return "Supertrend: Bullish" if close > lower.iloc[-1] else "Supertrend: Bearish"
+        if close > lower.iloc[-1]:
+            return "Supertrend is bullish, indicating a potential upward trend."
+        else:
+            return "Supertrend is bearish, indicating possible downside pressure."
     except:
-        return "Supertrend: Neutral"
+        return "Supertrend data unavailable."
 
 
+# === VOLATILITY ===
 def fx_session_volatility(hour):
     if 22 <= hour or hour < 7: return "Sydney Session", 40
     if 0 <= hour < 9: return "Tokyo Session", 60
@@ -145,21 +143,28 @@ def interpret_vol(vol):
     return "🔴 High Volatility – Reversal Risk"
 
 
+# === AI RESPONSE ===
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
-    # ✅ Ensure realistic price usage
-    if price <= 0 or price > 1000000:
-        return f"{symbol}: ⚠️ Live price unavailable — please try again shortly."
+    if price <= 0:
+        return f"{symbol}: ⚠️ Price data unavailable, please retry shortly."
 
-    # ✅ Keep targets realistic (±2–6%)
-    entry = round(price * random.uniform(0.99, 1.01), 4)
-    target = round(price * random.uniform(1.02, 1.06), 4)
-    stop = round(price * random.uniform(0.96, 0.99), 4)
+    entry = round(price * random.uniform(0.985, 0.995), 4)
+    target = round(price * random.uniform(1.03, 1.07), 4)
+    stop = round(price * random.uniform(0.95, 0.98), 4)
+
+    motivation = random.choice([
+        "Patience is the hidden edge — consistency beats prediction.",
+        "Control your emotions; focus on process, not outcome.",
+        "Discipline turns volatility into opportunity.",
+        "Stay calm; trends favor the patient trader.",
+        "Trading success is built on small, smart decisions repeated daily."
+    ])
 
     return f"""
 Based on the technical analysis for **{symbol} ({vs_currency.upper()})**:
 
-RSI indicates: {rsi_text}
-Bollinger Bands: {boll_text}
+{rsi_text}
+{boll_text}
 {trend_text}
 
 **Suggested Trading Position:**
@@ -167,31 +172,25 @@ Buy near: {entry} {vs_currency.upper()}
 Target: {target} {vs_currency.upper()}
 Stop Loss: {stop} {vs_currency.upper()}
 
-📈 **Technical Summary for {symbol}**
-RSI: {rsi_text}
-Bollinger Bands: {boll_text}
-{trend_text}
+💡 *{motivation}*
 """.strip()
 
 
 # === SIDEBAR ===
 st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>", unsafe_allow_html=True)
-
 btc_price, btc_change = get_crypto_price("BTC")
 eth_price, eth_change = get_crypto_price("ETH")
+st.sidebar.markdown(f"<p><b>BTC:</b> ${btc_price:,.4f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p><b>ETH:</b> ${eth_price:,.4f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
 
-st.sidebar.markdown(f"<p style='font-size:18px;'><b>BTC:</b> ${btc_price:,.4f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<p style='font-size:18px;'><b>ETH:</b> ${eth_price:,.4f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
-
-st.sidebar.markdown("<h3 style='font-size:22px;'>🌍 Select Your Timezone (UTC)</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3>🌍 Select Your Timezone (UTC)</h3>", unsafe_allow_html=True)
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
 offset_hours = int(user_offset.replace("UTC", ""))
-
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 session, vol = fx_session_volatility(user_time.hour)
-st.sidebar.markdown(f"<p style='font-size:18px;'><b>Session:</b> {session}</p>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<p style='font-size:16px;'>{interpret_vol(vol)}</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<b>Session:</b> {session}")
+st.sidebar.markdown(interpret_vol(vol))
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 
 # === MAIN PANEL ===
@@ -219,11 +218,7 @@ if user_input:
         df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
 
     rsi = calculate_rsi(df)
-    rsi_text = interpret_rsi(rsi)
-    boll_text = bollinger_signal(df)
-    trend_text = supertrend_signal(df)
-
-    ai_text = get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
+    ai_text = get_ai_analysis(symbol, price, interpret_rsi(rsi), bollinger_signal(df), supertrend_signal(df), vs_currency)
     st.success(ai_text)
 else:
     st.info("💬 Enter an asset symbol to get AI-powered real-time analysis.")
