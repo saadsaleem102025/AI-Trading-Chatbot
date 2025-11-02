@@ -29,10 +29,7 @@ if time.time() - st.session_state.last_refresh > 30:
         "Calm minds trade best."
     ])
 
-# === REFRESH META TAG ===
-st.sidebar.markdown("<meta http-equiv='refresh' content='30'>", unsafe_allow_html=True)
-
-# === FUNCTIONS ===
+# === UTILITIES ===
 def detect_symbol_type(symbol):
     crypto_list = ["BTC", "ETH", "SOL", "AVAX", "BNB", "XRP", "DOGE", "ADA", "DOT", "LTC"]
     return "crypto" if symbol.upper() in crypto_list else "noncrypto"
@@ -121,7 +118,7 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     Price: {price:.2f} {vs_currency.upper()}
     Suggest realistic entry/exit:
     "Buy near {price*0.98:.2f}, Target {price*1.03:.2f}, Stop {price*0.96:.2f}".
-    End with 1 motivational line.
+    End with one motivational line.
     """
     try:
         res = openai.chat.completions.create(
@@ -132,44 +129,16 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     except:
         return f"{symbol} analysis unavailable — stay disciplined."
 
-# === SIDEBAR STYLE ===
-st.sidebar.markdown("""
-<style>
-[data-testid="stSidebar"] {
-    padding-top: 0rem !important;
-    background-color: #F8F9FA;
-    overflow-y: visible !important;
-}
-.crypto-symbol {font-size: 26px; font-weight: 800; color: #000;}
-.crypto-price {font-size: 22px; font-weight: 700;}
-.crypto-change {font-size: 18px; font-weight: 600;}
-.sidebar-section {margin-bottom: 0.8rem;}
-</style>
-""", unsafe_allow_html=True)
-
-# === SIDEBAR CONTENT ===
+# === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
 
-# BTC / ETH Prices
-st.sidebar.markdown("### 🪙 Live Crypto Snapshot")
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-st.sidebar.markdown(
-    f"<div class='crypto-symbol'>BTC</div>"
-    f"<div class='crypto-price'>${btc_price:,.2f}</div>"
-    f"<div class='crypto-change' style='color:{'green' if btc_change>=0 else 'red'}'>{btc_change:+.2f}%</div>",
-    unsafe_allow_html=True)
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    f"<div class='crypto-symbol'>ETH</div>"
-    f"<div class='crypto-price'>${eth_price:,.2f}</div>"
-    f"<div class='crypto-change' style='color:{'green' if eth_change>=0 else 'red'}'>{eth_change:+.2f}%</div>",
-    unsafe_allow_html=True)
-st.sidebar.markdown("---")
+st.sidebar.markdown(f"**BTC:** ${btc_price:,.2f} ({btc_change:+.2f}%)")
+st.sidebar.markdown(f"**ETH:** ${eth_price:,.2f} ({eth_change:+.2f}%)")
 
-# Timezone
-st.sidebar.markdown("### 🌍 Select Your Timezone (UTC Offset)")
+st.sidebar.markdown("### 🌍 Select Your Timezone (UTC)")
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
 
@@ -177,28 +146,27 @@ offset_hours = int(user_offset.replace("UTC", ""))
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 session, vol = fx_session_volatility(user_time.hour)
 
-st.sidebar.markdown(f"### 💹 {session}")
+st.sidebar.markdown(f"**Session:** {session}")
 st.sidebar.info(interpret_vol(vol))
-st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%Y-%m-%d %H:%M:%S')} ({user_offset})")
+st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 st.sidebar.markdown("---")
-
-# Motivation
 st.sidebar.markdown(f"💬 **Motivation:** {st.session_state.quote}")
 
-# === MAIN CHAT ===
-st.title("AI Trading Chatbot")
+# === MAIN PANEL ===
+st.title("🤖 AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Name or Symbol (e.g., BTC, AAPL, EURUSD, GOLD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD, GOLD)")
 with col2:
-    vs_currency = st.text_input("Quote Currency (e.g., USD, EUR, JPY)", "usd").lower()
+    vs_currency = st.text_input("Quote Currency", "usd").lower()
 
 if user_input:
     symbol = user_input.strip().upper()
     sym_type = detect_symbol_type(symbol)
     df = get_twelve_data(f"{symbol}/{vs_currency.upper()}") if sym_type == "crypto" else get_twelve_data(symbol)
-    price = get_crypto_price(symbol.lower(), vs_currency)[0] if sym_type == "crypto" else (df["close"].astype(float).iloc[-1] if df is not None else 0.0)
+    price = get_crypto_price(symbol.lower(), vs_currency)[0] if sym_type == "crypto" else (
+        df["close"].astype(float).iloc[-1] if df is not None else 0.0)
 
     if df is None or df.empty:
         df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
