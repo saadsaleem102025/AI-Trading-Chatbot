@@ -13,7 +13,7 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === AUTO REFRESH MOTIVATION QUOTES (30s) ===
+# === AUTO REFRESH QUOTES (30s) ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
 if "quote" not in st.session_state:
@@ -28,6 +28,12 @@ if time.time() - st.session_state.last_refresh > 30:
         "Stay consistent — every small win builds your edge.",
         "Calm minds trade best."
     ])
+
+# === REFRESH INTERVAL (BTC/ETH Live Update) ===
+st_autorefresh = st.sidebar.empty()
+st_autorefresh.markdown(
+    "<meta http-equiv='refresh' content='30'>", unsafe_allow_html=True
+)
 
 # === HELPER FUNCTIONS ===
 def detect_symbol_type(symbol: str):
@@ -146,41 +152,41 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     except Exception:
         return f"{symbol} analysis unavailable — stay disciplined and trust your process."
 
-# === SIDEBAR ===
+# === SIDEBAR STYLING ===
 st.sidebar.markdown(
     """
     <style>
     [data-testid="stSidebar"] {
-        padding-top: 0rem !important;
+        padding-top: 0.3rem !important;
     }
     .crypto-block {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 0.5rem;
+        text-align: center;
+        margin-bottom: 0.7rem;
+        font-family: 'Segoe UI', sans-serif;
     }
     .crypto-symbol {
-        font-size: 22px;
-        font-weight: 700;
-        margin-bottom: 0.2rem;
+        font-size: 24px;
+        font-weight: 800;
+        color: #0a0a0a;
     }
     .crypto-price {
         font-size: 22px;
         font-weight: 600;
-        line-height: 1.3;
+        color: #1a1a1a;
     }
     .crypto-change {
         font-size: 18px;
-        margin-top: 0.2rem;
+        font-weight: 500;
+        margin-top: 0.1rem;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# === SIDEBAR CONTENT ===
 st.sidebar.title("📊 Market Context Panel")
-st.sidebar.markdown("### 🪙 Crypto Snapshot")
+st.sidebar.markdown("### 🪙 Live Crypto Snapshot")
 
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
@@ -206,7 +212,7 @@ with eth_col:
 
 st.sidebar.markdown("---")
 
-# === USER TIMEZONE ===
+# === TIMEZONE & VOLATILITY ===
 st.sidebar.markdown("### 🌍 Select Your Timezone (UTC Offset)")
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
@@ -223,7 +229,7 @@ st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%Y-%m-%d %H:%M:%S')} 
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"💬 **Motivation:** {st.session_state.quote}")
 
-# === MAIN SECTION ===
+# === MAIN ===
 st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
