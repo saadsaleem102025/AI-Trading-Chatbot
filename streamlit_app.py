@@ -23,10 +23,11 @@ if time.time() - st.session_state.last_refresh > 30:
 
 # === UTILITIES ===
 def detect_symbol_type(symbol):
-    crypto_list = ["BTC", "ETH", "SOL", "AVAX", "BNB", "XRP", "DOGE", "ADA", "DOT", "LTC"]
+    crypto_list = ["BTC", "ETH", "SOL", "AVAX", "BNB", "XRP", "DOGE", "ADA", "DOT", "LTC", "CFX"]
     return "crypto" if symbol.upper() in crypto_list else "noncrypto"
 
 def get_crypto_price(symbol_id, vs_currency="usd"):
+    # Try CoinGecko
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": symbol_id.lower(), "vs_currencies": vs_currency, "include_24hr_change": "true"}
@@ -35,17 +36,44 @@ def get_crypto_price(symbol_id, vs_currency="usd"):
         data = res.json().get(symbol_id.lower(), {})
         price = data.get(vs_currency, 0)
         change = data.get(f"{vs_currency}_24h_change", 0)
-        if price == 0:
-            raise ValueError("Zero price fallback")
-        return round(price, 3), round(change, 2)
+        if price > 0:
+            return round(price, 6), round(change, 2)
     except:
-        try:
-            url = f"https://api.twelvedata.com/price?symbol={symbol_id.upper()}/USD&apikey={TWELVE_API_KEY}"
-            res = requests.get(url, timeout=10).json()
-            price = float(res.get("price", 0))
-            return price, 0.0
-        except:
-            return 0.0, 0.0
+        pass
+
+    # Try CoinPaprika
+    try:
+        url = f"https://api.coinpaprika.com/v1/tickers/{symbol_id.lower()}-{vs_currency.lower()}"
+        res = requests.get(url, timeout=10).json()
+        price = res.get("quotes", {}).get(vs_currency.upper(), {}).get("price", 0)
+        if price > 0:
+            return round(price, 6), 0.0
+    except:
+        pass
+
+    # Try Binance public API
+    try:
+        pair = f"{symbol_id.upper()}USDT"
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
+        res = requests.get(url, timeout=10).json()
+        price = float(res.get("price", 0))
+        if price > 0:
+            return round(price, 6), 0.0
+    except:
+        pass
+
+    # Try Twelve Data as last resort
+    try:
+        url = f"https://api.twelvedata.com/price?symbol={symbol_id.upper()}/USD&apikey={TWELVE_API_KEY}"
+        res = requests.get(url, timeout=10).json()
+        price = float(res.get("price", 0))
+        if price > 0:
+            return round(price, 6), 0.0
+    except:
+        pass
+
+    # Fallback
+    return 0.0, 0.0
 
 def get_twelve_data(symbol):
     try:
@@ -113,22 +141,23 @@ def interpret_vol(vol):
 
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
     if price <= 0:
-        return f"{symbol} data not available, check input."
-    entry = round(price * random.uniform(0.97, 0.99), 3)
-    target = round(price * random.uniform(1.02, 1.05), 3)
-    stop = round(price * random.uniform(0.94, 0.97), 3)
+        return f"{symbol} price unavailable. Try again later."
+    
+    # Ensure proper scale
+    entry = round(price * random.uniform(0.98, 0.995), 6)
+    target = round(price * random.uniform(1.01, 1.03), 6)
+    stop = round(price * random.uniform(0.97, 0.99), 6)
 
-    # Add motivational message directive
     prompt = f"""
     Technical analysis for {symbol} ({vs_currency.upper()}):
     - RSI: {rsi_text}
     - Bollinger Bands: {boll_text}
     - Supertrend: {trend_text}
-    Current Price: {price:.2f} {vs_currency.upper()}.
+    Current Price: {price:.6f} {vs_currency.upper()}.
 
-    Suggest a realistic short-term trading plan with:
+    Suggest a realistic trading plan using the price scale above:
     Entry ≈ {entry}, Target ≈ {target}, Stop Loss ≈ {stop}.
-    End the message with a short motivational line to encourage trading discipline.
+    End with a motivational line for traders.
     """
 
     try:
@@ -138,7 +167,7 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         )
         return res.choices[0].message.content.strip()
     except:
-        return f"{symbol} analysis temporarily unavailable — stay focused and follow your plan."
+        return f"{symbol} analysis temporarily unavailable — trust your setup and stay patient."
 
 # === SIDEBAR ===
 st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>", unsafe_allow_html=True)
@@ -146,8 +175,8 @@ st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>"
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-st.sidebar.markdown(f"<p style='font-size:18px;'><b>BTC:</b> ${btc_price:,.2f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<p style='font-size:18px;'><b>ETH:</b> ${eth_price:,.2f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p style='font-size:18px;'><b>BTC:</b> ${btc_price:,.4f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p style='font-size:18px;'><b>ETH:</b> ${eth_price:,.4f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
 
 st.sidebar.markdown("<h3 style='font-size:22px;'>🌍 Select Your Timezone (UTC)</h3>", unsafe_allow_html=True)
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
@@ -166,7 +195,7 @@ st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD, GOLD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD, CFX)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
