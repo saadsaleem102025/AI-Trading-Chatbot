@@ -1,19 +1,25 @@
 import streamlit as st
+import time
 import requests
 import datetime
 import pandas as pd
 import numpy as np
 import openai
 import random
-from streamlit_autorefresh import st_autorefresh
 
 # === CONFIG ===
-st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
+st.set_page_config(page_title="AI Trading Chatbot", layout="wide")
 
 # Auto-refresh every 30 seconds
-st_autorefresh(interval=30 * 1000, key="data_refresh")
+REFRESH_INTERVAL = 30
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = time.time()
+elif time.time() - st.session_state.last_refresh > REFRESH_INTERVAL:
+    st.session_state.last_refresh = time.time()
+    st.rerun()
+
+# Continue with rest of your existing imports and functions here...
+
 
 # === HELPERS ===
 def get_crypto_price(symbol_id, fallback_price):
