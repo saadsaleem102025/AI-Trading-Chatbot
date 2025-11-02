@@ -142,7 +142,7 @@ def interpret_vol(vol):
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
     if price <= 0:
         return f"{symbol} price unavailable. Try again later."
-    
+
     # Ensure proper scale
     entry = round(price * random.uniform(0.98, 0.995), 6)
     target = round(price * random.uniform(1.01, 1.03), 6)
@@ -155,9 +155,10 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     - Supertrend: {trend_text}
     Current Price: {price:.6f} {vs_currency.upper()}.
 
-    Suggest a realistic trading plan using the price scale above:
+    Suggest a realistic short-term trading plan using the price scale above:
     Entry ≈ {entry}, Target ≈ {target}, Stop Loss ≈ {stop}.
-    End with a motivational line for traders.
+    End with a motivational line specifically related to trading psychology 
+    (themes: patience, discipline, risk control, emotional balance, consistency).
     """
 
     try:
@@ -167,7 +168,15 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         )
         return res.choices[0].message.content.strip()
     except:
-        return f"{symbol} analysis temporarily unavailable — trust your setup and stay patient."
+        # fallback motivational line
+        fallback_quotes = [
+            "Trading is a game of patience — not prediction.",
+            "Discipline beats emotion every single trade.",
+            "Focus on process, not outcome — profits follow consistency.",
+            "The best traders trade less, but think more.",
+            "Control risk, and the profits will take care of themselves."
+        ]
+        return f"{symbol} analysis temporarily unavailable — {random.choice(fallback_quotes)}"
 
 # === SIDEBAR ===
 st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>", unsafe_allow_html=True)
