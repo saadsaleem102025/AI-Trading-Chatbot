@@ -125,6 +125,7 @@ def motivational_quote():
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
 
+# BTC/ETH prices
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
@@ -133,20 +134,20 @@ if btc_price:
 if eth_price:
     st.sidebar.metric("ETH Price (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
 
-# Timezone selection
-st.sidebar.markdown("### 🌍 Timezone (UTC-based)")
-utc_offset = st.sidebar.selectbox("Select UTC Offset", [f"UTC{offset:+}" for offset in range(-12, 13)], index=5)
+# Timezone
+st.sidebar.markdown("### 🌍 Timezone (UTC)")
 now_utc = datetime.datetime.utcnow()
-st.sidebar.write(f"🕒 Current time: {(now_utc + datetime.timedelta(hours=int(utc_offset[3:]))).strftime('%Y-%m-%d %H:%M:%S')}")
+st.sidebar.write(f"🕒 Current Time (UTC): {now_utc.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# FX Session Volatility
+# FX Session Volatility — instantly display meaning
 st.sidebar.markdown("### 💹 FX Market Session Volatility")
 vol_input = st.sidebar.slider("Current % Movement", 0, 150, 60)
-st.sidebar.write(fx_volatility_indicator(vol_input))
+vol_msg = fx_volatility_indicator(vol_input)
+st.sidebar.info(vol_msg)  # Shows message right under the slider immediately
 
 # === MAIN CHAT AREA ===
 st.title(" AI Trading Chatbot")
-user_input = st.text_input("Enter Asset Name or Symbol:")
+user_input = st.text_input("Enter Asset Name or Symbol")
 
 if user_input:
     st.write("---")
