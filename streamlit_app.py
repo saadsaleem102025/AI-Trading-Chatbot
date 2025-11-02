@@ -41,7 +41,7 @@ def get_crypto_price(symbol_id, vs_currency="usd"):
         res = requests.get(url, params=params, timeout=8)
         res.raise_for_status()
         data = res.json().get(symbol_id.lower(), {})
-        return round(data.get(vs_currency, 0), 3), round(data.get(f"{vs_currency}_24h_change", 0), 2)
+        return round(data.get(vs_currency, 0), 2), round(data.get(f"{vs_currency}_24h_change", 0), 2)
     except Exception:
         return 0.0, 0.0
 
@@ -147,27 +147,61 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         return f"{symbol} analysis unavailable — stay disciplined and trust your process."
 
 # === SIDEBAR ===
-st.sidebar.title("📊 Market Context Panel")
+st.sidebar.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] {
+        padding-top: 0rem !important;
+    }
+    .crypto-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+    }
+    .crypto-symbol {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+    .crypto-price {
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+    .crypto-change {
+        font-size: 18px;
+        margin-top: 0.2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# Custom BTC/ETH large view (no truncation)
+st.sidebar.title("📊 Market Context Panel")
 st.sidebar.markdown("### 🪙 Crypto Snapshot")
 
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-btc_col, eth_col = st.sidebar.columns([1, 1])
+btc_col, eth_col = st.sidebar.columns(2)
 with btc_col:
     st.markdown(f"""
-    <div style='font-size:20px; font-weight:700;'>BTC</div>
-    <div style='font-size:22px;'>${btc_price:,.2f}</div>
-    <div style='font-size:16px; color:{"green" if btc_change >= 0 else "red"};'>{btc_change:+.2f}%</div>
+    <div class='crypto-block'>
+        <div class='crypto-symbol'>BTC</div>
+        <div class='crypto-price'>${btc_price:,.2f}</div>
+        <div class='crypto-change' style='color:{"green" if btc_change >= 0 else "red"};'>{btc_change:+.2f}%</div>
+    </div>
     """, unsafe_allow_html=True)
 
 with eth_col:
     st.markdown(f"""
-    <div style='font-size:20px; font-weight:700;'>ETH</div>
-    <div style='font-size:22px;'>${eth_price:,.2f}</div>
-    <div style='font-size:16px; color:{"green" if eth_change >= 0 else "red"};'>{eth_change:+.2f}%</div>
+    <div class='crypto-block'>
+        <div class='crypto-symbol'>ETH</div>
+        <div class='crypto-price'>${eth_price:,.2f}</div>
+        <div class='crypto-change' style='color:{"green" if eth_change >= 0 else "red"};'>{eth_change:+.2f}%</div>
+    </div>
     """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
