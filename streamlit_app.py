@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import openai
 import random
-import re
 
 # === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -27,16 +26,17 @@ CRYPTO_ID_MAP = {
     "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "AVAX": "avalanche-2",
     "BNB": "binancecoin", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano",
     "DOT": "polkadot", "LTC": "litecoin", "CFX": "conflux-token", "XLM": "stellar",
-    "SHIB": "shiba-inu", "PEPE": "pepe", "TON": "the-open-network", "SUI": "sui"
+    "SHIB": "shiba-inu", "PEPE": "pepe", "TON": "the-open-network", "SUI": "sui", "NEAR": "near"
 }
 
 def detect_symbol_type(symbol):
     return "crypto" if symbol.upper() in CRYPTO_ID_MAP else "noncrypto"
 
+# === PRICE FETCHER (SAFE + ACCURATE) ===
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
 
-    # CoinGecko first
+    # Try CoinGecko first
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
@@ -45,7 +45,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
         data = res.json().get(sid, {})
         price = data.get(vs_currency, 0)
         change = data.get(f"{vs_currency}_24h_change", 0)
-        if price > 0:
+        if 0.00001 < price < 1000000:
             return round(price, 6), round(change, 2)
     except:
         pass
@@ -56,7 +56,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
         res = requests.get(url, timeout=10).json()
         price = float(res.get("price", 0))
-        if price > 0:
+        if 0.00001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
@@ -66,7 +66,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
         url = f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
         price = float(res.get("price", 0))
-        if price > 0:
+        if 0.00001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
@@ -126,9 +126,9 @@ def supertrend_signal(df):
         atr = df["high"] - df["low"]
         lower = hl2 - 3 * atr
         close = df["close"].iloc[-1]
-        return "Bullish" if close > lower.iloc[-1] else "Bearish"
+        return "Supertrend: Bullish" if close > lower.iloc[-1] else "Supertrend: Bearish"
     except:
-        return "Neutral"
+        return "Supertrend: Neutral"
 
 
 def fx_session_volatility(hour):
@@ -146,40 +146,31 @@ def interpret_vol(vol):
 
 
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
-    if price <= 0:
-        return f"{symbol}: Price unavailable — please try again shortly."
+    # ✅ Ensure realistic price usage
+    if price <= 0 or price > 1000000:
+        return f"{symbol}: ⚠️ Live price unavailable — please try again shortly."
 
-    entry = round(price * random.uniform(0.985, 0.995), 6)
-    target = round(price * random.uniform(1.03, 1.08), 6)
-    stop = round(price * random.uniform(0.94, 0.97), 6)
-
-    motivational_quotes = [
-        "Every great investment journey starts with a single step—believe in your strategy and keep moving forward!",
-        "Patience and discipline are your best trading allies—trust your plan.",
-        "Consistency beats intensity—trade smart, not often.",
-        "Stay calm in volatility—your edge is your mindset.",
-        "Every candle tells a story; keep learning from them."
-    ]
-    quote = random.choice(motivational_quotes)
+    # ✅ Keep targets realistic (±2–6%)
+    entry = round(price * random.uniform(0.99, 1.01), 4)
+    target = round(price * random.uniform(1.02, 1.06), 4)
+    stop = round(price * random.uniform(0.96, 0.99), 4)
 
     return f"""
 Based on the technical analysis for **{symbol} ({vs_currency.upper()})**:
 
 RSI indicates: {rsi_text}
 Bollinger Bands: {boll_text}
-Supertrend: {trend_text}
+{trend_text}
 
 **Suggested Trading Position:**
 Buy near: {entry} {vs_currency.upper()}
 Target: {target} {vs_currency.upper()}
 Stop Loss: {stop} {vs_currency.upper()}
 
-{quote}
-
 📈 **Technical Summary for {symbol}**
 RSI: {rsi_text}
 Bollinger Bands: {boll_text}
-Supertrend: {trend_text}
+{trend_text}
 """.strip()
 
 
@@ -223,7 +214,8 @@ if user_input:
         df = get_twelve_data(symbol)
         price = df["close"].astype(float).iloc[-1] if df is not None else 0.0
 
-    if df is None or df.empty:
+    if df is None or df.empty or price <= 0:
+        price, _ = get_crypto_price(symbol, vs_currency)
         df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
 
     rsi = calculate_rsi(df)
