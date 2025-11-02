@@ -13,9 +13,11 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === AUTO REFRESH QUOTES (30s) ===
+# === AUTO REFRESH MOTIVATION QUOTES (30s) ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
+if "quote" not in st.session_state:
+    st.session_state.quote = "Stay patient — great setups always return."
 
 if time.time() - st.session_state.last_refresh > 30:
     st.session_state.last_refresh = time.time()
@@ -26,17 +28,11 @@ if time.time() - st.session_state.last_refresh > 30:
         "Stay consistent — every small win builds your edge.",
         "Calm minds trade best."
     ])
-else:
-    if "quote" not in st.session_state:
-        st.session_state.quote = "Stay patient — great setups always return."
-
 
 # === HELPER FUNCTIONS ===
-
 def detect_symbol_type(symbol: str):
     crypto_keywords = ["BTC", "ETH", "SOL", "AVAX", "BNB", "XRP", "DOGE", "ADA", "DOT", "LTC"]
     return "crypto" if symbol.upper() in crypto_keywords else "noncrypto"
-
 
 def get_crypto_price(symbol_id, vs_currency="usd"):
     try:
@@ -48,7 +44,6 @@ def get_crypto_price(symbol_id, vs_currency="usd"):
         return round(data.get(vs_currency, 0), 3), round(data.get(f"{vs_currency}_24h_change", 0), 2)
     except Exception:
         return 0.0, 0.0
-
 
 def get_twelve_data(symbol):
     try:
@@ -63,7 +58,6 @@ def get_twelve_data(symbol):
     except Exception:
         return None
 
-
 def calculate_rsi(df):
     try:
         prices = df["close"].values
@@ -75,19 +69,17 @@ def calculate_rsi(df):
     except Exception:
         return random.uniform(40, 60)
 
-
 def interpret_rsi(rsi):
     if rsi < 20:
         return "🔴 <20% → Extreme Oversold | Bullish Reversal Chance"
     elif rsi < 40:
         return "🟠 20–40% → Weak Bearish | Early Long Setup"
     elif rsi < 60:
-        return "🟡 40–60% → Neutral | Possible Consolidation"
+        return "🟡 40–60% → Neutral | Consolidation"
     elif rsi < 80:
         return "🟢 60–80% → Strong Bullish | Trend Continuation"
     else:
         return "🔵 >80% → Overbought | Bearish Reversal Risk"
-
 
 def bollinger_signal(df):
     try:
@@ -105,7 +97,6 @@ def bollinger_signal(df):
     except Exception:
         return "Neutral"
 
-
 def supertrend_signal(df):
     try:
         hl2 = (df["high"] + df["low"]) / 2
@@ -115,7 +106,6 @@ def supertrend_signal(df):
         return "Bullish" if close > lower.iloc[-1] else "Bearish"
     except Exception:
         return "Neutral"
-
 
 def fx_session_volatility(hour_utc):
     if 22 <= hour_utc or hour_utc < 7:
@@ -127,7 +117,6 @@ def fx_session_volatility(hour_utc):
     else:
         return "New York Session", 120
 
-
 def interpret_vol(vol):
     if vol < 40:
         return "⚪ Low Volatility – Sideways Market"
@@ -138,7 +127,6 @@ def interpret_vol(vol):
     else:
         return "🔴 High Volatility – Reversal Risk"
 
-
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
     prompt = f"""
     Provide a concise technical analysis for {symbol} ({vs_currency.upper()}):
@@ -146,8 +134,8 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     - Bollinger Bands: {boll_text}
     - Supertrend: {trend_text}
     Current Price: {price:.2f} {vs_currency.upper()}
-    Give realistic entry and exit prices like: "Buy near 132.5 – Target 136 – Stop 130".
-    End with one short motivational line.
+    Give realistic entry and exit prices like: "Buy near {price*0.98:.2f} – Target {price*1.03:.2f} – Stop {price*0.96:.2f}".
+    End with one motivational line.
     """
     try:
         res = openai.chat.completions.create(
@@ -158,20 +146,23 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     except Exception:
         return f"{symbol} analysis unavailable — stay disciplined and trust your process."
 
-
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
-
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-st.sidebar.metric("BTC (USD)", f"${btc_price:,.2f}", f"{btc_change:.2f}%")
-st.sidebar.metric("ETH (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    st.metric("BTC (USD)", f"${btc_price:,.2f}", f"{btc_change:.2f}%")
+with col2:
+    st.metric("ETH (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
 
-# === USER TIMEZONE BASED ON UTC ===
+st.sidebar.markdown("---")
+
+# === USER TIMEZONE ===
 st.sidebar.markdown("### 🌍 Select Your Timezone (UTC Offset)")
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
-user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)  # Default UTC+5
+user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
 
 offset_hours = int(user_offset.replace("UTC", ""))
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
@@ -180,10 +171,13 @@ hour_utc = user_time.hour
 session, vol = fx_session_volatility(hour_utc)
 st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_vol(vol))
-st.sidebar.write(f"🕒 Local Time: {user_time.strftime('%Y-%m-%d %H:%M:%S')} ({user_offset})")
+st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%Y-%m-%d %H:%M:%S')} ({user_offset})")
 
-# === MAIN CHAT ===
-st.title("AI Trading Chatbot")
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"💬 **Motivation:** {st.session_state.quote}")
+
+# === MAIN SECTION ===
+st.title("🤖 AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -218,9 +212,5 @@ if user_input:
     st.write(f"**RSI:** {rsi_text}")
     st.write(f"**Bollinger Bands:** {boll_text}")
     st.write(f"**Supertrend:** {trend_text}")
-
-    st.info(f"💬 Motivation: {st.session_state.quote}")
-
 else:
-    st.write("👋 Welcome to the **AI Trading Chatbot** — Enter any asset symbol (crypto, stock, or forex) and get real-time analysis!")
-    st.info(st.session_state.quote)
+    st.info("💬 Enter any asset symbol or name to get instant real-time AI analysis.")
