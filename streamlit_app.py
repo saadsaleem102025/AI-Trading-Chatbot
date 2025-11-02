@@ -13,7 +13,7 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === AUTO REFRESH QUOTES & MOTIVATION (30s) ===
+# === AUTO REFRESH EVERY 30 SECONDS ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
 if "quote" not in st.session_state:
@@ -26,8 +26,10 @@ if time.time() - st.session_state.last_refresh > 30:
         "Patience is also a position.",
         "Focus on setups, not outcomes.",
         "Stay consistent — every small win builds your edge.",
-        "Calm minds trade best."
+        "Calm minds trade best.",
+        "Great traders react less, prepare more."
     ])
+    st.rerun()
 
 # === UTILITIES ===
 def detect_symbol_type(symbol):
@@ -38,12 +40,23 @@ def get_crypto_price(symbol_id, vs_currency="usd"):
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": symbol_id.lower(), "vs_currencies": vs_currency, "include_24hr_change": "true"}
-        res = requests.get(url, params=params, timeout=8)
+        res = requests.get(url, params=params, timeout=10)
         res.raise_for_status()
         data = res.json().get(symbol_id.lower(), {})
-        return round(data.get(vs_currency, 0), 2), round(data.get(f"{vs_currency}_24h_change", 0), 2)
+        price = data.get(vs_currency, 0)
+        change = data.get(f"{vs_currency}_24h_change", 0)
+        if price == 0:
+            raise ValueError("Zero price fallback")
+        return round(price, 3), round(change, 2)
     except:
-        return 0.0, 0.0
+        # fallback to TwelveData if CoinGecko fails
+        try:
+            url = f"https://api.twelvedata.com/price?symbol={symbol_id.upper()}/USD&apikey={TWELVE_API_KEY}"
+            res = requests.get(url, timeout=10).json()
+            price = float(res.get("price", 0))
+            return price, 0.0
+        except:
+            return 0.0, 0.0
 
 def get_twelve_data(symbol):
     try:
@@ -110,15 +123,21 @@ def interpret_vol(vol):
     return "🔴 High Volatility – Reversal Risk"
 
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
+    if price <= 0:
+        return f"{symbol} data not available, check input."
+    entry = round(price * random.uniform(0.97, 0.99), 3)
+    target = round(price * random.uniform(1.02, 1.05), 3)
+    stop = round(price * random.uniform(0.94, 0.97), 3)
     prompt = f"""
     Technical analysis for {symbol} ({vs_currency.upper()}):
     - RSI: {rsi_text}
     - Bollinger Bands: {boll_text}
     - Supertrend: {trend_text}
     Price: {price:.2f} {vs_currency.upper()}
-    Suggest realistic entry/exit:
-    "Buy near {price*0.98:.2f}, Target {price*1.03:.2f}, Stop {price*0.96:.2f}".
-    End with one motivational line.
+
+    Suggest a realistic trading plan with:
+    Entry ≈ {entry}, Target ≈ {target}, Stop Loss ≈ {stop}.
+    End with one motivational message for the trader.
     """
     try:
         res = openai.chat.completions.create(
@@ -127,7 +146,7 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         )
         return res.choices[0].message.content.strip()
     except:
-        return f"{symbol} analysis unavailable — stay disciplined."
+        return f"{symbol} analysis temporarily unavailable — stay focused and follow your plan."
 
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
@@ -141,8 +160,8 @@ st.sidebar.markdown(f"**ETH:** ${eth_price:,.2f} ({eth_change:+.2f}%)")
 st.sidebar.markdown("### 🌍 Select Your Timezone (UTC)")
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
-
 offset_hours = int(user_offset.replace("UTC", ""))
+
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 session, vol = fx_session_volatility(user_time.hour)
 
@@ -150,6 +169,7 @@ st.sidebar.markdown(f"**Session:** {session}")
 st.sidebar.info(interpret_vol(vol))
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 st.sidebar.markdown("---")
+st.sidebar.markdown(f"💡 **Motivation:** {st.session_state.quote}")
 
 # === MAIN PANEL ===
 st.title("🤖 AI Trading Chatbot")
@@ -163,9 +183,13 @@ with col2:
 if user_input:
     symbol = user_input.strip().upper()
     sym_type = detect_symbol_type(symbol)
-    df = get_twelve_data(f"{symbol}/{vs_currency.upper()}") if sym_type == "crypto" else get_twelve_data(symbol)
-    price = get_crypto_price(symbol.lower(), vs_currency)[0] if sym_type == "crypto" else (
-        df["close"].astype(float).iloc[-1] if df is not None else 0.0)
+
+    if sym_type == "crypto":
+        price, _ = get_crypto_price(symbol.lower(), vs_currency)
+        df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")
+    else:
+        df = get_twelve_data(symbol)
+        price = df["close"].astype(float).iloc[-1] if df is not None else 0.0
 
     if df is None or df.empty:
         df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
