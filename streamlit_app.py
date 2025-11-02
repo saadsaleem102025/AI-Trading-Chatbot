@@ -175,18 +175,25 @@ eth_price, eth_change = get_crypto_price("ethereum")
 st.sidebar.metric("BTC (USD)", f"${btc_price:,.2f}" if btc_price else "N/A", f"{btc_change:.2f}%")
 st.sidebar.metric("ETH (USD)", f"${eth_price:,.2f}" if eth_price else "N/A", f"{eth_change:.2f}%")
 
-# Timezone select
+# Safe timezone selector
 tz_list = pytz.all_timezones
-user_tz = st.sidebar.selectbox("Select Your Timezone", ["UTC"] + tz_list, index=tz_list.index("Asia/Karachi") if "Asia/Karachi" in tz_list else 0)
-now_local = datetime.datetime.now(pytz.timezone(user_tz))
+default_index = 0
+try:
+    default_index = tz_list.index("Asia/Karachi")
+except ValueError:
+    default_index = 0
+
+user_tz = st.sidebar.selectbox("Select Your Timezone", ["UTC"] + tz_list, index=default_index + 1)
+now_local = datetime.datetime.now(pytz.timezone(user_tz if user_tz != "UTC" else "UTC"))
 st.sidebar.write(f"🕒 Local Time: {now_local.strftime('%Y-%m-%d %H:%M:%S')}")
 
+# Detect FX session based on current UTC hour
 session, vol = fx_session_volatility(datetime.datetime.utcnow().hour)
 st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_vol(vol))
 
 # === MAIN CHAT ===
-st.title("🤖 AI Trading Chatbot")
+st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -200,7 +207,7 @@ if user_input:
 
     if sym_type == "crypto":
         price, _ = get_crypto_price(symbol.lower(), vs_currency)
-        df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")  # Optional chart data if exists
+        df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")  # Optional
     else:
         df = get_twelve_data(symbol)
         price = df["close"].astype(float).iloc[-1] if df is not None else None
@@ -229,5 +236,5 @@ if user_input:
         st.info(f"💬 Motivation: {st.session_state.quote}")
 
 else:
-    st.write("Welcome to the **AI Trading Chatbot**! Enter any symbol or name and choose your quote currency.")
+    st.write("Welcome to the **AI Trading Chatbot**! Enter any symbol or name and your quote currency.You can also adjust your timezone to check current sessions volatility")
     st.success(st.session_state.quote)
