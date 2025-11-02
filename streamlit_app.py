@@ -160,7 +160,7 @@ st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_fx_volatility(vol))
 
 # === MAIN CONTENT ===
-st.title("🤖 AI Trading Chatbot")
+st.title(" AI Trading Chatbot")
 
 user_input = st.text_input("Enter Asset Name or Symbol (e.g. BTC/USD, AAPL, EUR/USD):")
 
