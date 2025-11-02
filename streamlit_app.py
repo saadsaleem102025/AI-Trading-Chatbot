@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import openai
 import random
-import pytz
 
 # === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -14,7 +13,7 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === MOTIVATION AUTO REFRESH (every 30s) ===
+# === AUTO REFRESH QUOTES (30s) ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
 
@@ -31,31 +30,27 @@ else:
     if "quote" not in st.session_state:
         st.session_state.quote = "Stay patient — great setups always return."
 
-# === HELPERS ===
+
+# === HELPER FUNCTIONS ===
 
 def detect_symbol_type(symbol: str):
-    """Determine if the asset is crypto or not."""
     crypto_keywords = ["BTC", "ETH", "SOL", "AVAX", "BNB", "XRP", "DOGE", "ADA", "DOT", "LTC"]
     return "crypto" if symbol.upper() in crypto_keywords else "noncrypto"
 
 
 def get_crypto_price(symbol_id, vs_currency="usd"):
-    """Fetch crypto price from CoinGecko."""
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": symbol_id.lower(), "vs_currencies": vs_currency, "include_24hr_change": "true"}
         res = requests.get(url, params=params, timeout=8)
         res.raise_for_status()
         data = res.json().get(symbol_id.lower(), {})
-        price = data.get(vs_currency)
-        change = data.get(f"{vs_currency}_24h_change", 0)
-        return round(price, 3), round(change, 2)
+        return round(data.get(vs_currency, 0), 3), round(data.get(f"{vs_currency}_24h_change", 0), 2)
     except Exception:
-        return None, 0.0
+        return 0.0, 0.0
 
 
 def get_twelve_data(symbol):
-    """Fetch data for forex/stocks."""
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1h&outputsize=50&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
@@ -83,15 +78,15 @@ def calculate_rsi(df):
 
 def interpret_rsi(rsi):
     if rsi < 20:
-        return "🔴 Oversold – Possible Bullish Reversal"
+        return "🔴 <20% → Extreme Oversold | Bullish Reversal Chance"
     elif rsi < 40:
-        return "🟠 Weak Bearish – Potential Turn"
+        return "🟠 20–40% → Weak Bearish | Early Long Setup"
     elif rsi < 60:
-        return "🟡 Neutral – Consolidation or Continuation"
+        return "🟡 40–60% → Neutral | Possible Consolidation"
     elif rsi < 80:
-        return "🟢 Bullish – Momentum Up"
+        return "🟢 60–80% → Strong Bullish | Trend Continuation"
     else:
-        return "🔵 Overbought – Caution on Longs"
+        return "🔵 >80% → Overbought | Bearish Reversal Risk"
 
 
 def bollinger_signal(df):
@@ -135,26 +130,24 @@ def fx_session_volatility(hour_utc):
 
 def interpret_vol(vol):
     if vol < 40:
-        return "⚪ Low Volatility – Sideways Movement"
+        return "⚪ Low Volatility – Sideways Market"
     elif vol < 80:
-        return "🟢 Moderate Volatility – Steady Market"
+        return "🟢 Moderate Volatility – Steady Moves"
     elif vol < 120:
         return "🟡 Active – Good Trading Conditions"
     else:
-        return "🔴 High Volatility – Expect Sharp Moves"
+        return "🔴 High Volatility – Reversal Risk"
 
 
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
     prompt = f"""
-    Provide a short technical summary for {symbol} ({vs_currency.upper()}).
-    Indicators:
+    Provide a concise technical analysis for {symbol} ({vs_currency.upper()}):
     - RSI: {rsi_text}
     - Bollinger Bands: {boll_text}
     - Supertrend: {trend_text}
     Current Price: {price:.2f} {vs_currency.upper()}
-    Suggest realistic entry and exit zones based on this actual price.
-    Example format: "Buy near 18.50 – Target 19.20 – Stop 18.10"
-    End with one motivational line for traders.
+    Give realistic entry and exit prices like: "Buy near 132.5 – Target 136 – Stop 130".
+    End with one short motivational line.
     """
     try:
         res = openai.chat.completions.create(
@@ -163,7 +156,7 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
         )
         return res.choices[0].message.content.strip()
     except Exception:
-        return f"{symbol} analysis unavailable. Stay patient and trade your plan."
+        return f"{symbol} analysis unavailable — stay disciplined and trust your process."
 
 
 # === SIDEBAR ===
@@ -172,25 +165,22 @@ st.sidebar.title("📊 Market Context Panel")
 btc_price, btc_change = get_crypto_price("bitcoin")
 eth_price, eth_change = get_crypto_price("ethereum")
 
-st.sidebar.metric("BTC (USD)", f"${btc_price:,.2f}" if btc_price else "N/A", f"{btc_change:.2f}%")
-st.sidebar.metric("ETH (USD)", f"${eth_price:,.2f}" if eth_price else "N/A", f"{eth_change:.2f}%")
+st.sidebar.metric("BTC (USD)", f"${btc_price:,.2f}", f"{btc_change:.2f}%")
+st.sidebar.metric("ETH (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
 
-# Safe timezone selector
-tz_list = pytz.all_timezones
-default_index = 0
-try:
-    default_index = tz_list.index("Asia/Karachi")
-except ValueError:
-    default_index = 0
+# === USER TIMEZONE BASED ON UTC ===
+st.sidebar.markdown("### 🌍 Select Your Timezone (UTC Offset)")
+utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
+user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)  # Default UTC+5
 
-user_tz = st.sidebar.selectbox("Select Your Timezone", ["UTC"] + tz_list, index=default_index + 1)
-now_local = datetime.datetime.now(pytz.timezone(user_tz if user_tz != "UTC" else "UTC"))
-st.sidebar.write(f"🕒 Local Time: {now_local.strftime('%Y-%m-%d %H:%M:%S')}")
+offset_hours = int(user_offset.replace("UTC", ""))
+user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
+hour_utc = user_time.hour
 
-# Detect FX session based on current UTC hour
-session, vol = fx_session_volatility(datetime.datetime.utcnow().hour)
+session, vol = fx_session_volatility(hour_utc)
 st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_vol(vol))
+st.sidebar.write(f"🕒 Local Time: {user_time.strftime('%Y-%m-%d %H:%M:%S')} ({user_offset})")
 
 # === MAIN CHAT ===
 st.title("AI Trading Chatbot")
@@ -207,34 +197,30 @@ if user_input:
 
     if sym_type == "crypto":
         price, _ = get_crypto_price(symbol.lower(), vs_currency)
-        df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")  # Optional
+        df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")
     else:
         df = get_twelve_data(symbol)
-        price = df["close"].astype(float).iloc[-1] if df is not None else None
+        price = df["close"].astype(float).iloc[-1] if df is not None else 0.0
 
-    if price is None:
-        st.error(f"Data for {symbol} not available. Try another asset.")
-    else:
-        if df is None or df.empty:
-            st.warning("Using simplified calculations — live chart unavailable.")
-            df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
+    if df is None or df.empty or price == 0.0:
+        df = pd.DataFrame({"close": [price]*50, "high": [price*1.01]*50, "low": [price*0.99]*50})
 
-        rsi = calculate_rsi(df)
-        rsi_text = interpret_rsi(rsi)
-        boll_text = bollinger_signal(df)
-        trend_text = supertrend_signal(df)
+    rsi = calculate_rsi(df)
+    rsi_text = interpret_rsi(rsi)
+    boll_text = bollinger_signal(df)
+    trend_text = supertrend_signal(df)
 
-        ai_text = get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
-        st.success(ai_text)
+    ai_text = get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
 
-        st.markdown("---")
-        st.subheader(f"📈 Technical Summary for {symbol}")
-        st.write(f"**RSI:** {rsi_text}")
-        st.write(f"**Bollinger Bands:** {boll_text}")
-        st.write(f"**Supertrend:** {trend_text}")
+    st.success(ai_text)
+    st.markdown("---")
+    st.subheader(f"📈 Technical Summary for {symbol}")
+    st.write(f"**RSI:** {rsi_text}")
+    st.write(f"**Bollinger Bands:** {boll_text}")
+    st.write(f"**Supertrend:** {trend_text}")
 
-        st.info(f"💬 Motivation: {st.session_state.quote}")
+    st.info(f"💬 Motivation: {st.session_state.quote}")
 
 else:
-    st.write("Welcome to the **AI Trading Chatbot**! Enter any symbol or name and your quote currency.You can also adjust your timezone to check current sessions volatility")
-    st.success(st.session_state.quote)
+    st.write("👋 Welcome to the **AI Trading Chatbot** — Enter any asset symbol (crypto, stock, or forex) and get real-time analysis!")
+    st.info(st.session_state.quote)
