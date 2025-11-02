@@ -14,18 +14,36 @@ st.markdown("""
 <style>
 [data-testid="stSidebar"] {
     background-color: #f5f7fa;
-    width: 330px !important;
-    min-width: 330px !important;
-    max-width: 340px !important;
-    padding: 1.2rem 0.8rem;
+    width: 380px !important;          /* Wider sidebar */
+    min-width: 370px !important;
+    max-width: 390px !important;
+    padding: 1.5rem 1rem;
 }
-.sidebar-title { font-size: 26px !important; font-weight:700; color:#0f172a; margin-bottom:8px; }
-.sidebar-item { font-size:15px; color:#334155; margin-bottom:6px; line-height:1.3; white-space:normal; word-wrap:break-word; }
-.sidebar-highlight { font-weight:700; color:#0f172a; }
+.sidebar-title {
+    font-size: 28px !important;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 14px;
+}
+.sidebar-item {
+    font-size: 17px !important;       /* Larger font */
+    color: #1e293b;
+    margin-bottom: 10px;
+    line-height: 1.4;
+    white-space: normal;
+    word-wrap: break-word;
+}
+.sidebar-highlight {
+    font-weight: 700;
+    color: #0f172a;
+}
+[data-testid="stMarkdownContainer"] p {
+    font-size: 16px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# === API KEY (set in Streamlit secrets) ===
+# === API KEY ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
 # === AUTO REFRESH ===
@@ -171,7 +189,6 @@ def fx_sessions(utc_time):
 
 # === VOLATILITY PERCENT ===
 def session_volatility(active_sessions):
-    # example realistic volatility multipliers (approx historical)
     base = {"Sydney": 40, "Tokyo": 70, "London": 100, "New York": 120}
     if not active_sessions: return "20% — Flat (Low Activity)"
     vol = np.mean([base[s] for s in active_sessions])
