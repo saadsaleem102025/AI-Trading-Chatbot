@@ -150,7 +150,6 @@ st.sidebar.markdown(f"**Session:** {session}")
 st.sidebar.info(interpret_vol(vol))
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 st.sidebar.markdown("---")
-st.sidebar.markdown(f"💬 **Motivation:** {st.session_state.quote}")
 
 # === MAIN PANEL ===
 st.title("🤖 AI Trading Chatbot")
