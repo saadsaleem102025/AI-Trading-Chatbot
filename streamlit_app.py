@@ -110,15 +110,16 @@ def calculate_bollinger_bands(df):
 
 
 def calculate_supertrend(df, multiplier=3):
+    """Returns bullish/bearish with proper grammar."""
     try:
         hl2 = (df["high"] + df["low"]) / 2
         atr = df["high"] - df["low"]
         upper = hl2 + multiplier * atr
         lower = hl2 - multiplier * atr
         close = df["close"].iloc[-1]
-        return "Bullish trend per SuperTrend Indicator" if close > lower.iloc[-1] else "Bearish trend per SuperTrend Indicator"
+        return "Bullish trend as per now (SuperTrend Indicator)" if close > lower.iloc[-1] else "Bearish trend as per now (SuperTrend Indicator)"
     except Exception:
-        return "Neutral trend (Fallback Mode)"
+        return "Neutral trend as per now (Fallback Mode)"
 
 
 def detect_fx_session_volatility(hour_utc):
@@ -166,14 +167,13 @@ def get_ai_analysis(symbol, rsi_text, bollinger_text, supertrend_text):
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
 
-# Auto-refresh prices (never zero)
 btc_price, btc_change = get_crypto_price("bitcoin", 65000)
 eth_price, eth_change = get_crypto_price("ethereum", 3000)
 
 st.sidebar.metric("BTC Price (USD)", f"${btc_price:,.2f}", f"{btc_change:.2f}%")
 st.sidebar.metric("ETH Price (USD)", f"${eth_price:,.2f}", f"{eth_change:.2f}%")
 
-# Timezone and FX session
+# Timezone + FX session
 st.sidebar.markdown("### 🌍 Timezone")
 offset = st.sidebar.slider("UTC Offset (Hours)", -12, 12, 0)
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset)
@@ -184,7 +184,7 @@ st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_fx_volatility(vol))
 
 # === MAIN CHAT ===
-st.title(" AI Trading Chatbot")
+st.title("🤖 AI Trading Chatbot")
 
 user_input = st.text_input("Enter Asset Name or Symbol")
 
@@ -208,10 +208,16 @@ if user_input:
     st.write(f"**Bollinger Bands:** {bollinger_text}")
     st.write(f"**SuperTrend:** {supertrend_text}")
 
+    st.markdown("---")
+    st.markdown(f"### 📊 Summary for {symbol}")
+    st.write(f"KDE RSI: {rsi_text}")
+    st.write(f"Bollinger Bands: {bollinger_text}")
+    st.write(f"SuperTrend: {supertrend_text}")
+
     ai_text = get_ai_analysis(symbol, rsi_text, bollinger_text, supertrend_text)
     st.success(ai_text)
     st.info(f"💬 Motivation: {st.session_state.quote}")
 
 else:
-    st.write("Welcome to the **AI Trading Chatbot**! Type any symbol or name and select your timezone on left sidebar to check current session volatility and get AI-powered insights.")
+    st.write("Welcome to the **AI Trading Chatbot**! Type any symbol or name and select your timezone on the left to view the current FX session volatility and get AI-powered insights.")
     st.success(st.session_state.quote)
