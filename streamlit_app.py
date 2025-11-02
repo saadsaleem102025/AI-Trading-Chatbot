@@ -9,35 +9,52 @@ import random
 # === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === CUSTOM STYLING ===
+# === CUSTOM STYLING (IMPROVED SIDEBAR) ===
 st.markdown("""
 <style>
-.sidebar .sidebar-content {
-    font-size: 16px !important;
-}
 [data-testid="stSidebar"] {
     background-color: #f5f7fa;
+    padding: 1.5rem 1rem;
 }
+
+/* Sidebar title */
 .sidebar-title {
-    font-size: 26px !important;
-    font-weight: 700;
+    font-size: 28px !important;
+    font-weight: 800;
     color: #1e293b;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
+
+/* Subtitles */
 .sidebar-subtitle {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
     color: #334155;
-    margin-top: 15px;
+    margin-top: 18px;
+    margin-bottom: 8px;
 }
+
+/* Sidebar text */
 .sidebar-item {
-    font-size: 15px;
-    color: #475569;
-    margin-bottom: 6px;
+    font-size: 17px;
+    line-height: 1.5;
+    color: #334155;
+    margin-bottom: 8px;
+    word-wrap: break-word;
+    white-space: normal;
 }
+
+/* Highlighted items like BTC / ETH */
 .sidebar-highlight {
-    font-weight: 600;
+    font-weight: 700;
     color: #0f172a;
+}
+
+/* Caption at bottom */
+.sidebar caption {
+    font-size: 14px;
+    color: #475569;
+    margin-top: 14px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -57,7 +74,8 @@ CRYPTO_ID_MAP = {
     "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "AVAX": "avalanche-2",
     "BNB": "binancecoin", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano",
     "DOT": "polkadot", "LTC": "litecoin", "CFX": "conflux-token", "XLM": "stellar",
-    "SHIB": "shiba-inu", "PEPE": "pepe", "TON": "the-open-network", "SUI": "sui", "NEAR": "near"
+    "SHIB": "shiba-inu", "PEPE": "pepe", "TON": "the-open-network",
+    "SUI": "sui", "NEAR": "near"
 }
 
 def detect_symbol_type(symbol):
@@ -66,7 +84,6 @@ def detect_symbol_type(symbol):
 # === PRICE FETCHER ===
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
-
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
@@ -74,31 +91,28 @@ def get_crypto_price(symbol, vs_currency="usd"):
         data = res.json().get(sid, {})
         price = data.get(vs_currency, 0)
         change = data.get(f"{vs_currency}_24h_change", 0)
-        if 0.0001 < price < 1000000:
+        if 0.000001 < price < 1000000:
             return round(price, 6), round(change, 2)
     except:
         pass
-
     try:
         pair = f"{symbol.upper()}USDT"
         res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={pair}", timeout=10).json()
         price = float(res.get("price", 0))
-        if 0.0001 < price < 1000000:
+        if 0.000001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
-
     try:
         res = requests.get(f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}", timeout=10).json()
         price = float(res.get("price", 0))
-        if 0.0001 < price < 1000000:
+        if 0.000001 < price < 1000000:
             return round(price, 6), 0.0
     except:
         pass
+    return 0.0, 0.0
 
-    return random.uniform(50, 500), 0.0
-
-
+# === PRICE HISTORY FETCH ===
 def get_twelve_data(symbol):
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1h&outputsize=50&apikey={TWELVE_API_KEY}"
@@ -111,7 +125,7 @@ def get_twelve_data(symbol):
     except:
         return None
 
-# === INDICATORS ===
+# === TECHNICAL INDICATORS ===
 def calculate_rsi(df):
     try:
         deltas = np.diff(df["close"].values)
@@ -153,7 +167,7 @@ def supertrend_signal(df):
     except:
         return "Supertrend signal neutral."
 
-# === VOLATILITY AUTO DETECTION ===
+# === VOLATILITY ===
 def fx_session_volatility(hour):
     if 22 <= hour or hour < 7: return "Sydney Session", 40
     if 7 <= hour < 16: return "London Session", 100
@@ -169,8 +183,7 @@ def interpret_vol(vol):
 # === AI ANALYSIS ===
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency, df):
     if price <= 0:
-        price = random.uniform(50, 500)
-
+        price = 1.0
     try:
         df["H-L"] = df["high"] - df["low"]
         df["H-PC"] = abs(df["high"] - df["close"].shift(1))
@@ -182,9 +195,9 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency,
     except:
         atr = price * 0.01
 
-    entry = round(price - 0.3 * atr, 4)
-    target = round(price + 1.8 * atr, 4)
-    stop = round(price - 1.2 * atr, 4)
+    entry = round(price - 0.2 * atr, 4)
+    target = round(price + 0.5 * atr, 4)
+    stop = round(price - 0.4 * atr, 4)
 
     motivation = random.choice([
         "Patience is the hidden edge — consistency beats prediction.",
@@ -209,7 +222,7 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency,
 💡 *{motivation}*
 """.strip()
 
-# === SIDEBAR CONTEXT PANEL ===
+# === SIDEBAR ===
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context Panel</p>", unsafe_allow_html=True)
 
 btc_price, btc_change = get_crypto_price("BTC")
@@ -230,7 +243,7 @@ st.sidebar.markdown(f"<p class='sidebar-item'>🌐 <strong>Session:</strong> {se
 st.sidebar.markdown(f"<p class='sidebar-item'>{interpret_vol(vol)}</p>", unsafe_allow_html=True)
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 
-# === MAIN PANEL ===
+# === MAIN ===
 st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
@@ -242,7 +255,6 @@ with col2:
 if user_input:
     symbol = user_input.strip().upper()
     sym_type = detect_symbol_type(symbol)
-
     if sym_type == "crypto":
         price, _ = get_crypto_price(symbol, vs_currency)
         df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")
