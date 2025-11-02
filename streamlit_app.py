@@ -9,6 +9,39 @@ import random
 # === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
+# === CUSTOM STYLING ===
+st.markdown("""
+<style>
+.sidebar .sidebar-content {
+    font-size: 16px !important;
+}
+[data-testid="stSidebar"] {
+    background-color: #f5f7fa;
+}
+.sidebar-title {
+    font-size: 26px !important;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 10px;
+}
+.sidebar-subtitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 15px;
+}
+.sidebar-item {
+    font-size: 15px;
+    color: #475569;
+    margin-bottom: 6px;
+}
+.sidebar-highlight {
+    font-weight: 600;
+    color: #0f172a;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # === API KEY ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
@@ -34,7 +67,6 @@ def detect_symbol_type(symbol):
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
 
-    # Try CoinGecko
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
@@ -47,7 +79,6 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    # Try Binance
     try:
         pair = f"{symbol.upper()}USDT"
         res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={pair}", timeout=10).json()
@@ -57,7 +88,6 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    # Try Twelve Data
     try:
         res = requests.get(f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}", timeout=10).json()
         price = float(res.get("price", 0))
@@ -66,7 +96,6 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    # Fallback safe dummy
     return random.uniform(50, 500), 0.0
 
 
@@ -139,7 +168,6 @@ def interpret_vol(vol):
 
 # === AI ANALYSIS ===
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency, df):
-    # Guarantee price exists
     if price <= 0:
         price = random.uniform(50, 500)
 
@@ -154,7 +182,6 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency,
     except:
         atr = price * 0.01
 
-    # More realistic trading levels
     entry = round(price - 0.3 * atr, 4)
     target = round(price + 1.8 * atr, 4)
     stop = round(price - 1.2 * atr, 4)
@@ -183,21 +210,24 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency,
 """.strip()
 
 # === SIDEBAR CONTEXT PANEL ===
-st.sidebar.markdown("<h1 style='font-size:28px;'>📊 Market Context Panel</h1>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context Panel</p>", unsafe_allow_html=True)
+
 btc_price, btc_change = get_crypto_price("BTC")
 eth_price, eth_change = get_crypto_price("ETH")
-st.sidebar.markdown(f"<b>BTC:</b> ${btc_price:,.4f} ({btc_change:+.2f}%)", unsafe_allow_html=True)
-st.sidebar.markdown(f"<b>ETH:</b> ${eth_price:,.4f} ({eth_change:+.2f}%)", unsafe_allow_html=True)
 
-st.sidebar.markdown("<h3>🌍 Select Your Timezone (UTC)</h3>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p class='sidebar-item'><span class='sidebar-highlight'>BTC:</span> ${btc_price:,.4f} ({btc_change:+.2f}%)</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p class='sidebar-item'><span class='sidebar-highlight'>ETH:</span> ${eth_price:,.4f} ({eth_change:+.2f}%)</p>", unsafe_allow_html=True)
+
+st.sidebar.markdown("<p class='sidebar-subtitle'>🌍 Select Your Timezone (UTC)</p>", unsafe_allow_html=True)
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Timezone", utc_offsets, index=5)
 offset_hours = int(user_offset.replace("UTC", ""))
 
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 session, vol = fx_session_volatility(user_time.hour)
-st.sidebar.markdown(f"<b>Session:</b> {session}")
-st.sidebar.markdown(interpret_vol(vol))
+
+st.sidebar.markdown(f"<p class='sidebar-item'>🌐 <strong>Session:</strong> {session}</p>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<p class='sidebar-item'>{interpret_vol(vol)}</p>", unsafe_allow_html=True)
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 
 # === MAIN PANEL ===
@@ -213,7 +243,6 @@ if user_input:
     symbol = user_input.strip().upper()
     sym_type = detect_symbol_type(symbol)
 
-    # Fetch data robustly
     if sym_type == "crypto":
         price, _ = get_crypto_price(symbol, vs_currency)
         df = get_twelve_data(f"{symbol}/{vs_currency.upper()}")
