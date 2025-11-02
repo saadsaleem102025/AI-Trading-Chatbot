@@ -117,16 +117,20 @@ def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     entry = round(price * random.uniform(0.97, 0.99), 3)
     target = round(price * random.uniform(1.02, 1.05), 3)
     stop = round(price * random.uniform(0.94, 0.97), 3)
+
+    # Add motivational message directive
     prompt = f"""
     Technical analysis for {symbol} ({vs_currency.upper()}):
     - RSI: {rsi_text}
     - Bollinger Bands: {boll_text}
     - Supertrend: {trend_text}
-    Price: {price:.2f} {vs_currency.upper()}
+    Current Price: {price:.2f} {vs_currency.upper()}.
 
-    Suggest a realistic trading plan with:
+    Suggest a realistic short-term trading plan with:
     Entry ≈ {entry}, Target ≈ {target}, Stop Loss ≈ {stop}.
+    End the message with a short motivational line to encourage trading discipline.
     """
+
     try:
         res = openai.chat.completions.create(
             model="gpt-4o-mini",
@@ -158,7 +162,7 @@ st.sidebar.markdown(f"<p style='font-size:16px;'>{interpret_vol(vol)}</p>", unsa
 st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
 
 # === MAIN PANEL ===
-st.title("🤖 AI Trading Chatbot")
+st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
