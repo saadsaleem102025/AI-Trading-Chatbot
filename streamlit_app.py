@@ -8,18 +8,27 @@ import openai
 import random
 
 # === CONFIG ===
-st.set_page_config(page_title="AI Trading Chatbot", layout="wide")
+st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# Auto-refresh every 30 seconds
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
+
+# === AUTO REFRESH (every 30 seconds) ===
 REFRESH_INTERVAL = 30
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
+    st.session_state.quote = "Stay patient — great setups always return."
 elif time.time() - st.session_state.last_refresh > REFRESH_INTERVAL:
     st.session_state.last_refresh = time.time()
+    # refresh motivational quote
+    st.session_state.quote = random.choice([
+        "Discipline beats impulse — trade the plan, not emotions.",
+        "Patience is also a position.",
+        "Focus on setups, not outcomes.",
+        "Stay consistent — every small win builds your edge.",
+        "Calm minds trade best."
+    ])
     st.rerun()
-
-# Continue with rest of your existing imports and functions here...
-
 
 # === HELPERS ===
 def get_crypto_price(symbol_id, fallback_price):
@@ -154,15 +163,6 @@ def get_ai_analysis(symbol, rsi_text, bollinger_text, supertrend_text):
         return f"{symbol} appears {fallback}. Keep your discipline and trade smart."
 
 
-def motivational_quote():
-    return random.choice([
-        "Discipline beats impulse — trade the plan, not emotions.",
-        "Patience is also a position.",
-        "Focus on setups, not outcomes.",
-        "Stay consistent — every small win builds your edge.",
-        "Calm minds trade best."
-    ])
-
 # === SIDEBAR ===
 st.sidebar.title("📊 Market Context Panel")
 
@@ -184,15 +184,14 @@ st.sidebar.markdown(f"### 💹 {session}")
 st.sidebar.info(interpret_fx_volatility(vol))
 
 # === MAIN CHAT ===
-st.title("🤖 AI Trading Chatbot")
+st.title(" AI Trading Chatbot")
 
-user_input = st.text_input("Enter Asset (e.g. BTC/USD, AAPL, EUR/USD):")
+user_input = st.text_input("Enter Asset Name or Symbol")
 
 if user_input:
     symbol = user_input.strip().upper()
     df = get_twelve_data(symbol)
     if df is None or df.empty:
-        # fallback dummy data (so AI never fails)
         df = pd.DataFrame({
             "close": np.random.uniform(100, 200, 50),
             "high": np.random.uniform(110, 210, 50),
@@ -211,8 +210,8 @@ if user_input:
 
     ai_text = get_ai_analysis(symbol, rsi_text, bollinger_text, supertrend_text)
     st.success(ai_text)
-    st.info(f"💬 Motivation: {motivational_quote()}")
+    st.info(f"💬 Motivation: {st.session_state.quote}")
 
 else:
-    st.write("Welcome to the **AI Trading Chatbot**! Type any symbol (e.g. BTC/USD, EUR/USD, AAPL) to get AI-powered insights.")
-    st.success(motivational_quote())
+    st.write("Welcome to the **AI Trading Chatbot**! Type any symbol or name and select your timezone on left sidebar to check current session volatility and get AI-powered insights.")
+    st.success(st.session_state.quote)
