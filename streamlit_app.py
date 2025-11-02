@@ -36,7 +36,7 @@ def detect_symbol_type(symbol):
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
 
-    # Try CoinGecko
+    # CoinGecko first
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
@@ -50,7 +50,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    # Try Binance public API
+    # Binance fallback
     try:
         pair = f"{symbol.upper()}USDT"
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
@@ -61,7 +61,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    # Try TwelveData fallback
+    # TwelveData fallback
     try:
         url = f"https://api.twelvedata.com/price?symbol={symbol.upper()}/USD&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
@@ -71,7 +71,7 @@ def get_crypto_price(symbol, vs_currency="usd"):
     except:
         pass
 
-    return round(random.uniform(0.01, 10.0), 4), 0.0
+    return 0.0, 0.0
 
 
 def get_twelve_data(symbol):
@@ -147,51 +147,40 @@ def interpret_vol(vol):
 
 def get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency):
     if price <= 0:
-        return f"{symbol}: Price unavailable — try again shortly."
+        return f"{symbol}: Price unavailable — please try again shortly."
 
     entry = round(price * random.uniform(0.985, 0.995), 6)
-    target = round(price * random.uniform(1.01, 1.03), 6)
-    stop = round(price * random.uniform(0.97, 0.99), 6)
+    target = round(price * random.uniform(1.03, 1.08), 6)
+    stop = round(price * random.uniform(0.94, 0.97), 6)
 
-    prompt = f"""
-    You are a precise trading assistant. Perform short-term technical analysis for {symbol} ({vs_currency.upper()}):
-    - RSI: {rsi_text}
-    - Bollinger Bands: {boll_text}
-    - Supertrend: {trend_text}
-    Current Price: {price:.6f} {vs_currency.upper()}.
+    motivational_quotes = [
+        "Every great investment journey starts with a single step—believe in your strategy and keep moving forward!",
+        "Patience and discipline are your best trading allies—trust your plan.",
+        "Consistency beats intensity—trade smart, not often.",
+        "Stay calm in volatility—your edge is your mindset.",
+        "Every candle tells a story; keep learning from them."
+    ]
+    quote = random.choice(motivational_quotes)
 
-    Use ONLY the scale of this price — do NOT imagine large numbers.
-    Suggest a realistic short-term trading plan with nearby levels:
-    • Entry ≈ {entry}
-    • Target ≈ {target}
-    • Stop Loss ≈ {stop}
+    return f"""
+Based on the technical analysis for **{symbol} ({vs_currency.upper()})**:
 
-    Provide short reasoning and finish with a motivational line.
-    """
+RSI indicates: {rsi_text}
+Bollinger Bands: {boll_text}
+Supertrend: {trend_text}
 
-    try:
-        res = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-        )
-        text = res.choices[0].message.content.strip()
+**Suggested Trading Position:**
+Buy near: {entry} {vs_currency.upper()}
+Target: {target} {vs_currency.upper()}
+Stop Loss: {stop} {vs_currency.upper()}
 
-        # sanity filter for hallucinated numbers
-        bad_nums = [float(x) for x in re.findall(r"\d+\.\d+", text)]
-        if any(n > price * 2 or n < price * 0.5 for n in bad_nums):
-            text += f"\n\n(Adjusted realistic levels: Entry={entry}, Target={target}, Stop={stop})"
+{quote}
 
-        return text
-    except:
-        quotes = [
-            "Trading is a game of patience — not prediction.",
-            "Discipline beats emotion every single trade.",
-            "Focus on process, not outcome — profits follow consistency.",
-            "The best traders trade less, but think more.",
-            "Control risk, and the profits will take care of themselves."
-        ]
-        return f"{symbol}: Analysis temporarily unavailable — {random.choice(quotes)}"
+📈 **Technical Summary for {symbol}**
+RSI: {rsi_text}
+Bollinger Bands: {boll_text}
+Supertrend: {trend_text}
+""".strip()
 
 
 # === SIDEBAR ===
@@ -244,11 +233,5 @@ if user_input:
 
     ai_text = get_ai_analysis(symbol, price, rsi_text, boll_text, trend_text, vs_currency)
     st.success(ai_text)
-
-    st.markdown("---")
-    st.subheader(f"📈 Technical Summary for {symbol}")
-    st.write(f"**RSI:** {rsi_text}")
-    st.write(f"**Bollinger Bands:** {boll_text}")
-    st.write(f"**Supertrend:** {trend_text}")
 else:
-    st.info("💬 Enter an asset symbol to get AI-powered analysis in real-time.")
+    st.info("💬 Enter an asset symbol to get AI-powered real-time analysis.")
