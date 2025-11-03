@@ -198,7 +198,7 @@ eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
-# === AUTO TIMEZONE DETECTION + SAFE AUTO REFRESH ===
+# === AUTO TIMEZONE DETECTION ===
 local_tz = get_localzone()
 local_time = datetime.datetime.now(local_tz)
 hour = local_time.hour
@@ -219,10 +219,14 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-# Safe refresh every 5 seconds
-if "last_refresh" not in st.session_state or int(time.time()) - st.session_state["last_refresh"] >= 5:
-    st.session_state["last_refresh"] = int(time.time())
-    st.experimental_rerun()
+# === AUTO REFRESH (SAFE METHOD) ===
+st_autorefresh = st.experimental_rerun  # fallback for older versions
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    pass
+
+st_autorefresh(interval=5000, limit=1000, key="refresh_key")
 
 # === MAIN ===
 st.title("AI Trading Chatbot")
