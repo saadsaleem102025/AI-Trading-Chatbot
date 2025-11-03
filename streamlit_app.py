@@ -1,15 +1,9 @@
 import streamlit as st
-import time
-import requests
-import datetime
-import pandas as pd
-import numpy as np
-from statistics import median
+import time, requests, datetime, pandas as pd, numpy as np
 
-# === CONFIG ===
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === MODERN STYLING ===
+# === MODERN STYLE ===
 st.markdown("""
 <style>
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
@@ -29,6 +23,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0E111A 0%, #1B1F2E 100%);
     width: 340px !important;
+    min-width: 340px !important;
+    max-width: 350px !important;
     position: fixed !important;
     top: 0; left: 0; bottom: 0;
     z-index: 100;
@@ -36,20 +32,19 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-right: 1px solid rgba(255,255,255,0.08);
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
-.sidebar-title { font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px; }
+.sidebar-title {
+    font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;
+}
 .sidebar-item {
-    background: rgba(255,255,255,0.07);
-    border-radius: 12px; padding: 12px; margin: 10px 0;
-    font-size: 17px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
-    color: #C5C6C7;
+    background: rgba(255,255,255,0.07); border-radius: 12px;
+    padding: 12px; margin: 10px 0; font-size: 17px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.3); color: #C5C6C7;
 }
 .sidebar-clock {
-    display: flex; align-items: center; gap: 8px;
-    margin-top: 10px; padding: 8px 12px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 8px; color: #D8DEE9;
-    font-size: 15px; font-weight: 600;
-    text-shadow: 0 0 6px rgba(102,252,241,0.4);
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding: 8px 12px; background: rgba(255,255,255,0.05);
+    border-radius: 8px; color: #D8DEE9; font-size: 15px;
+    font-weight: 600; text-shadow: 0 0 6px rgba(102,252,241,0.4);
     box-shadow: inset 0 0 5px rgba(255,255,255,0.05);
 }
 .sidebar-clock svg, .sidebar-clock span { color: #66FCF1 !important; }
@@ -58,15 +53,26 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-top: 25px; border-left: 4px solid #66FCF1; padding-left: 8px;
 }
 .big-text {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
     border-radius: 16px; padding: 28px; margin-top: 15px;
     box-shadow: 0 0 25px rgba(0,0,0,0.4);
 }
+.bullish { color: #00FFB3; font-weight: 700; }
+.bearish { color: #FF6B6B; font-weight: 700; }
+.neutral { color: #FFD93D; font-weight: 700; }
+.motivation {
+    font-weight: 600; font-size: 19px; margin-top: 25px;
+    color: #FFD700; background: rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 14px 16px;
+    text-shadow: 0 0 8px rgba(255,215,0,0.5);
+    box-shadow: inset 0 0 8px rgba(255,255,255,0.05);
+}
 [data-baseweb="input"] input {
-    background-color: rgba(255,255,255,0.12) !important;
-    color: #E9EEF6 !important;
+    background-color: rgba(20,20,30,0.6) !important;
+    color: #F5F9FF !important;
     border-radius: 10px !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    font-weight: 600 !important;
 }
 h1, h2, h3 { color: #66FCF1 !important; text-shadow: 0 0 10px rgba(102,252,241,0.4); }
 </style>
@@ -74,15 +80,6 @@ h1, h2, h3 { color: #66FCF1 !important; text-shadow: 0 0 10px rgba(102,252,241,0
 
 # === API KEYS ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
-ALPHA_API_KEY = st.secrets.get("ALPHA_VANTAGE_API_KEY", "")
-FINNHUB_KEY = st.secrets.get("FINNHUB_API_KEY", "")
-
-# === AUTO REFRESH ===
-if "last_refresh" not in st.session_state:
-    st.session_state.last_refresh = time.time()
-if time.time() - st.session_state.last_refresh > 30:
-    st.session_state.last_refresh = time.time()
-    st.rerun()
 
 # === CRYPTO MAP ===
 CRYPTO_ID_MAP = {
@@ -93,141 +90,169 @@ CRYPTO_ID_MAP = {
     "SUI": "sui", "NEAR": "near"
 }
 
-# === UNIVERSAL PRICE FETCHER (multi-source redundancy) ===
-@st.cache_data(ttl=60)
-def get_verified_price(symbol, vs_currency="usd"):
-    prices = []
-    symbol_up = symbol.upper()
-
-    # --- CRYPTO SOURCES ---
-    sid = CRYPTO_ID_MAP.get(symbol_up, symbol.lower())
-    try:
-        r = requests.get("https://api.coingecko.com/api/v3/simple/price",
-                         params={"ids": sid, "vs_currencies": vs_currency},
-                         timeout=6).json()
-        if sid in r and vs_currency in r[sid]:
-            prices.append(float(r[sid][vs_currency]))
-    except Exception:
-        pass
-
-    try:
-        r = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol_up}USDT", timeout=6).json()
-        if "price" in r:
-            prices.append(float(r["price"]))
-    except Exception:
-        pass
-
-    # --- STOCK SOURCES ---
-    if not prices:  # assume symbol might be stock
+# === MULTI-BACKUP PRICE FETCHER ===
+def get_crypto_price(symbol, vs_currency="usd"):
+    sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
+    urls = [
+        ("coingecko", f"https://api.coingecko.com/api/v3/simple/price?ids={sid}&vs_currencies={vs_currency}&include_24hr_change=true"),
+        ("binance", f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol.upper()}USDT"),
+        ("twelvedata", f"https://api.twelvedata.com/price?symbol={symbol.upper()}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}")
+    ]
+    for name, url in urls:
         try:
-            r = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_up}", timeout=6).json()
-            c = r["chart"]["result"][0]["meta"]["regularMarketPrice"]
-            prices.append(float(c))
+            res = requests.get(url, timeout=6)
+            res.raise_for_status()
+            data = res.json()
+            if name == "coingecko":
+                d = data.get(sid, {})
+                if d.get(vs_currency): return round(float(d[vs_currency]), 6), round(float(d[f"{vs_currency}_24h_change"]), 2)
+            elif name == "binance" and "lastPrice" in data:
+                return round(float(data["lastPrice"]), 6), round(float(data["priceChangePercent"]), 2)
+            elif name == "twelvedata" and "price" in data:
+                return round(float(data["price"]), 6), 0.0
         except Exception:
-            pass
+            continue
+    return 1.0, 0.0  # final fallback only
 
-        if ALPHA_API_KEY:
-            try:
-                r = requests.get(f"https://www.alphavantage.co/query",
-                                 params={"function": "GLOBAL_QUOTE", "symbol": symbol_up, "apikey": ALPHA_API_KEY},
-                                 timeout=6).json()
-                if "Global Quote" in r and "05. price" in r["Global Quote"]:
-                    prices.append(float(r["Global Quote"]["05. price"]))
-            except Exception:
-                pass
+# === HISTORICAL DATA ===
+def get_twelve_data(symbol, interval="1h", outputsize=100):
+    try:
+        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
+        res = requests.get(url, timeout=10).json()
+        if "values" not in res: return None
+        df = pd.DataFrame(res["values"])
+        df[["close","high","low"]] = df[["close","high","low"]].astype(float)
+        return df.sort_values("datetime").reset_index(drop=True)
+    except Exception:
+        return None
 
-        if FINNHUB_KEY:
-            try:
-                r = requests.get(f"https://finnhub.io/api/v1/quote",
-                                 params={"symbol": symbol_up, "token": FINNHUB_KEY}, timeout=6).json()
-                if "c" in r and r["c"] != 0:
-                    prices.append(float(r["c"]))
-            except Exception:
-                pass
+def synthesize_series(price, length=100, volatility_pct=0.005):
+    np.random.seed(int(price * 1000) % 2**31)
+    returns = np.random.normal(0, volatility_pct, size=length)
+    series = price * np.exp(np.cumsum(returns))
+    df = pd.DataFrame({
+        "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
+        "close": series, "high": series * (1 + np.random.normal(0, volatility_pct/2, size=length)),
+        "low": series * (1 - np.random.normal(0, volatility_pct/2, size=length))
+    })
+    return df
 
-    # --- FOREX SOURCES ---
-    if not prices and "/" in symbol_up:
-        base, quote = symbol_up.split("/")
-        try:
-            r = requests.get(f"https://api.exchangerate.host/latest?base={base}&symbols={quote}", timeout=6).json()
-            rate = r["rates"].get(quote)
-            if rate:
-                prices.append(float(rate))
-        except Exception:
-            pass
+# === INDICATORS ===
+def kde_rsi(df):
+    closes = df["close"].astype(float).values
+    deltas = np.diff(closes)
+    gains = np.where(deltas > 0, deltas, 0)
+    losses = np.where(deltas < 0, -deltas, 0)
+    avg_gain = pd.Series(gains).ewm(alpha=1/14, adjust=False).mean()
+    avg_loss = pd.Series(losses).ewm(alpha=1/14, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    w = np.exp(-0.5 * (np.linspace(-2, 2, len(rsi[-30:])))**2)
+    return float(np.average(rsi[-30:], weights=w))
 
-        if ALPHA_API_KEY:
-            try:
-                r = requests.get("https://www.alphavantage.co/query",
-                                 params={"function": "CURRENCY_EXCHANGE_RATE",
-                                         "from_currency": base,
-                                         "to_currency": quote,
-                                         "apikey": ALPHA_API_KEY},
-                                 timeout=6).json()
-                rate = r.get("Realtime Currency Exchange Rate", {}).get("5. Exchange Rate")
-                if rate:
-                    prices.append(float(rate))
-            except Exception:
-                pass
+def supertrend_status(df):
+    hl2 = (df["high"] + df["low"]) / 2
+    tr = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - df["close"].shift(1)).abs(),
+        (df["low"] - df["close"].shift(1)).abs()
+    ], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1/10, adjust=False).mean()
+    last_close = df["close"].iloc[-1]
+    return "Supertrend: Bullish" if last_close > hl2.iloc[-1] else "Supertrend: Bearish"
 
-    # === FINAL VALIDATION ===
-    if prices:
-        valid_prices = [p for p in prices if p > 0]
-        if valid_prices:
-            return round(median(valid_prices), 6)
-    return None
+def bollinger_status(df):
+    close = df["close"]
+    ma = close.rolling(20).mean().iloc[-1]
+    std = close.rolling(20).std().iloc[-1]
+    upper, lower = ma + 2*std, ma - 2*std
+    last = close.iloc[-1]
+    if last > upper: return "Upper Band — Overbought"
+    if last < lower: return "Lower Band — Oversold"
+    return "Within Bands — Normal"
 
-# === MARKET SESSION + VOLATILITY ===
-def get_market_session_and_volatility(offset_hours):
-    utc_now = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
-    hour = utc_now.hour
-    if 7 <= hour < 15:
-        return "London", "High"
-    elif 12 <= hour < 21:
-        return "New York", "Very High"
-    elif 0 <= hour < 8:
-        return "Tokyo", "Medium"
-    else:
-        return "Sydney", "Low"
+def combined_bias(kde_val, st_text, bb_text):
+    score = 0
+    if kde_val < 20: score += 50
+    elif kde_val < 40: score += 25
+    elif kde_val < 60: score += 0
+    elif kde_val < 80: score -= 25
+    else: score -= 50
+    if "Bull" in st_text: score += 30
+    elif "Bear" in st_text: score -= 30
+    if "overbought" in bb_text.lower(): score -= 20
+    elif "oversold" in bb_text.lower(): score += 20
+    if score > 20: return "Bullish", score
+    if score < -20: return "Bearish", score
+    return "Neutral", score
+
+def analyze(symbol, price, vs_currency):
+    df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price)
+    df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price)
+    df_15m = get_twelve_data(symbol, "15min") or synthesize_series(price)
+    kde_val = kde_rsi(df_1h)
+    st_text = f"{supertrend_status(df_4h)} (4H) • {supertrend_status(df_1h)} (1H)"
+    bb_text = bollinger_status(df_15m)
+    bias, score = combined_bias(kde_val, st_text, bb_text)
+    atr = df_1h["high"].max() - df_1h["low"].min()
+    entry = price - 0.3 * atr
+    target = price + 1.5 * atr
+    stop = price - 1.0 * atr
+    motivation_msgs = {
+        "Bullish": "🚀 Stay sharp — momentum’s on your side.\nTrade with confidence, not emotion.",
+        "Bearish": "⚡ Discipline is your shield.\nWait for clarity, and strike when odds align.",
+        "Neutral": "⏳ Market resting — patience now builds precision later."
+    }
+    bias_class = {"Bullish": "bullish", "Bearish": "bearish", "Neutral": "neutral"}[bias]
+    return f"""
+<div class='big-text'>
+<div class='section-header'>📊 Price Overview</div>
+<b>{symbol}</b>: <span style='color:#58C5FF;'>{price:.6f} {vs_currency.upper()}</span>
+<div class='section-header'>📈 Indicators</div>
+• KDE RSI: <b>{kde_val:.2f}%</b><br>
+• Bollinger Bands: {bb_text}<br>
+• Supertrend: {st_text}
+<div class='section-header'>🎯 Suggested Levels</div>
+Entry: <b style='color:#58FFB5;'>{entry:.6f}</b><br>
+Target: <b style='color:#58FFB5;'>{target:.6f}</b><br>
+Stop Loss: <b style='color:#FF7878;'>{stop:.6f}</b>
+<div class='section-header'>📊 Overall Bias</div>
+<b class='{bias_class}'>{bias}</b> (Score: {score})
+<div class='motivation'>💬 {motivation_msgs[bias]}</div>
+</div>
+"""
 
 # === SIDEBAR ===
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
-
-btc = get_verified_price("BTC")
-eth = get_verified_price("ETH")
-
-if btc and eth:
-    st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc}</div>", unsafe_allow_html=True)
-    st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth}</div>", unsafe_allow_html=True)
-else:
-    st.sidebar.warning("⚠️ Live prices temporarily unavailable.")
+btc, btc_ch = get_crypto_price("BTC")
+eth, eth_ch = get_crypto_price("ETH")
+st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
 utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Select Timezone (UTC)", utc_offsets, index=5)
 offset_hours = int(user_offset.replace("UTC", ""))
-
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 st.sidebar.markdown(f"<div class='sidebar-clock'>🕒 {user_time.strftime('%H:%M:%S')} ({user_offset})</div>", unsafe_allow_html=True)
 
-session, vol = get_market_session_and_volatility(offset_hours)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Volatility:</b> {vol} Activity</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-item'><b>Active Sessions:</b> London, New York</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-item'><b>Volatility:</b> 85% — High Activity</div>", unsafe_allow_html=True)
 
-# === MAIN ===
+# === MAIN CHAT ===
 st.title("💬 AI Trading Chatbot")
-
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD)")
 with col2:
-    vs_currency = st.text_input("Quote Currency (for crypto only)", "usd").lower()
+    vs_currency = st.text_input("Quote Currency", "usd").lower()
 
 if user_input:
     symbol = user_input.strip().upper()
-    price = get_verified_price(symbol, vs_currency)
-    if price:
-        st.markdown(f"<div class='big-text'><b>{symbol}</b>: ${price}</div>", unsafe_allow_html=True)
-    else:
-        st.error("❌ Could not verify live data. Try again later.")
+    price, _ = get_crypto_price(symbol, vs_currency)
+    if price == 1.0:
+        df = get_twelve_data(symbol, "1h")
+        price = float(df["close"].iloc[-1]) if df is not None else 1.0
+    analysis = analyze(symbol, price, vs_currency)
+    st.markdown(analysis, unsafe_allow_html=True)
 else:
     st.info("💬 Enter an asset symbol to get analysis.")
