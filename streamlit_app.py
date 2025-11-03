@@ -33,41 +33,16 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-right: 1px solid rgba(255,255,255,0.08);
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
-.sidebar-title {
-    font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;
-}
-.sidebar-item {
-    background: rgba(255,255,255,0.07); border-radius: 12px;
-    padding: 12px; margin: 10px 0; font-size: 17px;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.3); color: #C5C6C7;
-}
-.sidebar-clock {
-    display: flex; align-items: center; gap: 8px; margin-top: 10px;
-    padding: 8px 12px; background: rgba(255,255,255,0.05);
-    border-radius: 8px; color: #D8DEE9; font-size: 15px;
-    font-weight: 600; text-shadow: 0 0 6px rgba(102,252,241,0.4);
-    box-shadow: inset 0 0 5px rgba(255,255,255,0.05);
-}
-.sidebar-clock svg, .sidebar-clock span { color: #66FCF1 !important; }
-.section-header {
-    font-size: 22px; font-weight: 700; color: #45A29E;
-    margin-top: 25px; border-left: 4px solid #66FCF1; padding-left: 8px;
-}
-.big-text {
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 16px; padding: 28px; margin-top: 15px;
-    box-shadow: 0 0 25px rgba(0,0,0,0.4);
-}
+.sidebar-title {font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;}
+.sidebar-item {background: rgba(255,255,255,0.07); border-radius: 12px; padding: 12px; margin: 10px 0; font-size: 17px; color: #C5C6C7;}
+.sidebar-clock {display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; color: #D8DEE9; font-size: 15px; font-weight: 600;}
+.sidebar-clock svg, .sidebar-clock span {color: #66FCF1 !important;}
+.section-header {font-size: 22px; font-weight: 700; color: #45A29E; margin-top: 25px; border-left: 4px solid #66FCF1; padding-left: 8px;}
+.big-text {background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 28px; margin-top: 15px; box-shadow: 0 0 25px rgba(0,0,0,0.4);}
 .bullish { color: #00FFB3; font-weight: 700; }
 .bearish { color: #FF6B6B; font-weight: 700; }
 .neutral { color: #FFD93D; font-weight: 700; }
-.motivation {
-    font-weight: 600; font-size: 19px; margin-top: 25px;
-    color: #FFD700; background: rgba(255,255,255,0.08);
-    border-radius: 10px; padding: 14px 16px;
-    text-shadow: 0 0 8px rgba(255,215,0,0.5);
-    box-shadow: inset 0 0 8px rgba(255,255,255,0.05);
-}
+.motivation {font-weight: 600; font-size: 19px; margin-top: 25px; color: #FFD700; background: rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 16px;}
 [data-baseweb="input"] input {
     background-color: rgba(20,20,30,0.6) !important;
     color: #F5F9FF !important;
@@ -84,49 +59,34 @@ AV_API_KEY = st.secrets["ALPHAVANTAGE_API_KEY"]
 FH_API_KEY = st.secrets["FINNHUB_API_KEY"]
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === CRYPTO MAP ===
-CRYPTO_ID_MAP = {
-    "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "AVAX": "avalanche-2",
-    "BNB": "binancecoin", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano",
-    "DOT": "polkadot", "LTC": "litecoin", "CFX": "conflux-token", "XLM": "stellar",
-    "SHIB": "shiba-inu", "PEPE": "pepe", "TON": "the-open-network",
-    "SUI": "sui", "NEAR": "near"
-}
-
-# === UNIVERSAL PRICE FETCHER (CRYPTO/STOCK/FX) ===
+# === UNIVERSAL PRICE FETCHER ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
-    # 1️⃣ Try Finnhub
+    # 1️⃣ Finnhub
     try:
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}"
-        r = requests.get(url, timeout=6)
+        r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6)
         d = r.json()
         if "c" in d and d["c"] != 0:
             chg = ((d["c"] - d["pc"]) / d["pc"]) * 100 if d.get("pc") else 0
             return float(d["c"]), round(chg, 2)
-    except Exception:
-        pass
-    # 2️⃣ Try Alpha Vantage
+    except: pass
+    # 2️⃣ Alpha Vantage
     try:
-        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}"
-        r = requests.get(url, timeout=6).json()
+        r = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}", timeout=6).json()
         if "Global Quote" in r and "05. price" in r["Global Quote"]:
             p = float(r["Global Quote"]["05. price"])
             ch = float(r["Global Quote"].get("10. change percent", "0%").replace("%", ""))
             return p, round(ch, 2)
-    except Exception:
-        pass
-    # 3️⃣ Try TwelveData
+    except: pass
+    # 3️⃣ TwelveData
     try:
-        url = f"https://api.twelvedata.com/price?symbol={symbol}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}"
-        r = requests.get(url, timeout=6).json()
+        r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}", timeout=6).json()
         if "price" in r:
             return float(r["price"]), 0.0
-    except Exception:
-        pass
+    except: pass
     return 1.0, 0.0
 
-# === HISTORICAL DATA ===
+# === HISTORICAL FETCH ===
 def get_twelve_data(symbol, interval="1h", outputsize=100):
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
@@ -135,9 +95,10 @@ def get_twelve_data(symbol, interval="1h", outputsize=100):
         df = pd.DataFrame(res["values"])
         df[["close","high","low"]] = df[["close","high","low"]].astype(float)
         return df.sort_values("datetime").reset_index(drop=True)
-    except Exception:
+    except:
         return None
 
+# === FALLBACK SYNTHETIC SERIES ===
 def synthesize_series(price, length=100, volatility_pct=0.005):
     np.random.seed(int(price * 1000) % 2**31)
     returns = np.random.normal(0, volatility_pct, size=length)
@@ -194,11 +155,11 @@ def combined_bias(kde_val, st_text, bb_text):
     elif "Bear" in st_text: score -= 30
     if "overbought" in bb_text.lower(): score -= 20
     elif "oversold" in bb_text.lower(): score += 20
-    if score > 20: return "Bullish", score
-    if score < -20: return "Bearish", score
-    return "Neutral", score
+    if score > 20: return "Bullish"
+    if score < -20: return "Bearish"
+    return "Neutral"
 
-# === ANALYSIS LOGIC ===
+# === MAIN ANALYSIS ===
 def analyze(symbol, price, vs_currency):
     df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price)
     df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price)
@@ -206,62 +167,53 @@ def analyze(symbol, price, vs_currency):
     kde_val = kde_rsi(df_1h)
     st_text = f"{supertrend_status(df_4h)} (4H) • {supertrend_status(df_1h)} (1H)"
     bb_text = bollinger_status(df_15m)
-    bias, score = combined_bias(kde_val, st_text, bb_text)
+    bias = combined_bias(kde_val, st_text, bb_text)
     atr = df_1h["high"].max() - df_1h["low"].min()
-    entry = price - 0.3 * atr
-    target = price + 1.5 * atr
-    stop = price - 1.0 * atr
-    motivation_msgs = {
-        "Bullish": "🚀 Stay sharp — momentum’s on your side.\nTrade with confidence, not emotion.",
-        "Bearish": "⚡ Discipline is your shield.\nWait for clarity, and strike when odds align.",
+    entry, target, stop = price - 0.3 * atr, price + 1.5 * atr, price - 1.0 * atr
+    motivation = {
+        "Bullish": "🚀 Stay sharp — momentum’s on your side.",
+        "Bearish": "⚡ Discipline is your shield.",
         "Neutral": "⏳ Market resting — patience now builds precision later."
-    }
-    bias_class = {"Bullish": "bullish", "Bearish": "bearish", "Neutral": "neutral"}[bias]
+    }[bias]
     return f"""
 <div class='big-text'>
 <div class='section-header'>📊 Price Overview</div>
-<b>{symbol}</b>: <span style='color:#58C5FF;'>{price:.6f} {vs_currency.upper()}</span>
+<b>{symbol}</b>: <span style='color:#58C5FF;'>{price:.3f} {vs_currency.upper()}</span>
 <div class='section-header'>📈 Indicators</div>
 • KDE RSI: <b>{kde_val:.2f}%</b><br>
 • Bollinger Bands: {bb_text}<br>
 • Supertrend: {st_text}
 <div class='section-header'>🎯 Suggested Levels</div>
-Entry: <b style='color:#58FFB5;'>{entry:.6f}</b><br>
-Target: <b style='color:#58FFB5;'>{target:.6f}</b><br>
-Stop Loss: <b style='color:#FF7878;'>{stop:.6f}</b>
+Entry: <b style='color:#58FFB5;'>{entry:.3f}</b><br>
+Target: <b style='color:#58FFB5;'>{target:.3f}</b><br>
+Stop Loss: <b style='color:#FF7878;'>{stop:.3f}</b>
 <div class='section-header'>📊 Overall Bias</div>
-<b class='{bias_class}'>{bias}</b> (Score: {score})
-<div class='motivation'>💬 {motivation_msgs[bias]}</div>
+<b class='{bias.lower()}'>{bias}</b>
+<div class='motivation'>💬 {motivation}</div>
 </div>
 """
 
 # === SIDEBAR ===
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
-
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
-st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
 # Auto timezone detection
 local_tz = get_localzone()
 user_time = datetime.datetime.now(pytz.timezone(str(local_tz)))
 st.sidebar.markdown(f"<div class='sidebar-clock'>🕒 {user_time.strftime('%H:%M:%S')} ({local_tz})</div>", unsafe_allow_html=True)
 
-# FX Session Logic
+# FX Session
 hour = user_time.hour
-if 0 <= hour < 8:
-    session = "Sydney / Tokyo — Asian Session"
-elif 8 <= hour < 16:
-    session = "London — European Session"
-else:
-    session = "New York — US Session"
-
+if 0 <= hour < 8: session = "Sydney / Tokyo — Asian Session"
+elif 8 <= hour < 16: session = "London — European Session"
+else: session = "New York — US Session"
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
-st.sidebar.markdown("<div class='sidebar-item'><b>Volatility:</b> 85% — High Activity</div>", unsafe_allow_html=True)
 
-# === MAIN CHAT ===
-st.title("💬 AI Trading Chatbot")
+# === MAIN ===
+st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
     user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EURUSD)")
@@ -274,7 +226,6 @@ if user_input:
     if price == 1.0:
         df = get_twelve_data(symbol, "1h")
         price = float(df["close"].iloc[-1]) if df is not None else 1.0
-    analysis = analyze(symbol, price, vs_currency)
-    st.markdown(analysis, unsafe_allow_html=True)
+    st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
 else:
-    st.info("💬 Enter an asset symbol to get analysis.")
+    st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
