@@ -171,9 +171,9 @@ def analyze(symbol, price, vs_currency):
     atr = df_1h["high"].max() - df_1h["low"].min()
     entry, target, stop = price - 0.3 * atr, price + 1.5 * atr, price - 1.0 * atr
     motivation = {
-        "Bullish": "🚀 Stay sharp — momentum’s on your side.",
-        "Bearish": "⚡ Discipline is your shield.",
-        "Neutral": "⏳ Market resting — patience now builds precision later."
+        "Bullish": "Stay sharp — momentum’s on your side.",
+        "Bearish": " Discipline is your shield.",
+        "Neutral": "Market resting — patience now builds precision later."
     }[bias]
     return f"""
 <div class='big-text'>
@@ -201,9 +201,11 @@ st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
 # Auto timezone detection
+from tzlocal import get_localzone
 local_tz = get_localzone()
-user_time = datetime.datetime.now(pytz.timezone(str(local_tz)))
-st.sidebar.markdown(f"<div class='sidebar-clock'>🕒 {user_time.strftime('%H:%M:%S')} ({local_tz})</div>", unsafe_allow_html=True)
+local_time = datetime.now(local_tz)
+st.sidebar.markdown(f"🕒 {local_time.strftime('%H:%M:%S (%Z)')}")
+
 
 # FX Session
 hour = user_time.hour
