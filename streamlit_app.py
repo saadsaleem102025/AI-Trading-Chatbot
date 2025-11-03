@@ -12,35 +12,69 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === CUSTOM STYLING ===
 st.markdown("""
 <style>
-/* Sidebar Styling */
+/* Sidebar */
 [data-testid="stSidebar"] {
-    background-color: #f5f7fa;
+    background-color: #f0f4f8;
     width: 330px !important;
     min-width: 330px !important;
     max-width: 340px !important;
     padding: 1.2rem 0.8rem;
+    color: #1e293b;
 }
 
-/* Main content font size */
+/* Sidebar items */
+.sidebar-title {
+    font-size: 26px !important;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+.sidebar-item {
+    font-size: 16px;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+/* Main Area */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
-    font-size: 22px !important;      /* 🔸 increase/decrease this value */
-    line-height: 1.9!important;     /* 🔸 better readability */
+    font-size: 20px !important;
+    line-height: 1.8 !important;
+    color: #e2e8f0;
 }
 
-/* AI response box styling */
-.ai-response {
-    font-size: 18px !important;
-    line-height: 1.8;
-    color: #E0E0E0;
-    white-space: pre-line;
-    margin-top: 15px;
+/* Background */
+[data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #0f172a, #1e293b);
+    color: #f1f5f9;
 }
 
-/* Motivation text styling */
+/* Custom Sections */
+.big-text {
+    background-color: rgba(30, 41, 59, 0.7);
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.section-header {
+    font-weight: 700;
+    font-size: 22px;
+    color: #38bdf8;
+    margin-top: 18px;
+    margin-bottom: 6px;
+}
+
+/* Motivation highlight */
 .motivation {
     font-weight: 600;
-    color: #FFD700;
-    margin-top: 10px;
+    font-size: 20px;
+    color: #facc15;
+    background-color: rgba(250, 204, 21, 0.1);
+    padding: 10px 15px;
+    border-radius: 10px;
+    margin-top: 14px;
+    line-height: 1.7;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -65,21 +99,34 @@ CRYPTO_ID_MAP = {
     "SUI": "sui", "NEAR": "near"
 }
 
-# === PRICE FETCHER ===
+# === PRICE FETCHER (fixed BTC/ETH zero issue) ===
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
     try:
+        # Coingecko
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": sid, "vs_currencies": vs_currency, "include_24hr_change": "true"}
         res = requests.get(url, params=params, timeout=8)
         data = res.json().get(sid, {})
         price = float(data.get(vs_currency, 0) or 0)
         change = float(data.get(f"{vs_currency}_24h_change", 0) or 0)
-        if 0.0000001 < price < 1e7:
+        if price > 0:
             return round(price, 8), round(change, 2)
     except Exception:
         pass
+
+    try:
+        # Binance fallback
+        pair = f"{symbol.upper()}USDT"
+        res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={pair}", timeout=8).json()
+        price = float(res.get("price", 0))
+        if price > 0:
+            return round(price, 8), 0.0
+    except Exception:
+        pass
+
     return 0.0, 0.0
+
 
 # === HISTORICAL DATA ===
 def get_twelve_data(symbol, interval="1h", outputsize=100):
@@ -94,6 +141,7 @@ def get_twelve_data(symbol, interval="1h", outputsize=100):
     except Exception:
         return None
 
+
 # === SYNTHETIC SERIES (backup if API fails) ===
 def synthesize_series(price, length=100, volatility_pct=0.005):
     np.random.seed(int(price * 1000) % 2**31)
@@ -106,6 +154,7 @@ def synthesize_series(price, length=100, volatility_pct=0.005):
         "low": series * (1 - np.random.normal(0, volatility_pct / 2, size=length)),
     })
     return df
+
 
 # === INDICATORS ===
 def kde_rsi(df):
@@ -141,7 +190,8 @@ def bollinger_status(df):
     if last < lower: return "Lower Band — Oversold"
     return "Within Bands — Normal"
 
-# === COMBINED BIAS (50/30/20 weighting) ===
+
+# === COMBINED BIAS ===
 def combined_bias(kde_val, st_text, bb_text):
     score = 0
     if kde_val < 20: score += 50
@@ -156,6 +206,7 @@ def combined_bias(kde_val, st_text, bb_text):
     if score > 20: return "Bullish", score
     if score < -20: return "Bearish", score
     return "Neutral", score
+
 
 # === VOLATILITY ===
 def fx_sessions(utc_time):
@@ -176,6 +227,7 @@ def session_volatility(active_sessions):
     else: desc = "Extreme Move — Beware of Reversals"
     return f"{vol:.0f}% — {desc}"
 
+
 # === ANALYSIS ===
 def analyze(symbol, price, vs_currency):
     df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price)
@@ -193,9 +245,9 @@ def analyze(symbol, price, vs_currency):
     stop = price - 1.0 * atr
 
     motivation_msgs = {
-        "Bullish": "🚀 The trend is your ally — trust your setup, but never chase. Stay calm and follow the plan.",
-        "Bearish": "⚡ Patience pays — markets reward discipline. Protect capital and wait for the rebound.",
-        "Neutral": "⏳ Every pause builds energy for the next move. Observe, learn, and strike only when clear."
+        "Bullish": "🚀 Stay focused! The market favors bold but disciplined moves. Trust your plan and ride the wave confidently.",
+        "Bearish": "⚡ Strength lies in restraint — control risk and preserve capital for the perfect strike.",
+        "Neutral": "⏳ The best traders know patience wins. Let the charts reveal the story before acting."
     }
 
     return f"""
@@ -220,6 +272,7 @@ Stop Loss: {stop:.6f}
 </div>
 """
 
+
 # === SIDEBAR ===
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 btc, btc_ch = get_crypto_price("BTC")
@@ -239,7 +292,7 @@ st.sidebar.markdown(f"<p class='sidebar-item'><b>Active Sessions:</b> {', '.join
 st.sidebar.markdown(f"<p class='sidebar-item'><b>Volatility:</b> {volatility_info}</p>", unsafe_allow_html=True)
 
 # === MAIN ===
-st.title("AI Trading Chatbot")
+st.title("🌐 AI Trading Chatbot")
 col1, col2 = st.columns([2,1])
 with col1:
     user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD)")
