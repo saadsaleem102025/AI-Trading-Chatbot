@@ -35,8 +35,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 }
 .sidebar-title {font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;}
 .sidebar-item {background: rgba(255,255,255,0.07); border-radius: 12px; padding: 12px; margin: 10px 0; font-size: 17px; color: #C5C6C7;}
-.sidebar-clock {display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; color: #D8DEE9; font-size: 15px; font-weight: 600;}
-.sidebar-clock svg, .sidebar-clock span {color: #66FCF1 !important;}
 .section-header {font-size: 22px; font-weight: 700; color: #45A29E; margin-top: 25px; border-left: 4px solid #66FCF1; padding-left: 8px;}
 .big-text {background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 28px; margin-top: 15px; box-shadow: 0 0 25px rgba(0,0,0,0.4);}
 .bullish { color: #00FFB3; font-weight: 700; }
@@ -200,18 +198,46 @@ eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
-# Auto-updating local clock + FX session
+# === AUTO TIMEZONE DETECTION + SAFE AUTO REFRESH ===
 local_tz = get_localzone()
-clock_placeholder = st.sidebar.empty()
-session_placeholder = st.sidebar.empty()
+local_time = datetime.datetime.now(local_tz)
+hour = local_time.hour
 
-while True:
-    local_time = datetime.datetime.now(local_tz)
-    hour = local_time.hour
-    if 0 <= hour < 8: session = "Sydney / Tokyo — Asian Session"
-    elif 8 <= hour < 16: session = "London — European Session"
-    else: session = "New York — US Session"
-    clock_placeholder.markdown(f"🕒 {local_time.strftime('%H:%M:%S (%Z)')}")
-    session_placeholder.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
-    time.sleep(1)
+if 0 <= hour < 8:
+    session = "Sydney / Tokyo — Asian Session"
+elif 8 <= hour < 16:
+    session = "London — European Session"
+else:
+    session = "New York — US Session"
+
+st.sidebar.markdown(
+    f"<div class='sidebar-item'><b>🕒 {local_time.strftime('%H:%M:%S (%Z)')}</b></div>",
+    unsafe_allow_html=True,
+)
+st.sidebar.markdown(
+    f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>",
+    unsafe_allow_html=True,
+)
+
+# Safe refresh every 5 seconds
+if "last_refresh" not in st.session_state or int(time.time()) - st.session_state["last_refresh"] >= 5:
+    st.session_state["last_refresh"] = int(time.time())
     st.experimental_rerun()
+
+# === MAIN ===
+st.title("AI Trading Chatbot")
+col1, col2 = st.columns([2, 1])
+with col1:
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EURUSD)")
+with col2:
+    vs_currency = st.text_input("Quote Currency", "usd").lower()
+
+if user_input:
+    symbol = user_input.strip().upper()
+    price, _ = get_asset_price(symbol, vs_currency)
+    if price == 1.0:
+        df = get_twelve_data(symbol, "1h")
+        price = float(df["close"].iloc[-1]) if df is not None else 1.0
+    st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
+else:
+    st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
