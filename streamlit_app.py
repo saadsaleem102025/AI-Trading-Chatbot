@@ -12,6 +12,7 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === CUSTOM STYLING ===
 st.markdown("""
 <style>
+/* Sidebar Styling */
 [data-testid="stSidebar"] {
     background-color: #f5f7fa;
     width: 330px !important;
@@ -19,29 +20,31 @@ st.markdown("""
     max-width: 340px !important;
     padding: 1.2rem 0.8rem;
 }
-.sidebar-title { font-size: 26px !important; font-weight:700; color:#0f172a; margin-bottom:8px; }
-.sidebar-item { font-size:16px; color:#334155; margin-bottom:6px; line-height:1.4; white-space:normal; word-wrap:break-word; }
-.sidebar-highlight { font-weight:700; color:#0f172a; }
 
-.big-text {
+/* Main content font size */
+html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
+    font-size: 18px !important;      /* 🔸 increase/decrease this value */
+    line-height: 1.7 !important;     /* 🔸 better readability */
+}
+
+/* AI response box styling */
+.ai-response {
     font-size: 18px !important;
-    line-height: 1.6 !important;
-    color: #0f172a !important;
-}
-.section-header {
-    font-size: 22px;
-    font-weight: 700;
-    margin-top: 20px;
-    color: #1e293b;
-}
-.motivation {
+    line-height: 1.8;
+    color: #E0E0E0;
+    white-space: pre-line;
     margin-top: 15px;
-    font-size: 18px;
-    font-style: italic;
-    color: #047857;
+}
+
+/* Motivation text styling */
+.motivation {
+    font-weight: 600;
+    color: #FFD700;
+    margin-top: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 # === API KEY ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
