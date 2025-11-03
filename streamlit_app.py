@@ -30,11 +30,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     padding: 25px;
 }
 
-/* === SIDEBAR: FLUSH LEFT + ENHANCED VISUAL SEPARATION === */
-section[data-testid="stSidebar"] {
-    padding-left: 0 !important;
-    margin-left: 0 !important;
-}
+/* === SIDEBAR: COMPLETELY FLUSH LEFT & PROMINENT === */
 [data-testid="stSidebar"] {
     background: linear-gradient(165deg, #202538, #1C1F2E);
     width: 340px !important;
@@ -42,8 +38,15 @@ section[data-testid="stSidebar"] {
     max-width: 350px !important;
     padding: 1.6rem 1.2rem 2rem 1.2rem;
     border-right: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 6px 0 15px rgba(0,0,0,0.35);
-    margin: 0 !important;
+    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    position: fixed !important;      /* Locks it flush to left */
+    top: 0; left: 0; bottom: 0;      /* full vertical fit */
+    z-index: 100;
+}
+section[data-testid="stSidebar"] > div {
+    margin-left: 0 !important;
 }
 
 /* === SIDEBAR ELEMENTS === */
@@ -62,6 +65,13 @@ section[data-testid="stSidebar"] {
     font-size: 17px;
     box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
     color: #C5C6C7;
+}
+
+/* === FIX CLOCK ALIGNMENT === */
+[data-testid="stSidebar"] .stCaptionContainer {
+    margin-top: -10px !important;  /* brings it closer to dropdown */
+    font-size: 15px !important;
+    opacity: 0.8;
 }
 
 /* === SECTION HEADERS === */
@@ -116,6 +126,7 @@ h1, h2, h3 {
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
