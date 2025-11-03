@@ -23,8 +23,8 @@ st.markdown("""
 
 /* Main content font size */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
-    font-size: 18px !important;      /* 🔸 increase/decrease this value */
-    line-height: 1.7 !important;     /* 🔸 better readability */
+    font-size: 22px !important;      /* 🔸 increase/decrease this value */
+    line-height: 1.9!important;     /* 🔸 better readability */
 }
 
 /* AI response box styling */
