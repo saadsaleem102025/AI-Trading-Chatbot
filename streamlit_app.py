@@ -1,5 +1,5 @@
 import streamlit as st
-import requests, datetime, pandas as pd, numpy as np, pytz
+import requests, datetime, pandas as pd, numpy as np, pytz, time
 from tzlocal import get_localzone
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -172,7 +172,7 @@ def analyze(symbol, price, vs_currency):
     entry, target, stop = price - 0.3 * atr, price + 1.5 * atr, price - 1.0 * atr
     motivation = {
         "Bullish": "Stay sharp — momentum’s on your side.",
-        "Bearish": " Discipline is your shield.",
+        "Bearish": "Discipline is your shield.",
         "Neutral": "Market resting — patience now builds precision later."
     }[bias]
     return f"""
@@ -200,34 +200,18 @@ eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
 
-# Auto timezone detection
-from tzlocal import get_localzone
+# Auto-updating local clock + FX session
 local_tz = get_localzone()
-local_time = datetime.now(local_tz)
-st.sidebar.markdown(f"🕒 {local_time.strftime('%H:%M:%S (%Z)')}")
+clock_placeholder = st.sidebar.empty()
+session_placeholder = st.sidebar.empty()
 
-
-# FX Session
-hour = user_time.hour
-if 0 <= hour < 8: session = "Sydney / Tokyo — Asian Session"
-elif 8 <= hour < 16: session = "London — European Session"
-else: session = "New York — US Session"
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
-
-# === MAIN ===
-st.title("AI Trading Chatbot")
-col1, col2 = st.columns([2, 1])
-with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EURUSD)")
-with col2:
-    vs_currency = st.text_input("Quote Currency", "usd").lower()
-
-if user_input:
-    symbol = user_input.strip().upper()
-    price, _ = get_asset_price(symbol, vs_currency)
-    if price == 1.0:
-        df = get_twelve_data(symbol, "1h")
-        price = float(df["close"].iloc[-1]) if df is not None else 1.0
-    st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
-else:
-    st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
+while True:
+    local_time = datetime.datetime.now(local_tz)
+    hour = local_time.hour
+    if 0 <= hour < 8: session = "Sydney / Tokyo — Asian Session"
+    elif 8 <= hour < 16: session = "London — European Session"
+    else: session = "New York — US Session"
+    clock_placeholder.markdown(f"🕒 {local_time.strftime('%H:%M:%S (%Z)')}")
+    session_placeholder.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
+    time.sleep(1)
+    st.experimental_rerun()
