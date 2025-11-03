@@ -12,6 +12,10 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === MODERN STYLING ===
 st.markdown("""
 <style>
+/* === REMOVE STREAMLIT DEFAULT HEADER + FOOTER === */
+header[data-testid="stHeader"], footer {visibility: hidden !important;}
+#MainMenu {visibility: hidden !important;}
+
 /* === GLOBAL MODERN UI === */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 18px !important;
@@ -27,7 +31,11 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     padding: 25px;
 }
 
-/* === SIDEBAR DARK MODERN === */
+/* === SIDEBAR DARK MODERN (FULL FLUSH LEFT) === */
+section[data-testid="stSidebar"] > div:first-child {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+}
 [data-testid="stSidebar"] {
     background: linear-gradient(165deg, #1E1E2E, #2A2A40);
     width: 340px !important;
@@ -36,6 +44,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     padding: 1.6rem 1.2rem;
     border-right: 1px solid rgba(255,255,255,0.1);
     box-shadow: 4px 0 10px rgba(0,0,0,0.3);
+    margin-left: 0 !important;
 }
 
 /* === SIDEBAR ELEMENTS === */
