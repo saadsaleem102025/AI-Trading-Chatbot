@@ -11,7 +11,7 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === MODERN STYLING ===
 st.markdown("""
 <style>
-/* === REMOVE HEADER + FOOTER === */
+
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
@@ -47,7 +47,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 
 /* === MARKET CONTEXT HEADING === */
 .sidebar-title {
-    font-size: 24px;
+    font-size: 30px;
     font-weight: 800;
     color: #66FCF1;
     margin-bottom: 25px;
