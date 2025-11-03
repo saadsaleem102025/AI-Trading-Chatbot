@@ -11,11 +11,11 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === MODERN STYLING ===
 st.markdown("""
 <style>
-/* === HIDE HEADER + FOOTER === */
+/* === REMOVE HEADER + FOOTER === */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
-/* === GLOBAL FONT === */
+/* === GLOBAL FONT + BODY === */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 18px !important;
     color: #E9EEF6 !important;
@@ -23,27 +23,26 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     line-height: 1.8 !important;
 }
 
-/* === APP BACKGROUND === */
+/* === MAIN BACKGROUND === */
 [data-testid="stAppViewContainer"] {
     background: linear-gradient(160deg, #0F2027, #203A43, #2C5364);
     color: white !important;
-    padding-left: 360px !important; /* pushes main content away from sidebar */
+    padding-left: 360px !important; /* ensures main content is visible */
     padding-right: 25px;
-    transition: all 0.3s ease;
 }
 
 /* === SIDEBAR === */
 [data-testid="stSidebar"] {
-    background: linear-gradient(165deg, #1B1F2E, #0E111A);
+    background: linear-gradient(180deg, #0E111A 0%, #1B1F2E 100%);
     width: 340px !important;
     min-width: 340px !important;
     max-width: 350px !important;
-    padding: 1.6rem 1.2rem 2rem 1.2rem;
-    border-right: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
     position: fixed !important;
     top: 0; left: 0; bottom: 0;
     z-index: 100;
+    padding: 1.6rem 1.2rem 2rem 1.2rem;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
 
 /* === MARKET CONTEXT HEADING === */
@@ -54,7 +53,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-bottom: 25px;
 }
 
-/* === SIDEBAR BOX ELEMENTS === */
+/* === SIDEBAR ITEM BOX === */
 .sidebar-item {
     background: rgba(255,255,255,0.07);
     border-radius: 12px;
@@ -65,19 +64,23 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #C5C6C7;
 }
 
-/* === CLOCK + TIMEZONE ALIGNMENT === */
-[data-testid="stSidebar"] .stCaptionContainer {
+/* === CLOCK FIX (Under Timezone) === */
+.sidebar-clock {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 2px !important; /* perfect spacing below dropdown */
-    font-size: 15px !important;
-    opacity: 0.85;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    color: #D8DEE9;
+    font-size: 15px;
+    font-weight: 600;
+    text-shadow: 0 0 6px rgba(102,252,241,0.4);
+    box-shadow: inset 0 0 5px rgba(255,255,255,0.05);
 }
-[data-testid="stSidebar"] .stCaptionContainer svg {
-    position: relative;
-    top: 1px;
-    margin-right: 5px;
+.sidebar-clock svg, .sidebar-clock span {
+    color: #66FCF1 !important;
 }
 
 /* === SECTION HEADERS === */
@@ -100,7 +103,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 0 25px rgba(0,0,0,0.4);
 }
 
-/* === COLORS === */
+/* === TEXT COLORS === */
 .bullish { color: #00FFB3; font-weight: 700; }
 .bearish { color: #FF6B6B; font-weight: 700; }
 .neutral { color: #FFD93D; font-weight: 700; }
@@ -133,14 +136,10 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-
-
-
-
 # === API KEY ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
 
-# === REFRESH (30s) ===
+# === AUTO REFRESH (30s) ===
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = time.time()
 if time.time() - st.session_state.last_refresh > 30:
@@ -156,7 +155,7 @@ CRYPTO_ID_MAP = {
     "SUI": "sui", "NEAR": "near"
 }
 
-# === PRICE FETCHER (stable fix) ===
+# === PRICE FETCHER ===
 def get_crypto_price(symbol, vs_currency="usd"):
     sid = CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
     try:
@@ -167,28 +166,25 @@ def get_crypto_price(symbol, vs_currency="usd"):
         data = res.json().get(sid, {})
         price = data.get(vs_currency)
         change = data.get(f"{vs_currency}_24h_change")
-        if price is None or change is None:
-            raise ValueError("Incomplete data")
-        if 0.0000001 < price < 1e7:
+        if price and change:
             return round(float(price), 6), round(float(change), 2)
     except Exception:
         pass
-    return 1.0, 0.0  # fallback safe value
+    return 1.0, 0.0
 
-# === HISTORICAL DATA ===
+# === HISTORICAL FETCH ===
 def get_twelve_data(symbol, interval="1h", outputsize=100):
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
-        if "values" not in res:
-            return None
+        if "values" not in res: return None
         df = pd.DataFrame(res["values"])
         df[["close","high","low"]] = df[["close","high","low"]].astype(float)
         return df.sort_values("datetime").reset_index(drop=True)
     except Exception:
         return None
 
-# === SYNTHETIC SERIES (backup) ===
+# === SYNTHETIC BACKUP ===
 def synthesize_series(price, length=100, volatility_pct=0.005):
     np.random.seed(int(price * 1000) % 2**31)
     returns = np.random.normal(0, volatility_pct, size=length)
@@ -235,7 +231,6 @@ def bollinger_status(df):
     if last < lower: return "Lower Band — Oversold"
     return "Within Bands — Normal"
 
-# === BIAS (50/30/20) ===
 def combined_bias(kde_val, st_text, bb_text):
     score = 0
     if kde_val < 20: score += 50
@@ -256,43 +251,34 @@ def analyze(symbol, price, vs_currency):
     df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price)
     df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price)
     df_15m = get_twelve_data(symbol, "15min") or synthesize_series(price)
-
     kde_val = kde_rsi(df_1h)
     st_text = f"{supertrend_status(df_4h)} (4H) • {supertrend_status(df_1h)} (1H)"
     bb_text = bollinger_status(df_15m)
     bias, score = combined_bias(kde_val, st_text, bb_text)
-
     atr = df_1h["high"].max() - df_1h["low"].min()
     entry = price - 0.3 * atr
     target = price + 1.5 * atr
     stop = price - 1.0 * atr
-
     motivation_msgs = {
         "Bullish": "🚀 Stay sharp — momentum’s on your side. Trade with confidence, not emotion.",
         "Bearish": "⚡ Discipline is your shield. Wait for clarity, and strike when odds align.",
         "Neutral": "⏳ Market resting — patience now builds precision later."
     }
-
     bias_class = {"Bullish": "bullish", "Bearish": "bearish", "Neutral": "neutral"}[bias]
-
     return f"""
 <div class='big-text'>
 <div class='section-header'>📊 Price Overview</div>
 <b>{symbol}</b>: <span style='color:#58C5FF;'>{price:.6f} {vs_currency.upper()}</span>
-
 <div class='section-header'>📈 Indicators</div>
 • KDE RSI: <b>{kde_val:.2f}%</b><br>
 • Bollinger Bands: {bb_text}<br>
 • Supertrend: {st_text}
-
 <div class='section-header'>🎯 Suggested Levels</div>
 Entry: <b style='color:#58FFB5;'>{entry:.6f}</b><br>
 Target: <b style='color:#58FFB5;'>{target:.6f}</b><br>
 Stop Loss: <b style='color:#FF7878;'>{stop:.6f}</b>
-
 <div class='section-header'>📊 Overall Bias</div>
 <b class='{bias_class}'>{bias}</b> (Score: {score})
-
 <div class='motivation'>💬 {motivation_msgs[bias]}</div>
 </div>
 """
@@ -308,15 +294,17 @@ utc_offsets = [f"UTC{offset:+d}" for offset in range(-12, 13)]
 user_offset = st.sidebar.selectbox("Select Timezone (UTC)", utc_offsets, index=5)
 offset_hours = int(user_offset.replace("UTC", ""))
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
-st.sidebar.caption(f"🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})")
+st.sidebar.markdown(
+    f"<div class='sidebar-clock'>🕒 Local Time: {user_time.strftime('%H:%M:%S')} ({user_offset})</div>",
+    unsafe_allow_html=True
+)
 
-active = ["London", "New York"]
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Sessions:</b> {', '.join(active)}</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-item'><b>Active Sessions:</b> London, New York</div>", unsafe_allow_html=True)
 st.sidebar.markdown("<div class='sidebar-item'><b>Volatility:</b> 85% — High Activity</div>", unsafe_allow_html=True)
 
 # === MAIN ===
 st.title("💬 AI Trading Chatbot")
-col1, col2 = st.columns([2,1])
+col1, col2 = st.columns([2, 1])
 with col1:
     user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD)")
 with col2:
