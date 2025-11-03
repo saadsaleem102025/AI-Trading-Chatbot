@@ -2,4 +2,6 @@ streamlit
 openai>=1.0.0
 requests
 pytz
+tzlocal
+
 
