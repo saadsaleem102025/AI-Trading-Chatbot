@@ -3,9 +3,8 @@ import time, requests, datetime, pandas as pd, numpy as np
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === MODERN STYLE ===
-st.markdown("""
-<style>
+# === STYLING (unchanged) ===
+st.markdown("""<style>
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
@@ -22,19 +21,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 }
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0E111A 0%, #1B1F2E 100%);
-    width: 340px !important;
-    min-width: 340px !important;
-    max-width: 350px !important;
-    position: fixed !important;
-    top: 0; left: 0; bottom: 0;
-    z-index: 100;
-    padding: 1.6rem 1.2rem 2rem 1.2rem;
+    width: 340px !important; min-width: 340px !important; max-width: 350px !important;
+    position: fixed !important; top: 0; left: 0; bottom: 0;
+    z-index: 100; padding: 1.6rem 1.2rem 2rem 1.2rem;
     border-right: 1px solid rgba(255,255,255,0.08);
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
-.sidebar-title {
-    font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;
-}
+.sidebar-title {font-size: 30px; font-weight: 800; color: #66FCF1; margin-bottom: 25px;}
 .sidebar-item {
     background: rgba(255,255,255,0.07); border-radius: 12px;
     padding: 12px; margin: 10px 0; font-size: 17px;
@@ -75,13 +68,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-weight: 600 !important;
 }
 h1, h2, h3 { color: #66FCF1 !important; text-shadow: 0 0 10px rgba(102,252,241,0.4); }
-</style>
-""", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
 
 # === API KEYS ===
 TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
+ALPHA_KEY = st.secrets["ALPHA_VANTAGE_API_KEY"]
 
-# === CRYPTO MAP ===
+# === CRYPTO ID MAP ===
 CRYPTO_ID_MAP = {
     "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "AVAX": "avalanche-2",
     "BNB": "binancecoin", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano",
@@ -96,7 +89,8 @@ def get_crypto_price(symbol, vs_currency="usd"):
     urls = [
         ("coingecko", f"https://api.coingecko.com/api/v3/simple/price?ids={sid}&vs_currencies={vs_currency}&include_24hr_change=true"),
         ("binance", f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol.upper()}USDT"),
-        ("twelvedata", f"https://api.twelvedata.com/price?symbol={symbol.upper()}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}")
+        ("twelvedata", f"https://api.twelvedata.com/price?symbol={symbol.upper()}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}"),
+        ("alphavantage", f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol.upper()}&apikey={ALPHA_KEY}")
     ]
     for name, url in urls:
         try:
@@ -105,14 +99,20 @@ def get_crypto_price(symbol, vs_currency="usd"):
             data = res.json()
             if name == "coingecko":
                 d = data.get(sid, {})
-                if d.get(vs_currency): return round(float(d[vs_currency]), 6), round(float(d[f"{vs_currency}_24h_change"]), 2)
+                if d.get(vs_currency): return round(float(d[vs_currency]), 6), round(float(d.get(f"{vs_currency}_24h_change", 0)), 2)
             elif name == "binance" and "lastPrice" in data:
                 return round(float(data["lastPrice"]), 6), round(float(data["priceChangePercent"]), 2)
             elif name == "twelvedata" and "price" in data:
                 return round(float(data["price"]), 6), 0.0
+            elif name == "alphavantage" and "Global Quote" in data:
+                q = data["Global Quote"]
+                price = float(q.get("05. price", 0))
+                change = float(q.get("10. change percent", "0%").replace("%", ""))
+                if price > 0:
+                    return round(price, 6), round(change, 2)
         except Exception:
             continue
-    return 1.0, 0.0  # final fallback only
+    return 1.0, 0.0  # final safe fallback
 
 # === HISTORICAL DATA ===
 def get_twelve_data(symbol, interval="1h", outputsize=100):
@@ -137,7 +137,7 @@ def synthesize_series(price, length=100, volatility_pct=0.005):
     })
     return df
 
-# === INDICATORS ===
+# === INDICATORS (same as before) ===
 def kde_rsi(df):
     closes = df["close"].astype(float).values
     deltas = np.diff(closes)
@@ -222,6 +222,24 @@ Stop Loss: <b style='color:#FF7878;'>{stop:.6f}</b>
 </div>
 """
 
+# === NEWS FROM ALPHA VANTAGE ===
+def get_alpha_news(symbol="BTC"):
+    try:
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&apikey={ALPHA_KEY}"
+        res = requests.get(url, timeout=6).json()
+        if "feed" in res:
+            news_list = res["feed"][:3]
+            news_html = "<div class='sidebar-item'><b>🗞 Latest News</b><br>"
+            for n in news_list:
+                title = n.get("title", "No Title")
+                link = n.get("url", "#")
+                news_html += f"• <a href='{link}' target='_blank' style='color:#66FCF1;text-decoration:none;'>{title}</a><br>"
+            news_html += "</div>"
+            return news_html
+    except Exception:
+        return "<div class='sidebar-item'>🗞 No news data</div>"
+    return "<div class='sidebar-item'>🗞 No news available</div>"
+
 # === SIDEBAR ===
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 btc, btc_ch = get_crypto_price("BTC")
@@ -235,11 +253,11 @@ offset_hours = int(user_offset.replace("UTC", ""))
 user_time = datetime.datetime.utcnow() + datetime.timedelta(hours=offset_hours)
 st.sidebar.markdown(f"<div class='sidebar-clock'>🕒 {user_time.strftime('%H:%M:%S')} ({user_offset})</div>", unsafe_allow_html=True)
 
-st.sidebar.markdown("<div class='sidebar-item'><b>Active Sessions:</b> London, New York</div>", unsafe_allow_html=True)
-st.sidebar.markdown("<div class='sidebar-item'><b>Volatility:</b> 85% — High Activity</div>", unsafe_allow_html=True)
+# === Add live market news ===
+st.sidebar.markdown(get_alpha_news("AAPL"), unsafe_allow_html=True)
 
 # === MAIN CHAT ===
-st.title("💬 AI Trading Chatbot")
+st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
     user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EURUSD)")
