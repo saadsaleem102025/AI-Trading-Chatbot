@@ -11,11 +11,11 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === MODERN STYLING ===
 st.markdown("""
 <style>
-/* === REMOVE STREAMLIT DEFAULT HEADER + FOOTER === */
+/* === HIDE HEADER + FOOTER === */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
-/* === GLOBAL MODERN UI === */
+/* === GLOBAL FONT === */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 18px !important;
     color: #E9EEF6 !important;
@@ -23,33 +23,30 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     line-height: 1.8 !important;
 }
 
-/* === MAIN BACKGROUND === */
+/* === APP BACKGROUND === */
 [data-testid="stAppViewContainer"] {
     background: linear-gradient(160deg, #0F2027, #203A43, #2C5364);
     color: white !important;
-    padding: 25px;
+    padding-left: 360px !important; /* pushes main content away from sidebar */
+    padding-right: 25px;
+    transition: all 0.3s ease;
 }
 
-/* === SIDEBAR: COMPLETELY FLUSH LEFT & PROMINENT === */
+/* === SIDEBAR === */
 [data-testid="stSidebar"] {
-    background: linear-gradient(165deg, #202538, #1C1F2E);
+    background: linear-gradient(165deg, #1B1F2E, #0E111A);
     width: 340px !important;
     min-width: 340px !important;
     max-width: 350px !important;
     padding: 1.6rem 1.2rem 2rem 1.2rem;
     border-right: 1px solid rgba(255,255,255,0.08);
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-    position: fixed !important;      /* Locks it flush to left */
-    top: 0; left: 0; bottom: 0;      /* full vertical fit */
+    position: fixed !important;
+    top: 0; left: 0; bottom: 0;
     z-index: 100;
 }
-section[data-testid="stSidebar"] > div {
-    margin-left: 0 !important;
-}
 
-/* === SIDEBAR ELEMENTS === */
+/* === MARKET CONTEXT HEADING === */
 .sidebar-title {
     font-size: 24px;
     font-weight: 800;
@@ -57,6 +54,7 @@ section[data-testid="stSidebar"] > div {
     margin-bottom: 25px;
 }
 
+/* === SIDEBAR BOX ELEMENTS === */
 .sidebar-item {
     background: rgba(255,255,255,0.07);
     border-radius: 12px;
@@ -67,11 +65,19 @@ section[data-testid="stSidebar"] > div {
     color: #C5C6C7;
 }
 
-/* === FIX CLOCK ALIGNMENT === */
+/* === CLOCK + TIMEZONE ALIGNMENT === */
 [data-testid="stSidebar"] .stCaptionContainer {
-    margin-top: -10px !important;  /* brings it closer to dropdown */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px !important; /* perfect spacing below dropdown */
     font-size: 15px !important;
-    opacity: 0.8;
+    opacity: 0.85;
+}
+[data-testid="stSidebar"] .stCaptionContainer svg {
+    position: relative;
+    top: 1px;
+    margin-right: 5px;
 }
 
 /* === SECTION HEADERS === */
@@ -84,7 +90,7 @@ section[data-testid="stSidebar"] > div {
     padding-left: 8px;
 }
 
-/* === ANALYSIS BOX === */
+/* === BIG TEXT === */
 .big-text {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.15);
@@ -94,12 +100,12 @@ section[data-testid="stSidebar"] > div {
     box-shadow: 0 0 25px rgba(0,0,0,0.4);
 }
 
-/* === TEXT COLORS === */
+/* === COLORS === */
 .bullish { color: #00FFB3; font-weight: 700; }
 .bearish { color: #FF6B6B; font-weight: 700; }
 .neutral { color: #FFD93D; font-weight: 700; }
 
-/* === MOTIVATIONAL BOX === */
+/* === MOTIVATION BOX === */
 .motivation {
     font-weight: 600;
     font-size: 19px;
@@ -126,6 +132,7 @@ h1, h2, h3 {
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
