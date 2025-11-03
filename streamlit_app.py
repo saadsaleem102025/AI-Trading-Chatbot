@@ -1,6 +1,10 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
-from tzlocal import get_localzone
+# tzlocal is optional; we try to use it, but fallback to UTC if not installed
+try:
+    from tzlocal import get_localzone
+except Exception:
+    get_localzone = None
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
@@ -52,40 +56,58 @@ h1, h2, h3 { color: #66FCF1 !important; text-shadow: 0 0 10px rgba(102,252,241,0
 </style>
 """, unsafe_allow_html=True)
 
-# === API KEYS ===
-AV_API_KEY = st.secrets["ALPHAVANTAGE_API_KEY"]
-FH_API_KEY = st.secrets["FINNHUB_API_KEY"]
-TWELVE_API_KEY = st.secrets["TWELVE_DATA_API_KEY"]
+# === API KEYS (from secrets) ===
+AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
+FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
+TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === UNIVERSAL PRICE FETCHER ===
+# === Try to import streamlit_autorefresh; if not available define a safe no-op ===
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    def st_autorefresh(interval=0, limit=None, key=None):
+        # safe no-op: return None and don't force reruns
+        return None
+
+# === UNIVERSAL PRICE FETCHER (multi-backup: Finnhub -> AlphaV -> TwelveData) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
-    # 1️⃣ Finnhub
-    try:
-        r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6)
-        d = r.json()
-        if "c" in d and d["c"] != 0:
-            chg = ((d["c"] - d["pc"]) / d["pc"]) * 100 if d.get("pc") else 0
-            return float(d["c"]), round(chg, 2)
-    except: pass
-    # 2️⃣ Alpha Vantage
-    try:
-        r = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}", timeout=6).json()
-        if "Global Quote" in r and "05. price" in r["Global Quote"]:
-            p = float(r["Global Quote"]["05. price"])
-            ch = float(r["Global Quote"].get("10. change percent", "0%").replace("%", ""))
-            return p, round(ch, 2)
-    except: pass
-    # 3️⃣ TwelveData
-    try:
-        r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}", timeout=6).json()
-        if "price" in r:
-            return float(r["price"]), 0.0
-    except: pass
-    return 1.0, 0.0
+    # 1️⃣ Finnhub (covers stocks/crypto-ish tickers if present)
+    if FH_API_KEY:
+        try:
+            r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6)
+            d = r.json()
+            if isinstance(d, dict) and d.get("c"):
+                chg = ((d["c"] - d.get("pc", d["c"])) / d.get("pc", d["c"])) * 100 if d.get("pc") else 0.0
+                return float(d["c"]), round(chg, 2)
+        except Exception:
+            pass
+    # 2️⃣ Alpha Vantage (global quote for stocks/FX)
+    if AV_API_KEY:
+        try:
+            r = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}", timeout=6).json()
+            if "Global Quote" in r and r["Global Quote"].get("05. price"):
+                p = float(r["Global Quote"]["05. price"])
+                ch = r["Global Quote"].get("10. change percent", "0%").replace("%", "")
+                chf = float(ch) if ch != "" else 0.0
+                return p, round(chf, 2)
+        except Exception:
+            pass
+    # 3️⃣ TwelveData (works for many symbols incl forex)
+    if TWELVE_API_KEY:
+        try:
+            r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol}/{vs_currency.upper()}&apikey={TWELVE_API_KEY}", timeout=6).json()
+            if "price" in r:
+                return float(r["price"]), 0.0
+        except Exception:
+            pass
+    # final safe fallback (explicit None to indicate failure)
+    return None, None
 
 # === HISTORICAL FETCH ===
 def get_twelve_data(symbol, interval="1h", outputsize=100):
+    if not TWELVE_API_KEY:
+        return None
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
@@ -93,24 +115,27 @@ def get_twelve_data(symbol, interval="1h", outputsize=100):
         df = pd.DataFrame(res["values"])
         df[["close","high","low"]] = df[["close","high","low"]].astype(float)
         return df.sort_values("datetime").reset_index(drop=True)
-    except:
+    except Exception:
         return None
 
-# === FALLBACK SYNTHETIC SERIES ===
+# === SYNTHETIC BACKUP (only used if all data sources fail) ===
 def synthesize_series(price, length=100, volatility_pct=0.005):
-    np.random.seed(int(price * 1000) % 2**31)
+    np.random.seed(int((price or 1) * 1000) % 2**31)
     returns = np.random.normal(0, volatility_pct, size=length)
-    series = price * np.exp(np.cumsum(returns))
+    series = (price or 1.0) * np.exp(np.cumsum(returns))
     df = pd.DataFrame({
         "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
-        "close": series, "high": series * (1 + np.random.normal(0, volatility_pct/2, size=length)),
+        "close": series, 
+        "high": series * (1 + np.random.normal(0, volatility_pct/2, size=length)),
         "low": series * (1 - np.random.normal(0, volatility_pct/2, size=length))
     })
     return df
 
-# === INDICATORS ===
+# === INDICATORS (unchanged) ===
 def kde_rsi(df):
     closes = df["close"].astype(float).values
+    if len(closes) < 5:
+        return 50.0
     deltas = np.diff(closes)
     gains = np.where(deltas > 0, deltas, 0)
     losses = np.where(deltas < 0, -deltas, 0)
@@ -118,7 +143,7 @@ def kde_rsi(df):
     avg_loss = pd.Series(losses).ewm(alpha=1/14, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
-    w = np.exp(-0.5 * (np.linspace(-2, 2, len(rsi[-30:])))**2)
+    w = np.exp(-0.5 * (np.linspace(-2, 2, max(len(rsi[-30:]),1)))**2)
     return float(np.average(rsi[-30:], weights=w))
 
 def supertrend_status(df):
@@ -134,6 +159,8 @@ def supertrend_status(df):
 
 def bollinger_status(df):
     close = df["close"]
+    if len(close) < 20:
+        return "Within Bands — Normal"
     ma = close.rolling(20).mean().iloc[-1]
     std = close.rolling(20).std().iloc[-1]
     upper, lower = ma + 2*std, ma - 2*std
@@ -157,17 +184,17 @@ def combined_bias(kde_val, st_text, bb_text):
     if score < -20: return "Bearish"
     return "Neutral"
 
-# === MAIN ANALYSIS ===
+# === ANALYSIS ===
 def analyze(symbol, price, vs_currency):
-    df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price)
-    df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price)
-    df_15m = get_twelve_data(symbol, "15min") or synthesize_series(price)
+    df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price or 1.0)
+    df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price or 1.0)
+    df_15m = get_twelve_data(symbol, "15min") or synthesize_series(price or 1.0)
     kde_val = kde_rsi(df_1h)
     st_text = f"{supertrend_status(df_4h)} (4H) • {supertrend_status(df_1h)} (1H)"
     bb_text = bollinger_status(df_15m)
     bias = combined_bias(kde_val, st_text, bb_text)
     atr = df_1h["high"].max() - df_1h["low"].min()
-    entry, target, stop = price - 0.3 * atr, price + 1.5 * atr, price - 1.0 * atr
+    entry, target, stop = (price or 1.0) - 0.3 * atr, (price or 1.0) + 1.5 * atr, (price or 1.0) - 1.0 * atr
     motivation = {
         "Bullish": "Stay sharp — momentum’s on your side.",
         "Bearish": "Discipline is your shield.",
@@ -176,7 +203,7 @@ def analyze(symbol, price, vs_currency):
     return f"""
 <div class='big-text'>
 <div class='section-header'>📊 Price Overview</div>
-<b>{symbol}</b>: <span style='color:#58C5FF;'>{price:.3f} {vs_currency.upper()}</span>
+<b>{symbol}</b>: <span style='color:#58C5FF;'>{(price if price is not None else 0):.3f} {vs_currency.upper()}</span>
 <div class='section-header'>📈 Indicators</div>
 • KDE RSI: <b>{kde_val:.2f}%</b><br>
 • Bollinger Bands: {bb_text}<br>
@@ -195,38 +222,41 @@ Stop Loss: <b style='color:#FF7878;'>{stop:.3f}</b>
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
-st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({btc_ch:+.2f}%)</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({eth_ch:+.2f}%)</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${btc:.2f} ({(btc_ch or 0):+.2f}%)</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${eth:.2f} ({(eth_ch or 0):+.2f}%)</div>", unsafe_allow_html=True)
 
-# === AUTO TIMEZONE DETECTION ===
-local_tz = get_localzone()
-local_time = datetime.datetime.now(local_tz)
-hour = local_time.hour
-
-if 0 <= hour < 8:
-    session = "Sydney / Tokyo — Asian Session"
-elif 8 <= hour < 16:
-    session = "London — European Session"
-else:
-    session = "New York — US Session"
-
-st.sidebar.markdown(
-    f"<div class='sidebar-item'><b>🕒 {local_time.strftime('%H:%M:%S (%Z)')}</b></div>",
-    unsafe_allow_html=True,
-)
-st.sidebar.markdown(
-    f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>",
-    unsafe_allow_html=True,
-)
-
-# === AUTO REFRESH (SAFE METHOD) ===
-st_autorefresh = st.experimental_rerun  # fallback for older versions
+# === AUTO TIMEZONE DETECTION (safe) ===
 try:
-    from streamlit_autorefresh import st_autorefresh
-except ImportError:
-    pass
+    if get_localzone:
+        local_tz = get_localzone()
+        # tzlocal may return zone object; ensure we convert to pytz timezone if possible
+        try:
+            tzname = str(local_tz)
+            tz = pytz.timezone(tzname)
+        except Exception:
+            tz = pytz.utc
+    else:
+        tz = pytz.utc
+    local_time = datetime.datetime.now(tz)
+except Exception:
+    tz = pytz.utc
+    local_time = datetime.datetime.now(pytz.utc)
 
-st_autorefresh(interval=5000, limit=1000, key="refresh_key")
+st.sidebar.markdown(f"<div class='sidebar-item'><b>🕒 {local_time.strftime('%H:%M:%S (%Z)')}</b></div>", unsafe_allow_html=True)
+
+# FX Session based on local_time hour
+hour = local_time.hour
+if 5 <= hour < 14:
+    session = "Asian Session"
+elif 12 <= hour < 20:
+    session = "European Session"
+else:
+    session = "US Session"
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session}</div>", unsafe_allow_html=True)
+
+# === SAFE AUTO-REFRESH (if package installed) ===
+# will do nothing if streamlit_autorefresh not installed
+st_autorefresh(interval=5000, limit=None, key="auto_refresh_key")
 
 # === MAIN ===
 st.title("AI Trading Chatbot")
@@ -239,9 +269,12 @@ with col2:
 if user_input:
     symbol = user_input.strip().upper()
     price, _ = get_asset_price(symbol, vs_currency)
-    if price == 1.0:
+    if price is None:
         df = get_twelve_data(symbol, "1h")
-        price = float(df["close"].iloc[-1]) if df is not None else 1.0
-    st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
+        price = float(df["close"].iloc[-1]) if df is not None else None
+    if price is None:
+        st.error("❌ Could not verify live data. Try again later.")
+    else:
+        st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
 else:
     st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
