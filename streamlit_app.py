@@ -12,83 +12,99 @@ st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sideb
 # === MODERN STYLING ===
 st.markdown("""
 <style>
-/* === GENERAL === */
+/* === GLOBAL MODERN UI === */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
-    font-size: 20px !important;
-    line-height: 1.9 !important;
-    color: #EAEAEA !important;
-    font-family: 'Inter', sans-serif;
+    font-size: 18px !important;
+    color: #E9EEF6 !important;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    line-height: 1.8 !important;
 }
 
 /* === MAIN BACKGROUND === */
 [data-testid="stAppViewContainer"] {
-    background: linear-gradient(160deg, #1b2735, #090a0f);
+    background: linear-gradient(160deg, #0F2027, #203A43, #2C5364);
     color: white !important;
-    padding: 20px;
+    padding: 25px;
 }
 
-/* === SIDEBAR === */
+/* === SIDEBAR DARK MODERN === */
 [data-testid="stSidebar"] {
-    background: linear-gradient(145deg, #f1f3f6, #d9e2ec);
-    width: 330px !important;
-    min-width: 330px !important;
-    max-width: 340px !important;
-    border-right: 1px solid #ccc;
-    padding: 1.4rem 1rem;
-    border-radius: 0 12px 12px 0;
+    background: linear-gradient(165deg, #1E1E2E, #2A2A40);
+    width: 340px !important;
+    min-width: 340px !important;
+    max-width: 350px !important;
+    padding: 1.6rem 1.2rem;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 4px 0 10px rgba(0,0,0,0.3);
 }
 
+/* === SIDEBAR ELEMENTS === */
 .sidebar-title {
     font-size: 24px;
-    color: #333;
-    font-weight: 700;
-    margin-bottom: 20px;
+    font-weight: 800;
+    color: #66FCF1;
+    margin-bottom: 25px;
 }
 
 .sidebar-item {
-    font-size: 18px;
-    margin: 8px 0;
-    padding: 10px;
-    border-radius: 8px;
-    background-color: rgba(255,255,255,0.8);
-    color: #111;
+    background: rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 17px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    color: #C5C6C7;
 }
 
 /* === SECTION HEADERS === */
 .section-header {
     font-size: 22px;
     font-weight: 700;
-    color: #00B4D8;
+    color: #45A29E;
     margin-top: 25px;
-    text-decoration: underline;
+    border-left: 4px solid #66FCF1;
+    padding-left: 8px;
 }
 
-/* === ANALYSIS TEXT === */
+/* === ANALYSIS BOX === */
 .big-text {
     background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 12px;
-    padding: 25px;
-    margin-top: 10px;
-    color: #E0E0E0;
-    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 15px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.4);
 }
 
-/* === BIAS COLORS === */
-.bullish { color: #00FFB3; font-weight: bold; }
-.bearish { color: #FF6B6B; font-weight: bold; }
-.neutral { color: #FFD93D; font-weight: bold; }
+/* === TEXT COLORS === */
+.bullish { color: #00FFB3; font-weight: 700; }
+.bearish { color: #FF6B6B; font-weight: 700; }
+.neutral { color: #FFD93D; font-weight: 700; }
 
-/* === MOTIVATION === */
+/* === MOTIVATIONAL BOX === */
 .motivation {
     font-weight: 600;
-    font-size: 20px;
-    background: rgba(255,255,255,0.08);
-    padding: 10px 15px;
-    border-radius: 10px;
+    font-size: 19px;
+    margin-top: 25px;
     color: #FFD700;
-    margin-top: 15px;
-    text-shadow: 0px 0px 5px rgba(255,215,0,0.3);
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-shadow: 0 0 8px rgba(255,215,0,0.5);
+    box-shadow: inset 0 0 8px rgba(255,255,255,0.05);
+}
+
+/* === INPUT FIELDS === */
+[data-baseweb="input"] input {
+    background-color: rgba(255,255,255,0.12) !important;
+    color: #E9EEF6 !important;
+    border-radius: 10px !important;
+}
+
+/* === TITLES === */
+h1, h2, h3 {
+    color: #66FCF1 !important;
+    text-shadow: 0 0 10px rgba(102,252,241,0.4);
 }
 </style>
 """, unsafe_allow_html=True)
