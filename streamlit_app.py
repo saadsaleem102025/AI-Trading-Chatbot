@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 1.0rem 1.2rem; /* ADJUSTED: Reduced top padding to 0.1rem for maximum height */
+    padding: 0.1rem 1.2rem 1.0rem 1.2rem; /* Adjusted top padding for minimum space */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -147,7 +147,8 @@ def format_change(ch):
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    return f"<span class='{color_class}'>{sign}{ch:.2f}%</span>"
+    # Added the "(24h% Change)" text for clarity
+    return f"<span class='{color_class}'>{sign}{ch:.2f}% (24h% Change)</span>"
 
 def get_coingecko_id(symbol):
     """Map common symbols to Coingecko IDs for robust crypto price fetching."""
@@ -267,7 +268,7 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
 # === SYNTHETIC BACKUP (Always returns the same valid OHLC data) ===
-def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.005):
+def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): # Increased volatility_pct
     """Generates consistent synthetic OHLC data using a symbol-based seed."""
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
@@ -351,22 +352,22 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # 4. Risk Calculations (ATR-like volatility)
     base = current_price
-    # Simple fixed ATR for synthetic/placeholder data
-    atr = base * 0.005 
+    # ATR is calculated as 0.8% of the price (based on the synthetic data setting)
+    atr = base * 0.008 
 
-    # Suggested levels adjusted based on bias
+    # Suggested levels adjusted based on bias - USING WIDER RANGES
     if "Bullish" in bias:
-        entry = base - 0.3 * atr
-        target = base + 1.5 * atr
-        stop = base - 1.0 * atr
+        entry = base - 0.5 * atr # Entry needs a buffer to catch dips
+        target = base + 2.5 * atr # Target set for a reasonable 2.5x ATR
+        stop = base - 1.5 * atr # Stop set at 1.5x ATR below entry
     elif "Bearish" in bias:
-        entry = base + 0.3 * atr
-        target = base - 1.5 * atr
-        stop = base + 1.0 * atr
-    else: # Neutral
+        entry = base + 0.5 * atr # Entry needs a buffer for reversal
+        target = base - 2.5 * atr # Target set for a reasonable 2.5x ATR
+        stop = base + 1.5 * atr # Stop set at 1.5x ATR above entry
+    else: # Neutral/Consolidation
         entry = base
-        target = base + 0.02 # Small target/stop for scalping in consolidation
-        stop = base - 0.01 
+        target = base + 0.5 * atr # Small target for scalping
+        stop = base - 0.5 * atr 
 
     # 5. Motivation Psychology
     motivation = {
@@ -379,8 +380,8 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     price_display = format_price(current_price) 
     change_display = format_change(price_change_24h)
     
-    # NEW PRICE LINE FORMAT: 24h change + Price + Currency
-    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{change_display} {price_display} {vs_currency.upper()}</span>"
+    # REVISED PRICE LINE FORMAT: Price + Currency + 24h Change
+    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()} {change_display}</span>"
     
     return f"""
 <div class='big-text'>
@@ -490,7 +491,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
