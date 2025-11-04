@@ -2,30 +2,23 @@ import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time
 
-# tzlocal optional (for server-side timezone, falls back to UTC)
-try:
-    from tzlocal import get_localzone
-except Exception:
-    get_localzone = None
-
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. UPDATED STYLE (Contrast Theme) ===
+# === 1. STYLE (Contrast Theme) ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
-#MainMenu {visibility: hidden !important;}
+#MainMenu {visibility: hidden !impor_tant;}
 
 /* Base font and colors */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 18px !important;
-    color: #E0E0E0 !important; /* Softer white text */
+    color: #E0E0E0 !important;
     font-family: 'Inter', 'Segoe UI', sans-serif;
     line-height: 1.7 !important;
 }
 
-/* --- NEW COLOR SCHEME --- */
 /* Main background (Lighter) */
 [data-testid="stAppViewContainer"] {
     background: #1F2937; /* Lighter blue-grey */
@@ -39,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
     padding: 1.6rem 1.2rem 2rem 1.2rem;
-    border-right: 1px solid #1F2937; /* Subtle border */
+    border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
 /* Main content boxes (Darker, to contrast main bg) */
@@ -51,8 +44,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-top: 15px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-/* --- END NEW COLOR SCHEME --- */
-
 .sidebar-title {
     font-size: 32px; 
     font-weight: 800; 
@@ -63,14 +54,14 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
     border-radius: 10px; 
-    padding: 14px 16px; 
+    padding: 12px 16px; /* Reduced padding */
     margin: 10px 0; 
     font-size: 17px; 
-    color: #9CA3AF; /* Grey text for info */
+    color: #9CA3AF;
     border: 1px solid #374151;
 }
 .sidebar-item b {
-    color: #E5E7EB; /* Whiter text for labels */
+    color: #E5E7EB;
     font-weight: 600;
 }
 /* Specific item for countdown */
@@ -79,21 +70,19 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border: 1px solid #22D3EE;
     color: #E5E7EB;
     text-align: center;
-    padding: 16px;
+    padding: 14px 16px; /* Reduced padding */
     font-size: 18px;
     border-radius: 10px;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
 }
-/* Section Headers */
 .section-header {
     font-size: 24px; 
     font-weight: 700; 
-    color: #67E8F9; /* Light Cyan */
+    color: #67E8F9; 
     margin-top: 25px; 
     border-left: 4px solid #22D3EE; 
     padding-left: 10px;
 }
-/* Inputs */
 [data-baseweb="input"] input { 
     background-color: #1F2937 !important; 
     color: #F5F9FF !important; 
@@ -105,11 +94,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border: 1px solid #22D3EE !important;
     box-shadow: 0 0 5px rgba(34, 211, 238, 0.5) !important;
 }
-
-/* Status colors */
-.bullish { color: #10B981; font-weight: 700; } /* Green */
-.bearish { color: #EF4444; font-weight: 700; } /* Red */
-.neutral { color: #F59E0B; font-weight: 700; } /* Amber */
+.bullish { color: #10B981; font-weight: 700; } 
+.bearish { color: #EF4444; font-weight: 700; } 
+.neutral { color: #F59E0B; font-weight: 700; } 
 .motivation {font-weight:600; font-size:16px; margin-top:12px; color: #9CA3AF;}
 </style>
 """, unsafe_allow_html=True)
@@ -118,12 +105,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
-CG_API_KEY = st.secrets.get("COINGECKO_API_KEY", "") 
+# No Coingecko key needed, we use the public API
 
-# === safe autorefresh import fallback (REMOVED, using JS for timer) ===
-# No longer needed, as the JS timer handles the live countdown.
-
-# === HELPERS FOR FORMATTING (avoid TypeError) ===
+# === HELPERS FOR FORMATTING ===
 def format_price(p):
     """Return a human-friendly price string."""
     if p is None: return "N/A"
@@ -143,28 +127,29 @@ def format_change(ch):
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
     return f"<span class='{color_class}'>({sign}{ch:.2f}%)</span>"
 
-# === UNIVERSAL PRICE FETCHER (With Public Fallback) ===
+# === UNIVERSAL PRICE FETCHER (Public CG First) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
-    # 0) Coingecko (Primary for BTC/ETH/Crypto - using API Key)
-    if CG_API_KEY and symbol in ("BTCUSD", "ETHUSD"):
+    # 1) Coingecko PUBLIC API (Primary for BTC/ETH - NO KEY NEEDED)
+    if symbol in ("BTCUSD", "ETHUSD"):
         try:
             cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
             if cg_id:
-                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true&x_cg_demo_api_key={CG_API_KEY}", timeout=6).json()
+                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
                 if cg_id in r and vs_currency in r[cg_id]:
                     price = r[cg_id].get(vs_currency)
                     change = r[cg_id].get(f"{vs_currency}_24h_change")
                     if price is not None and price > 0:
                         return float(price), round(float(change), 2) if change is not None else None
         except Exception:
-            pass
+            pass # Failed, so fall through to user's other keys
 
-    # 1) Finnhub (Stocks/Forex/Crypto)
+    # 2) Finnhub (Stocks/Forex/Crypto)
     if FH_API_KEY:
         try:
             r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6).json()
+            d = r.json()
             if isinstance(d, dict) and d.get("c") not in (None, 0):
                 chg = None
                 if "pc" in d and d.get("pc") and d.get("c") != d.get("pc"):
@@ -173,7 +158,7 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
 
-    # 2) Alpha Vantage (Stocks/Forex)
+    # 3) Alpha Vantage (Stocks/Forex)
     if AV_API_KEY:
         try:
             r = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}", timeout=6).json()
@@ -185,28 +170,13 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
             
-    # 3) TwelveData (Stocks/Forex/Crypto)
+    # 4) TwelveData (Stocks/Forex/Crypto)
     if TWELVE_API_KEY:
         try:
             td_symbol = f"{symbol}/{vs_currency.upper()}" if not symbol.endswith(vs_currency.upper()) else symbol
             r = requests.get(f"https://api.twelvedata.com/price?symbol={td_symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if "price" in r:
                 return float(r["price"]), None
-        except Exception:
-            pass
-
-    # 4) PUBLIC FALLBACK (No Key - for Demo)
-    if symbol in ("BTCUSD", "ETHUSD"):
-        try:
-            cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
-            if cg_id:
-                # Using the public API endpoint
-                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
-                if cg_id in r and vs_currency in r[cg_id]:
-                    price = r[cg_id].get(vs_currency)
-                    change = r[cg_id].get(f"{vs_currency}_24h_change")
-                    if price is not None and price > 0:
-                        return float(price), round(float(change), 2) if change is not None else None
         except Exception:
             pass
 
@@ -290,23 +260,20 @@ def combined_bias(kde_val, st_text, bb_text):
     if score < -20: return "Bearish"
     return "Neutral"
 
-# === VOLATILITY LOGIC (for sidebar) ===
+# === VOLATILITY LOGIC (Compacted) ===
 def fx_volatility_analysis(curr_range_pct, avg_range_pct):
     """Apply Boitoki-like volatility logic."""
     ratio = (curr_range_pct / avg_range_pct) * 100
     if ratio < 20:
         status = "Flat / Very Low Volatility"
-        action = "Market is flat. Skip or reduce risk."
     elif 20 <= ratio < 60:
         status = "Low Volatility / Room to Move"
-        action = "Session still has room to move. Good for breakouts."
     elif 60 <= ratio < 100:
         status = "Moderate Volatility / Near Average"
-        action = "Market active but not overextended."
     else:
         status = "High Volatility / Possible Exhaustion"
-        action = "Session moved a lot. Beware of reversals."
-    return f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)<br><b>Action:</b> {action}"
+    # Return only status and percentage
+    return f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)"
 
 # === ANALYZE ===
 def analyze(symbol, price, vs_currency):
@@ -381,31 +348,24 @@ if dt_time(8, 0) <= current_time_utc < dt_time(9, 0):
     current_range_pct = 0.18
 if OVERLAP_START_UTC <= current_time_utc < OVERLAP_END_UTC:
     session_name = "Overlap: London / New York"
-    current_range_pct = 0.30 # Most volatile
+    current_range_pct = 0.30 
 
 volatility_html = fx_volatility_analysis(current_range_pct, avg_range_pct)
 
 # --- SIDEBAR ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# 1. API KEY WARNING
-st.sidebar.warning("""
-**Prices `N/A`?**
-This app requires API keys. Please add your keys for `COINGECKO_API_KEY`, `FINNHUB_API_KEY`, etc., to your **Streamlit Secrets** to fetch live data.
-""")
-
-# 2. BTC/ETH Display
+# 1. BTC/ETH Display
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 3. Time Display (Cleaned up)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Current Time (UTC):</b> {utc_now.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+# 2. Time Display (Cleaned up)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Current Time (UTC):</b> {utc_now.strftime('%H:%M')}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 4. JAVASCRIPT LIVE COUNTDOWN
-# This calculates the target time in Python, then passes it to JavaScript to handle the live countdown.
+# 3. JAVASCRIPT LIVE COUNTDOWN (HH:MM)
 now_utc = datetime.datetime.utcnow()
 today_overlap_start = datetime.datetime.combine(now_utc.date(), OVERLAP_START_UTC)
 today_overlap_end = datetime.datetime.combine(now_utc.date(), OVERLAP_END_UTC)
@@ -439,24 +399,27 @@ if (!window.countdownInterval) {{
         const distance = targetTime - now;
 
         if (distance < 0) {{
-            timerElement.innerHTML = "00:00:00";
-            // Optionally, force a Streamlit rerun to get the next target time
-            // window.parent.document.querySelector('.stApp [data-testid="stToolbar"] .st-emotion-cache-1f4w9kd .st-emotion-cache-6i8l1n').click();
+            timerElement.innerHTML = "00:00";
+            // Force a page reload to get the next target time
+            // This is safer than trying to find the rerun button
+            if (!window.reloading) {{
+                window.reloading = true;
+                window.location.reload();
+            }}
             return;
         }}
 
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
+        
+        // --- UPDATED: No seconds displayed ---
         timerElement.innerHTML = 
             (hours < 10 ? "0" : "") + hours + ":" + 
-            (minutes < 10 ? "0" : "") + minutes + ":" + 
-            (seconds < 10 ? "0" : "") + seconds;
+            (minutes < 10 ? "0" : "") + minutes;
     }};
 
     updateTimer(); // Run once immediately
-    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second
+    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second so minute ticks over
 }}
 </script>
 """, unsafe_allow_html=True)
