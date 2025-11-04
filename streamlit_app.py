@@ -191,6 +191,45 @@ AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
+# === ASSET MAPPING (NEW LOGIC) ===
+# This dictionary helps resolve common names to their official symbols.
+ASSET_MAPPING = {
+    # Crypto
+    "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
+    "RIPPLE": "XRP", "STELLAR": "XLM", "DOGECOIN": "DOGE", "SOLANA": "SOL",
+    # Stocks
+    "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
+    "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
+}
+
+def resolve_asset_symbol(input_text, quote_currency="USD"):
+    """
+    Attempts to resolve user input (name or symbol) into a standardized symbol
+    like 'BTCUSD' or 'AAPL'.
+    """
+    input_upper = input_text.strip().upper()
+    quote_currency_upper = quote_currency.upper()
+    
+    # 1. Direct Ticker Check (e.g., AAPL, BTC)
+    if input_upper in ASSET_MAPPING.values() or len(input_upper) <= 6:
+        # If it's a short ticker, append the quote currency (e.g., BTC -> BTCUSD)
+        if len(input_upper) <= 4 and input_upper not in ["USD", "USDT"]: # Basic filter for common tickers
+             return input_upper + quote_currency_upper
+        return input_upper
+    
+    # 2. Name Lookup (e.g., Bitcoin -> BTC)
+    resolved_symbol = ASSET_MAPPING.get(input_upper)
+    if resolved_symbol:
+        return resolved_symbol + quote_currency_upper
+    
+    # 3. Handle common abbreviations without quote currency appended
+    if input_upper in ASSET_MAPPING.keys():
+        return input_upper + quote_currency_upper # Handles cases like BTC -> BTCUSD if not found above
+        
+    # 4. Fallback: Return original input (APIs are designed to handle this)
+    return input_upper
+
+
 # === HELPERS FOR FORMATTING (No Change) ===
 def format_price(p):
     """Return a human-friendly price string."""
@@ -225,10 +264,12 @@ def format_change_main(ch):
 
 def get_coingecko_id(symbol):
     """Map common symbols to Coingecko IDs for robust crypto price fetching."""
+    # Ensure the symbol is only the base asset for Coingecko lookup (e.g., 'BTCUSD' -> 'BTC' -> 'bitcoin')
+    base_symbol = symbol.replace("USD", "").replace("USDT", "")
     return {
-        "BTCUSD": "bitcoin", "ETHUSD": "ethereum", "XLMUSD": "stellar", 
-        "XRPUSD": "ripple", "ADAUSD": "cardano", "DOGEUSD": "dogecoin"
-    }.get(symbol.replace("USD", "").replace("USDT", ""), None)
+        "BTC": "bitcoin", "ETH": "ethereum", "XLM": "stellar", 
+        "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin", "SOL": "solana"
+    }.get(base_symbol, None)
 
 # === UNIVERSAL PRICE FETCHER (No Change) ===
 def get_asset_price(symbol, vs_currency="usd"):
@@ -511,8 +552,12 @@ session_name, volatility_html = get_session_info(utc_now)
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 # 1. BTC/ETH Display (Two-line structure)
-btc, btc_ch = get_asset_price("BTCUSD")
-eth, eth_ch = get_asset_price("ETHUSD")
+# These sidebars use hardcoded USD quote for simplicity
+btc_symbol = resolve_asset_symbol("BTC", "USD")
+eth_symbol = resolve_asset_symbol("ETH", "USD")
+
+btc, btc_ch = get_asset_price(btc_symbol)
+eth, eth_ch = get_asset_price(eth_symbol)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-asset-price-item'>
@@ -530,7 +575,7 @@ tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
 tz_options = sorted(list(set(tz_options))) 
 
-# Setting default timezone to UTC+05:00 for the user's current location (PKT)
+# Setting default timezone to UTC+05:00 
 try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
@@ -572,18 +617,19 @@ st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
     # Adjusted prompt for Stocks/Crypto focus
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, BTC/USD)")
+    user_input = st.text_input("Enter Asset Symbol or Name ")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
 if user_input:
-    symbol = user_input.strip().upper()
+    # --- NEW RESOLUTION STEP ---
+    resolved_symbol = resolve_asset_symbol(user_input, vs_currency)
     
     # 1. Attempt to get real-time price and 24h change
-    price, price_change_24h = get_asset_price(symbol, vs_currency)
+    price, price_change_24h = get_asset_price(resolved_symbol, vs_currency)
     
     # 2. Always run the analysis
-    st.markdown(analyze(symbol, price, price_change_24h, vs_currency), unsafe_allow_html=True)
+    st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency), unsafe_allow_html=True)
     
 else:
-    st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
+    st.info("Enter an asset symbol or name to GET REAL-TIME AI INSIGHT.")
