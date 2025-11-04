@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* Final minimal padding */
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* Final minimal padding for single-view */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -50,15 +50,15 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 28px; 
     font-weight: 800; 
     color: #22D3EE; /* Bright Cyan */
-    margin-top: 0px; /* Minimized top margin */
-    margin-bottom: 5px; /* Minimized bottom margin */
-    padding-top: 5px; /* Reduced internal padding */
+    margin-top: 0px; 
+    margin-bottom: 5px; 
+    padding-top: 5px; 
     text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
 }
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
     border-radius: 8px;
-    padding: 8px 14px; /* Reduced internal padding */
+    padding: 8px 14px; 
     margin: 3px 0; /* Minimized vertical margin */
     font-size: 16px; 
     color: #9CA3AF;
@@ -78,7 +78,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 16px; 
     border-radius: 8px;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
-    margin-top: 5px; /* Minimized top margin */
+    margin-top: 5px; 
 }
 
 /* Custom CSS for the required output format (no headings) */
@@ -118,17 +118,24 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 0 5px rgba(34, 211, 238, 0.5) !important;
 }
 
-/* Sidebar selectbox style (Target the container) */
+/* Sidebar selectbox style (Target the container and its label) */
 [data-testid="stSidebar"] [data-baseweb="select"] {
-    margin-top: -15px !important; /* Pull up selectbox closer to label */
-    margin-bottom: 0px !important;
+    margin-top: 0px !important;
+    margin-bottom: 5px !important; 
 }
+[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] {
+    padding-top: 0px !important;
+    margin-bottom: 0px !important; 
+    font-size: 16px !important;
+}
+
 
 /* Colors for data/bias */
 .bullish { color: #10B981; font-weight: 700; } 
 .bearish { color: #EF4444; font-weight: 700; } 
 .neutral { color: #F59E0B; font-weight: 700; } 
-.percent-label { color: #67E8F9; font-weight: 500; } /* CYANN color for (24h% Change) text */
+/* FINAL CHANGE: Bright Purple and Bold */
+.percent-label { color: #C084FC; font-weight: 700; } 
 
 .kde-red { color: #EF4444; } 
 .kde-orange { color: #F59E0B; } 
@@ -156,15 +163,14 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change(ch):
-    """Format percent change with sign and color, and add the cyan label."""
+    """Format percent change with sign and color, separated by a pipe character."""
     if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    # Apply color_class only to the percentage value
-    # Apply percent-label class to the literal text
-    return f"<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span>"
+    # Using pipe separator and bold purple label
+    return f"&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span>"
 
 def get_coingecko_id(symbol):
     """Map common symbols to Coingecko IDs for robust crypto price fetching."""
@@ -175,7 +181,6 @@ def get_coingecko_id(symbol):
 
 # === UNIVERSAL PRICE FETCHER (Maximum Safe Backups) ===
 def get_asset_price(symbol, vs_currency="usd"):
-    # ... (API fetching functions remain the same for reliability) ...
     symbol = symbol.upper()
     
     # --- API PRIORITY SEQUENCE ---
@@ -238,7 +243,6 @@ def get_asset_price(symbol, vs_currency="usd"):
 
 # === HISTORICAL FETCH (Maximum Safe Backups) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
-    # ... (Historical data fetch remains the same for reliability) ...
     interval_map_td = {"4h": "4h", "1h": "1h", "15min": "15min"}
     interval_map_av = {"4h": "60min", "1h": "60min", "15min": "15min"}
     
@@ -387,7 +391,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     price_display = format_price(current_price) 
     change_display = format_change(price_change_24h)
     
-    # REVISED PRICE LINE FORMAT: Price + Currency + 24h Change
+    # REVISED PRICE LINE FORMAT: Price + Currency + Pipe + 24h Change
     current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()} {change_display}</span>"
     
     return f"""
@@ -466,9 +470,8 @@ tz_options = sorted(list(set(tz_options)))
 try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
-# Re-labeled and minimal margin for "Select Your Timezone"
-st.sidebar.markdown("<p style='margin-top: -5px; margin-bottom: 0px; font-size: 16px; color: #9CA3AF;'>Select Your Timezone</p>", unsafe_allow_html=True)
-selected_tz_str = st.sidebar.selectbox(" ", tz_options, index=default_ix, label_visibility="collapsed") # Selectbox now has a collapsed label for compactness
+# Selectbox with minimal spacing applied via CSS
+selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
 
 offset_str = selected_tz_str.replace("UTC", "")
 hours, minutes = map(int, offset_str.split(':'))
@@ -500,7 +503,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
