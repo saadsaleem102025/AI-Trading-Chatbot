@@ -46,15 +46,15 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 /* --- SIDEBAR COMPONENTS (Maximized Vertical Compactness) --- */
-/* FINAL CHANGE: Market Context Title Color to Electric Blue */
+/* FINAL CHANGE: Market Context Title Color to Lighter, Bright Blue */
 .sidebar-title {
     font-size: 28px; 
     font-weight: 800; 
-    color: #3B82F6; /* Electric Blue */
+    color: #60A5FA; /* Bright Blue */
     margin-top: 0px; 
     margin-bottom: 5px; 
     padding-top: 5px; 
-    text-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
@@ -65,11 +65,22 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
-/* FINAL CHANGE: Local Time/Active Session/Status Info Color to Lime Green */
-.sidebar-status-info {
-    color: #A3E635 !important; /* Lime Green */
+/* FINAL CHANGE 1: Local Time Info Value Color to Gold/Yellow */
+.local-time-info {
+    color: #FCD34D !important; /* Vibrant Gold/Yellow */
     font-weight: 700;
     font-size: 16px !important; 
+}
+/* FINAL CHANGE 2: Active Session/Status Info Value Color to Bright Magenta */
+.session-status-info {
+    color: #EC4899 !important; /* Bright Magenta */
+    font-weight: 700;
+    font-size: 16px !important; 
+}
+/* Labels (Headings) to Pure Bold White */
+.sidebar-item b {
+    color: #FFFFFF !important; 
+    font-weight: 800;
 }
 /* Custom class for the two-line asset price structure */
 .sidebar-asset-price-item {
@@ -85,7 +96,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #E5E7EB;
     font-weight: 600;
 }
-/* Asset Price Figure Color (Yellow/Gold) */
+/* Asset Price Figure Color (Yellow/Gold - kept for price figures) */
 .asset-price-value {
     color: #F59E0B; /* Vivid Yellow/Gold */
     font-weight: 800;
@@ -112,7 +123,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin: 8px 0;
 }
 .analysis-item b {
-    color: #67E8F9;
+    color: #60A5FA; /* Using the new title color here for consistency */
     font-weight: 700;
 }
 .analysis-bias {
@@ -425,12 +436,12 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     change_display = format_change_main(price_change_24h)
     
     # REVISED PRICE LINE FORMAT: Price + Currency + Pipe + 24h Change
-    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()}{change_display}</span>"
+    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#60A5FA; font-weight:700;'>{price_display} {vs_currency.upper()}{change_display}</span>"
     
     return f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
-<div class='analysis-item'>Entry Price: <span style='color:#67E8F9; font-weight:700;'>{format_price(entry)}</span></div>
+<div class='analysis-item'>Entry Price: <span style='color:#60A5FA; font-weight:700;'>{format_price(entry)}</span></div>
 <div class='analysis-item'>Exit/Target Price: <span class='bullish'>{format_price(target)}</span></div>
 <div class='analysis-item'>Stop Loss: <span class='bearish'>{format_price(stop)}</span></div>
 <hr style='border-top: 1px dotted #374151; margin: 15px 0;'>
@@ -480,8 +491,8 @@ def get_session_info(utc_now):
     elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
     else: status = "High Volatility / Possible Exhaustion"
     
-    # Use the Lime Green status info class
-    volatility_html = f"<span class='sidebar-status-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
+    # This element uses the Bright Magenta class
+    volatility_html = f"<span class='session-status-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
 
 session_name, volatility_html = get_session_info(utc_now)
@@ -522,9 +533,10 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# Applying the Lime Green status info class
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-status-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-status-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+# Applying Gold/Yellow for Local Time
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
+# Applying Bright Magenta for Active Session/Status
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='session-status-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 # 3. Static Overlap Time Display
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
@@ -548,7 +560,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
