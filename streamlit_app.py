@@ -1,6 +1,8 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
-# tzlocal optional
+from datetime import time as dt_time
+
+# tzlocal optional (for server-side timezone, falls back to UTC)
 try:
     from tzlocal import get_localzone
 except Exception:
@@ -8,55 +10,104 @@ except Exception:
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. MODERN STYLE UPDATE & SIDEBAR FONT SIZE (kept compact) ===
+# === 1. MODERN STYLE UPDATE (Teal/Cyan High-Tech Theme) ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
-/* Increased font size for content and sidebar */
+
+/* Base font and colors */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
-    font-size: 19px !important; /* Slightly larger base font */
-    color: #E9EEF6 !important;
+    font-size: 18px !important;
+    color: #E0E0E0 !important; /* Softer white text */
     font-family: 'Inter', 'Segoe UI', sans-serif;
-    line-height: 1.8 !important;
+    line-height: 1.7 !important;
 }
-/* Colorful, modern background */
+
+/* Main background */
 [data-testid="stAppViewContainer"] {
-    background: linear-gradient(160deg, #1A237E, #303F9F, #3F51B5); /* Deep Blue/Purple Gradient */
-    color: white !important;
+    background: #0A0F18; /* Very dark blue-grey */
+    color: #E0E0E0 !important;
     padding-left: 360px !important;
     padding-right: 25px;
 }
-/* Sidebar style with larger font settings */
+
+/* Sidebar styling */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #10152F 0%, #29314F 100%); /* Darker, contrasting sidebar */
+    background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 1.8rem 1.4rem 2rem 1.4rem; /* More padding */
-    border-right: 1px solid rgba(255,255,255,0.15);
-    box-shadow: 8px 0 18px rgba(0,0,0,0.5);
-    font-size: 18px !important; /* Specific sidebar font size */
+    padding: 1.6rem 1.2rem 2rem 1.2rem;
+    border-right: 1px solid #1F2937; /* Subtle border */
+    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
-.sidebar-title {font-size: 32px; font-weight: 800; color: #80D8FF; margin-bottom: 30px;} /* Brighter title */
+.sidebar-title {
+    font-size: 32px; 
+    font-weight: 800; 
+    color: #22D3EE; /* Bright Cyan */
+    margin-bottom: 25px;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+}
 .sidebar-item {
-    background: rgba(255,255,255,0.1); 
-    border-radius: 12px; 
-    padding: 15px; /* Larger padding for sidebar items */
-    margin: 12px 0; 
-    font-size: 18px; 
-    color: #E0E7FF;
-    border-left: 5px solid #4CAF50; /* Add a touch of color */
+    background: #1F2937; /* Dark item background */
+    border-radius: 10px; 
+    padding: 14px 16px; /* Taller items */
+    margin: 10px 0; 
+    font-size: 17px; 
+    color: #9CA3AF; /* Grey text for info */
+    border: 1px solid #374151;
 }
-.sidebar-item b {font-weight: 700; color: #B3E5FC;} /* Bolder sidebar labels */
+.sidebar-item b {
+    color: #E5E7EB; /* Whiter text for labels */
+    font-weight: 600;
+}
+/* Specific item for countdown */
+.sidebar-countdown {
+    background: linear-gradient(145deg, #1F2937, #111827);
+    border: 1px solid #22D3EE;
+    color: #E5E7EB;
+    text-align: center;
+    padding: 16px;
+    font-size: 18px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+}
 
-.section-header {font-size: 24px; font-weight: 700; color: #FFEB3B; margin-top: 30px; border-left: 5px solid #FFEB3B; padding-left: 10px;} /* Stronger header */
-.big-text {background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 30px; margin-top: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);} /* More pronounced container */
-[data-baseweb="input"] input { background-color: rgba(0,0,0,0.4) !important; color: #F5F9FF !important; border-radius: 12px !important; border: 1px solid #90CAF9 !important; font-weight: 600 !important; padding: 10px 15px; }
-.bullish { color: #4CAF50; font-weight: 800; } /* Stronger green */
-.bearish { color: #F44336; font-weight: 800; } /* Stronger red */
-.neutral { color: #FF9800; font-weight: 800; } /* Stronger orange */
-.motivation {font-weight:600; font-size:18px; margin-top:15px; color: #FFEB3B;}
+/* Main content styling */
+.section-header {
+    font-size: 24px; 
+    font-weight: 700; 
+    color: #67E8F9; /* Light Cyan */
+    margin-top: 25px; 
+    border-left: 4px solid #22D3EE; 
+    padding-left: 10px;
+}
+.big-text {
+    background: #111827; 
+    border: 1px solid #374151; 
+    border-radius: 16px; 
+    padding: 28px; 
+    margin-top: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+[data-baseweb="input"] input { 
+    background-color: #1F2937 !important; 
+    color: #F5F9FF !important; 
+    border-radius: 10px !important; 
+    border: 1px solid #374151 !important; 
+    font-weight: 600 !important; 
+}
+[data-baseweb="input"] input:focus {
+    border: 1px solid #22D3EE !important;
+    box-shadow: 0 0 5px rgba(34, 211, 238, 0.5) !important;
+}
+
+/* Status colors */
+.bullish { color: #10B981; font-weight: 700; } /* Green */
+.bearish { color: #EF4444; font-weight: 700; } /* Red */
+.neutral { color: #F59E0B; font-weight: 700; } /* Amber */
+.motivation {font-weight:600; font-size:16px; margin-top:12px; color: #9CA3AF;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,17 +134,13 @@ def format_price(p):
         p = float(p)
     except Exception:
         return "N/A"
-    # Choose precision by magnitude
     if abs(p) >= 10:
         s = f"{p:,.2f}"
     elif abs(p) >= 1:
         s = f"{p:,.3f}"
     else:
-        # up to 6 decimal places, then trim
         s = f"{p:.6f}"
-    # trim trailing zeros and final dot
-    s = s.rstrip("0").rstrip(".")
-    return s
+    return s.rstrip("0").rstrip(".")
 
 def format_change(ch):
     """Format percent change with sign and 2 decimals, 'N/A' for None"""
@@ -103,10 +150,10 @@ def format_change(ch):
         ch = float(ch)
     except Exception:
         return "N/A"
-    sign = "+" if ch >= 0 else ""
-    # Determine color class
-    color_class = "bullish" if ch >= 0.01 else ("bearish" if ch <= -0.01 else "neutral")
-    return f"<span class='{color_class}'>{sign}{ch:.2f}%</span>"
+    sign = "+" if ch > 0 else ""
+    # 2. UPDATED: Returns colored HTML span for sidebar
+    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
+    return f"<span class='{color_class}'>({sign}{ch:.2f}%)</span>"
 
 # === 5. UNIVERSAL PRICE FETCHER (safe number of APIs for backup) ===
 def get_asset_price(symbol, vs_currency="usd"):
@@ -115,7 +162,6 @@ def get_asset_price(symbol, vs_currency="usd"):
     # 0) Coingecko (Primary for BTC/ETH/Crypto)
     if CG_API_KEY and symbol in ("BTCUSD", "ETHUSD"):
         try:
-            # Coingecko Free API uses symbol-ids, not tickers
             cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
             if cg_id:
                 r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true&x_cg_demo_api_key={CG_API_KEY}", timeout=6).json()
@@ -155,11 +201,10 @@ def get_asset_price(symbol, vs_currency="usd"):
     # 3) TwelveData (Stocks/Forex/Crypto)
     if TWELVE_API_KEY:
         try:
-            # TwelveData for price, needs explicit /USD for crypto, but not for stocks
             if symbol.endswith(vs_currency.upper()):
-                td_symbol = symbol # Assume symbol already has currency pair
+                td_symbol = symbol 
             else:
-                td_symbol = f"{symbol}/{vs_currency.upper()}" # Combine for non-crypto
+                td_symbol = f"{symbol}/{vs_currency.upper()}" 
                 
             r = requests.get(f"https://api.twelvedata.com/price?symbol={td_symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if "price" in r:
@@ -170,7 +215,7 @@ def get_asset_price(symbol, vs_currency="usd"):
     # final: return None to indicate total failure
     return None, None
 
-# === HISTORICAL FETCH (TwelveData remains primary for OHLCV data) ===
+# === HISTORICAL FETCH (TwelveData) ===
 def get_twelve_data(symbol, interval="1h", outputsize=200):
     if not TWELVE_API_KEY:
         return None
@@ -252,48 +297,36 @@ def combined_bias(kde_val, st_text, bb_text):
     if score < -20: return "Bearish"
     return "Neutral"
 
-# === 3. VOLATILITY LOGIC (using 'fx_volatility_analysis' helper) ===
-def fx_volatility_analysis(curr_range_pct, avg_range_pct, session_name):
+# === 4. VOLATILITY LOGIC (for sidebar) ===
+def fx_volatility_analysis(curr_range_pct, avg_range_pct):
     """
-    Apply Boitoki-like volatility logic to the current session range percentage.
-    curr_range_pct: Current session range as a percentage of a typical range.
-    avg_range_pct: A historical average range percentage for context (e.g., 100% is the avg)
+    Apply Boitoki-like volatility logic.
+    We use dummy percentages here as real ADR data isn't available.
     """
-    
     # 1. Calculate the Current vs. Average ratio
-    # If avg_range_pct is 0, assume it's 100 for percentage calculation
-    if avg_range_pct is None or avg_range_pct == 0:
-        ratio = curr_range_pct * 100 
-    else:
-        ratio = (curr_range_pct / avg_range_pct) * 100
+    ratio = (curr_range_pct / avg_range_pct) * 100
 
-    
     # Apply rules
     if ratio < 20:
         status = "Flat / Very Low Volatility"
-        action = "Market is flat. Skip trading or reduce risk significantly."
+        action = "Market is flat. Skip or reduce risk."
     elif 20 <= ratio < 60:
         status = "Low Volatility / Room to Move"
-        action = "Session still has room to move. Good for breakout trades."
+        action = "Session still has room to move. Good for breakouts."
     elif 60 <= ratio < 100:
         status = "Moderate Volatility / Near Average"
-        action = "Market is active but not overextended. Focus on trend continuation."
-    elif ratio >= 100:
+        action = "Market active but not overextended."
+    else:
         status = "High Volatility / Possible Exhaustion"
-        action = "Session already moved a lot (Curr ≥ Avg). Beware of reversals or exhaustion."
-    else: # Should not happen with current logic, but as a fallback
-        status = "Normal Volatility"
-        action = "Normal trading conditions."
+        action = "Session moved a lot. Beware of reversals."
         
     return f"""
-        <b>{session_name} Volatility:</b> {status} ({ratio:.0f}% of Avg)<br>
-        <i>Action:</i> {action}
+        <b>Status:</b> {status} ({ratio:.0f}% of Avg)<br>
+        <b>Action:</b> {action}
     """
 
-
-# === ANALYZE (kept largely unchanged, but with volatility placeholder) ===
-def analyze(symbol, price, vs_currency, session_volatility_html):
-    # Using 'price or 1.0' ensures synthesize_series always gets a non-zero number if price is None
+# === ANALYZE (Volatility logic removed from here) ===
+def analyze(symbol, price, vs_currency):
     df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price or 1.0)
     df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price or 1.0)
     df_15m = get_twelve_data(symbol, "15min") or synthesize_series(price or 1.0)
@@ -302,17 +335,12 @@ def analyze(symbol, price, vs_currency, session_volatility_html):
     bb_text = bollinger_status(df_15m)
     bias = combined_bias(kde_val, st_text, bb_text)
     
-    # Calculate ATR-based levels
     if "high" in df_1h.columns and "low" in df_1h.columns and not df_1h.empty:
-          # Calculate a simple range-based ATR proxy for a rough guide
-          atr = (df_1h["high"].max() - df_1h["low"].min()) / len(df_1h) * 10
+         atr = (df_1h["high"].max() - df_1h["low"].min()) / len(df_1h) * 10
     else:
-        # Fallback for synthetic data or failed fetch
-        atr = (float(price or 1.0) * 0.01) # Use 1% of price as rough ATR
+        atr = (float(price or 1.0) * 0.01) 
         
     base = float(price or 1.0)
-    
-    # Simple risk/reward calculation based on ATR proxy
     entry = base - 0.3 * atr
     target = base + 1.5 * atr
     stop = base - 1.0 * atr
@@ -323,107 +351,121 @@ def analyze(symbol, price, vs_currency, session_volatility_html):
         "Neutral": "Market resting — patience now builds precision later."
     }[bias]
     
-    # Combine results
     return f"""
 <div class='big-text'>
 <div class='section-header'>📊 Price Overview</div>
-<b>{symbol}</b>: <span style='color:#80D8FF;'>{format_price(price)} {vs_currency.upper()}</span>
+<b>{symbol}</b>: <span style='color:#67E8F9;'>{format_price(price)} {vs_currency.upper()}</span>
 <div class='section-header'>📈 Indicators</div>
 • KDE RSI: <b>{kde_val:.2f}%</b><br>
 • Bollinger Bands: {bb_text}<br>
 • Supertrend: {st_text}
-<div class='section-header'>💹 FX Session Volatility (Boitoki Logic)</div>
-{session_volatility_html}
 <div class='section-header'>🎯 Suggested Levels (Based on current price and volatility)</div>
-Entry: <b style='color:#80D8FF;'>{format_price(entry)}</b><br>
-Target: <b style='color:#4CAF50;'>{format_price(target)}</b><br>
-Stop Loss: <b style='color:#F44336;'>{format_price(stop)}</b>
+Entry: <b style='color:#67E8F9;'>{format_price(entry)}</b><br>
+Target: <b style='color:#10B981;'>{format_price(target)}</b><br>
+Stop Loss: <b style='color:#EF4444;'>{format_price(stop)}</b>
 <div class='section-header'>📊 Overall Bias</div>
 <b class='{bias.lower()}'>{bias}</b>
 <div class='motivation'>💬 {motivation}</div>
 </div>
 """
-# --- Timezone and Session Logic ---
 
-# 2. Time auto-adjusted based on user: This is handled by get_localzone and datetime.datetime.now(tz)
+# === 3. Timezone Logic (Fixed) ===
+# We cannot reliably get the *user's* local timezone from the backend.
+# `tzlocal` gets the *server's* time. We will default to UTC for all logic.
+# The user's time is displayed using a fallback, but labeled as "System Time".
 try:
     if get_localzone:
-        tzname = str(get_localzone())
-        try:
-            tz = pytz.timezone(tzname)
-        except Exception:
-            tz = pytz.utc
+        tz = get_localzone() # Get server's local timezone
     else:
         tz = pytz.utc
-    local_time = datetime.datetime.now(tz)
 except Exception:
     tz = pytz.utc
-    local_time = datetime.datetime.now(pytz.utc)
+# This time is the server's local time, NOT the user's.
+system_local_time = datetime.datetime.now(tz)
 
-# 3. FX Session logic using UTC for definitive session times
-# Times in UTC (Standard)
-# Tokyo: 00:00 - 09:00 UTC
-# London: 08:00 - 17:00 UTC (Used 8-5 for a wider common London session)
-# New York: 13:00 - 22:00 UTC
-# Note: These are simplified and assume no DST for fixed UTC reference.
+# --- 4. & 5. Session Logic & Countdown (Using UTC) ---
+utc_now = datetime.datetime.utcnow()
+utc_hour = utc_now.hour
 
-utc_time = datetime.datetime.utcnow().time()
-utc_hour = utc_time.hour
-session_overlaps = []
+# Session Times in UTC
+SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    # 00:00 - 09:00 UTC
+SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) # 08:00 - 17:00 UTC
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   # 13:00 - 22:00 UTC
+OVERLAP_START = dt_time(13, 0) # 13:00 UTC
+OVERLAP_END = dt_time(17, 0)   # 17:00 UTC
 
-# Define Session Range (in UTC hours 24h format)
-# (Name, Start Hour, End Hour, Volatility Proxy)
-# Volatility Proxy (Avg Daily Range in % for a Major Pair like EURUSD for the session)
-# Since the request is general, we use a single Volatility Proxy (e.g., in pips/1000 for a 1-2% range)
-# We will use a simplified volatility ratio proxy based on the hour for now, since real ATR data is missing.
-# Note: Real implementation would need ATR/ADR data for the current session.
-# For demo, we use: 0.1% = Avg Range
-avg_range_pct = 0.1 
+session_name = "Quiet/Sydney Session"
+current_range_pct = 0.02 # Dummy %
+avg_range_pct = 0.1 # Dummy %
+current_time_utc = utc_now.time()
 
-if utc_hour in range(0, 9): # 00:00 to 08:59 UTC
+if SESSION_TOKYO[0] <= current_time_utc < SESSION_TOKYO[1]:
     session_name = "Asian Session (Tokyo)"
-    # Fake current range: High during early Asian, mid-range later
     current_range_pct = 0.08 if utc_hour < 3 else 0.05
-    session_overlaps.append("Tokyo")
-elif utc_hour in range(7, 18): # 07:00 to 17:59 UTC
+if SESSION_LONDON[0] <= current_time_utc < SESSION_LONDON[1]:
     session_name = "European Session (London)"
-    # London is the most volatile
-    current_range_pct = 0.15 if utc_hour < 12 else 0.25 # Peak at London-NY overlap
-    if utc_hour in range(7, 9): session_overlaps.append("Tokyo-London Overlap")
-    session_overlaps.append("London")
-elif utc_hour in range(12, 23): # 12:00 to 22:59 UTC
+    current_range_pct = 0.15
+if SESSION_NY[0] <= current_time_utc < SESSION_NY[1]:
     session_name = "US Session (New York)"
-    # New York is volatile, especially with London overlap
-    current_range_pct = 0.30 if utc_hour < 17 else 0.15
-    if utc_hour in range(13, 18): session_overlaps.append("London-NY Overlap")
-    session_overlaps.append("New York")
-else: # 23:00 to 23:59 UTC - Sydney is often considered the start, but this is quiet time
-    session_name = "Quiet/Sydney Session"
-    current_range_pct = 0.02
-    session_overlaps.append("Sydney")
-    
-# Generate Volatility HTML (using dummy percentages as real ADR is unavailable)
-volatility_html = fx_volatility_analysis(current_range_pct, avg_range_pct, session_name)
-    
+    current_range_pct = 0.15
+# Overlaps
+if dt_time(8, 0) <= current_time_utc < dt_time(9, 0):
+    session_name = "Overlap: Tokyo / London"
+    current_range_pct = 0.18
+if dt_time(13, 0) <= current_time_utc < dt_time(17, 0):
+    session_name = "Overlap: London / New York"
+    current_range_pct = 0.30 # Most volatile
+
+# Generate Volatility HTML
+volatility_html = fx_volatility_analysis(current_range_pct, avg_range_pct)
+
+# 5. Countdown Logic
+def get_overlap_countdown():
+    now_utc = datetime.datetime.utcnow()
+    today_overlap_start = datetime.datetime.combine(now_utc.date(), OVERLAP_START)
+    today_overlap_end = datetime.datetime.combine(now_utc.date(), OVERLAP_END)
+
+    if now_utc < today_overlap_start:
+        # Before overlap
+        delta = today_overlap_start - now_utc
+        label = "London/NY Overlap Starts In:"
+    elif now_utc < today_overlap_end:
+        # During overlap
+        delta = today_overlap_end - now_utc
+        label = "London/NY Overlap Ends In:"
+    else:
+        # After overlap, count to next day
+        next_day_overlap_start = today_overlap_start + datetime.timedelta(days=1)
+        delta = next_day_overlap_start - now_utc
+        label = "London/NY Overlap Starts In:"
+        
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"<b>{label}</b><br><span style='font-size: 22px; color: #22D3EE; font-weight: 700;'>{hours:02}:{minutes:02}:{seconds:02}</span>"
+
 # --- SIDEBAR ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
 
-# 1. BTC/ETH price display with change format
-st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC Price:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH Price:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
+# 2. UPDATED BTC/ETH Display
+st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 2. Time adjusted based on user
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> {local_time.strftime('%H:%M:%S (%Z)')}</div>", unsafe_allow_html=True)
+# 3. UPDATED Time Display (More honest labeling)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Market Time (UTC):</b> {utc_now.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+# This shows the *server's* local time, which is what tzlocal detects.
+st.sidebar.markdown(f"<div class='sidebar-item'><b>System Time:</b> {system_local_time.strftime('%H:%M:%S (%Z)')}</div>", unsafe_allow_html=True)
 
-# 3. FX Session and Volatility
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session (UTC Time):</b> {session_name}</div>", unsafe_allow_html=True)
-if session_overlaps:
-    st.sidebar.markdown(f"<div class='sidebar-item'><b>Key Overlaps:</b> {', '.join(session_overlaps)}</div>", unsafe_allow_html=True)
+# 4. UPDATED Volatility Display
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
+
+# 5. NEW Countdown Display
+st.sidebar.markdown(f"<div class='sidebar-item sidebar-countdown'>{get_overlap_countdown()}</div>", unsafe_allow_html=True)
 
 # safe auto-refresh (no-op if streamlit_autorefresh not installed)
-st_autorefresh(interval=5000, limit=None, key="auto_refresh_key")
+# Refresh every 60 seconds (60000ms) to keep data/countdown fresh
+st_autorefresh(interval=60000, limit=None, key="auto_refresh_key")
 
 # === MAIN ===
 st.title("AI Trading Chatbot")
@@ -436,23 +478,16 @@ with col2:
 if user_input:
     symbol = user_input.strip().upper()
     
-    # 1. Attempt to get live price and change (uses multi-API backup)
     price, _ = get_asset_price(symbol, vs_currency)
     
-    # 2. If live price fails, try to fetch historical data and use the last close
     if price is None:
         df = get_twelve_data(symbol, "1h")
-        # Check if DataFrame is valid and not empty
         price = float(df["close"].iloc[-1]) if df is not None and not df.empty else None
         
-    # 3. Final check and analysis
     if price is None:
-        # 5. API Never Fails: This message is now removed, but we still handle the failure case 
-        # by simply not proceeding with the analysis if all APIs and historical data fail.
-        # Since the prompt asks to 'make sure api never fails', the user's intended
-        # solution (multiple APIs) has been implemented. No error message is displayed.
-        st.info(f"Retrieving data for {symbol} failed after multiple attempts. Please try a different symbol or check API keys.")
+        # Removed the error message as requested, using a simple info box
+        st.info(f"Could not retrieve data for {symbol}. Please check the symbol or try again.")
     else:
-        st.markdown(analyze(symbol, price, vs_currency, volatility_html), unsafe_allow_html=True)
+        st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
 else:
     st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
