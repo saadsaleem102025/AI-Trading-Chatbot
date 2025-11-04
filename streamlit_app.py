@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 1.0rem 1.2rem; /* Adjusted top padding for minimum space */
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* FINAL ADJUSTMENT: Minimized top and bottom padding */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -46,18 +46,19 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 .sidebar-title {
-    font-size: 32px; 
+    font-size: 28px; /* Reduced title size */
     font-weight: 800; 
     color: #22D3EE; /* Bright Cyan */
-    margin-bottom: 15px;
+    margin-top: 5px; /* Reduced top margin */
+    margin-bottom: 10px; /* Reduced bottom margin */
     text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
 }
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
-    border-radius: 10px; 
-    padding: 10px 16px; 
-    margin: 8px 0; 
-    font-size: 17px; 
+    border-radius: 8px; /* Slightly smaller border radius */
+    padding: 8px 14px; /* Reduced internal padding */
+    margin: 5px 0; /* Reduced vertical margin */
+    font-size: 16px; /* Reduced font size for content */
     color: #9CA3AF;
     border: 1px solid #374151;
 }
@@ -71,9 +72,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border: 1px solid #22D3EE;
     color: #E5E7EB;
     text-align: center;
-    padding: 10px 16px; 
-    font-size: 18px;
-    border-radius: 10px;
+    padding: 8px 14px; /* Reduced internal padding */
+    font-size: 16px; /* Reduced font size */
+    border-radius: 8px;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
 }
 /* Custom CSS for the required output format (no headings) */
@@ -268,7 +269,7 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
 # === SYNTHETIC BACKUP (Always returns the same valid OHLC data) ===
-def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): # Increased volatility_pct
+def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): 
     """Generates consistent synthetic OHLC data using a symbol-based seed."""
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
@@ -355,18 +356,18 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     # ATR is calculated as 0.8% of the price (based on the synthetic data setting)
     atr = base * 0.008 
 
-    # Suggested levels adjusted based on bias - USING WIDER RANGES
+    # Suggested levels adjusted based on bias - WIDER RANGES
     if "Bullish" in bias:
-        entry = base - 0.5 * atr # Entry needs a buffer to catch dips
-        target = base + 2.5 * atr # Target set for a reasonable 2.5x ATR
-        stop = base - 1.5 * atr # Stop set at 1.5x ATR below entry
+        entry = base - 0.5 * atr 
+        target = base + 2.5 * atr 
+        stop = base - 1.5 * atr 
     elif "Bearish" in bias:
-        entry = base + 0.5 * atr # Entry needs a buffer for reversal
-        target = base - 2.5 * atr # Target set for a reasonable 2.5x ATR
-        stop = base + 1.5 * atr # Stop set at 1.5x ATR above entry
+        entry = base + 0.5 * atr 
+        target = base - 2.5 * atr 
+        stop = base + 1.5 * atr 
     else: # Neutral/Consolidation
         entry = base
-        target = base + 0.5 * atr # Small target for scalping
+        target = base + 0.5 * atr
         stop = base - 0.5 * atr 
 
     # 5. Motivation Psychology
@@ -459,7 +460,10 @@ tz_options = sorted(list(set(tz_options)))
 try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
-selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
+# Reducing the vertical space taken by the selectbox/label by reducing padding above the sidebar items
+st.sidebar.markdown("<p style='margin-top: -10px; margin-bottom: 5px; font-size: 16px; color: #9CA3AF;'>Select Your Timezone</p>", unsafe_allow_html=True)
+selected_tz_str = st.sidebar.selectbox(" ", tz_options, index=default_ix, label_visibility="collapsed")
+
 
 offset_str = selected_tz_str.replace("UTC", "")
 hours, minutes = map(int, offset_str.split(':'))
@@ -480,7 +484,7 @@ overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 st.sidebar.markdown(f"""
 <div class='sidebar-item sidebar-overlap-time'>
 <b>London/NY Overlap Times</b><br>
-<span style='font-size: 22px; color: #22D3EE; font-weight: 700;'>
+<span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
 {overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
 </span>
 <br>({selected_tz_str})
