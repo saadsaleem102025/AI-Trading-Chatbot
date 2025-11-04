@@ -46,7 +46,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 /* --- SIDEBAR COMPONENTS (Maximized Vertical Compactness) --- */
-/* FINAL CHANGE: Market Context Title Color to Bright Green */
+/* Market Context Title Color */
 .sidebar-title {
     font-size: 28px; 
     font-weight: 800; 
@@ -65,13 +65,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
-/* FINAL CHANGE: Colorize all key info text in sidebar to bright cyan */
-.sidebar-item-info {
-    color: #22D3EE !important; /* Bright Cyan */
+/* Colorize key info text (Active Session, Local Time) to Vivid Pink */
+.sidebar-status-info {
+    color: #EC4899 !important; /* Vivid Pink */
     font-weight: 700;
     font-size: 16px !important; 
 }
-/* FINAL CHANGE: Custom class for the two-line asset price structure */
+/* Custom class for the two-line asset price structure */
 .sidebar-asset-price-item {
     background: #1F2937; 
     border-radius: 8px;
@@ -85,7 +85,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #E5E7EB;
     font-weight: 600;
 }
-/* FINAL CHANGE: Asset Price Figure Color */
+/* Asset Price Figure Color */
 .asset-price-value {
     color: #F59E0B; /* Vivid Yellow/Gold */
     font-weight: 800;
@@ -186,17 +186,17 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change_sidebar(ch):
-    """Format percent change for sidebar - line 2 of asset display."""
+    """Format percent change for sidebar - line 2 of asset display (NO PIPE)."""
     if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    # Pipe separator with change figure and bold purple label
-    return f"<div style='text-align: right; margin-top: 2px;'><span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span></div>"
+    # Change figure and bold purple label, centered in a new line div
+    return f"<div style='text-align: center; margin-top: 2px;'><span style='white-space: nowrap;'><span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span></div>"
 
 def format_change_main(ch):
-    """Format percent change for main area - single line display."""
+    """Format percent change for main area - single line display (WITH PIPE)."""
     if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
@@ -480,7 +480,8 @@ def get_session_info(utc_now):
     elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
     else: status = "High Volatility / Possible Exhaustion"
     
-    volatility_html = f"<span class='sidebar-item-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
+    # Use the new status info class
+    volatility_html = f"<span class='sidebar-status-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
 
 session_name, volatility_html = get_session_info(utc_now)
@@ -521,9 +522,9 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# Removed offset from display
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-item-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-item-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+# Applying the new status info class (Vivid Pink)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-status-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-status-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 # 3. Static Overlap Time Display
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
@@ -546,7 +547,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., USD, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
