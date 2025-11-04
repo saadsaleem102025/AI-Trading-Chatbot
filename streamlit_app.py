@@ -64,6 +64,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
+/* FINAL CHANGE: Colorize all key info text in sidebar to bright cyan */
+.sidebar-item-info {
+    color: #22D3EE !important; 
+    font-weight: 700;
+    font-size: 16px !important; /* Keep size readable */
+}
+
 .sidebar-item b {
     color: #E5E7EB;
     font-weight: 600;
@@ -134,7 +141,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .bullish { color: #10B981; font-weight: 700; } 
 .bearish { color: #EF4444; font-weight: 700; } 
 .neutral { color: #F59E0B; font-weight: 700; } 
-/* FINAL CHANGE: Bright Purple and Bold */
 .percent-label { color: #C084FC; font-weight: 700; } 
 
 .kde-red { color: #EF4444; } 
@@ -170,7 +176,8 @@ def format_change(ch):
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
     # Using pipe separator and bold purple label
-    return f"&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span>"
+    # NOTE: The entire output is wrapped in a span for single-line display in the narrow sidebar
+    return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
 
 def get_coingecko_id(symbol):
     """Map common symbols to Coingecko IDs for robust crypto price fetching."""
@@ -392,7 +399,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     change_display = format_change(price_change_24h)
     
     # REVISED PRICE LINE FORMAT: Price + Currency + Pipe + 24h Change
-    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()} {change_display}</span>"
+    current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()}{change_display}</span>"
     
     return f"""
 <div class='big-text'>
@@ -447,7 +454,7 @@ def get_session_info(utc_now):
     elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
     else: status = "High Volatility / Possible Exhaustion"
     
-    volatility_html = f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)"
+    volatility_html = f"<span class='sidebar-item-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
 
 session_name, volatility_html = get_session_info(utc_now)
@@ -459,8 +466,10 @@ st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_a
 # 1. BTC/ETH Display (Uses the robust get_asset_price with API fail-safes)
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
-st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
+
+# Optimized for single line display
+st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> <span class='sidebar-item-info'>${format_price(btc)}{format_change(btc_ch)}</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> <span class='sidebar-item-info'>${format_price(eth)}{format_change(eth_ch)}</span></div>", unsafe_allow_html=True)
 
 # 2. Timezone Selection and Local Time Display
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
@@ -479,8 +488,9 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> {user_local_time.strftime('%H:%M')} ({selected_tz_str})</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
+# FINAL CHANGE: Removed offset from display
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-item-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-item-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 # 3. Static Overlap Time Display
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
