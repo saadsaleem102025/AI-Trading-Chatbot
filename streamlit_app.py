@@ -1,6 +1,6 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
-from datetime import time as dt_time
+from datetime import time as dt_time, timedelta, timezone
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
@@ -9,7 +9,7 @@ st.markdown("""
 <style>
 /* Base Streamlit overrides */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
-#MainMenu {visibility: hidden !impor_tant;}
+#MainMenu {visibility: hidden !important;}
 
 /* Base font and colors */
 html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
@@ -180,14 +180,13 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
 
-    # final: return None to indicate total failure
     return None, None
 
 # === HISTORICAL FETCH (TwelveData) ===
 def get_twelve_data(symbol, interval="1h", outputsize=200):
     if not TWELVE_API_KEY: return None
     try:
-        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
+        url = f"httpsD://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
         if "values" not in res: return None
         df = pd.DataFrame(res["values"])
@@ -320,7 +319,7 @@ Stop Loss: <b style='color:#EF4444;'>{format_price(stop)}</b>
 """
 
 # === Session Logic (Using UTC) ===
-utc_now = datetime.datetime.utcnow()
+utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
 SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    # 00:00 - 09:00 UTC
@@ -361,23 +360,44 @@ eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 2. Time Display (Cleaned up)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Current Time (UTC):</b> {utc_now.strftime('%H:%M')}</div>", unsafe_allow_html=True)
+# 2. NEW: Timezone Selection
+# Create a list of common UTC offsets
+tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
+# Add specific non-standard offsets
+tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
+tz_options = sorted(list(set(tz_options))) # Clean and sort
+
+try:
+    default_ix = tz_options.index("UTC+05:00") # Default to Pakistan Time
+except ValueError:
+    default_ix = tz_options.index("UTC+00:00") # Fallback to UTC
+
+selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
+
+# Parse the selected string to get user's local time
+offset_str = selected_tz_str.replace("UTC", "")
+hours, minutes = map(int, offset_str.split(':'))
+total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.startswith('-') else 1)
+user_tz = timezone(timedelta(minutes=total_minutes))
+user_local_time = datetime.datetime.now(user_tz)
+
+# 3. Time Display (Cleaned up)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> {user_local_time.strftime('%H:%M')} ({selected_tz_str})</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Market Time (UTC):</b> {utc_now.strftime('%H:%M')}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 3. JAVASCRIPT LIVE COUNTDOWN (HH:MM)
-now_utc = datetime.datetime.utcnow()
-today_overlap_start = datetime.datetime.combine(now_utc.date(), OVERLAP_START_UTC)
-today_overlap_end = datetime.datetime.combine(now_utc.date(), OVERLAP_END_UTC)
+# 4. JAVASCRIPT LIVE COUNTDOWN (HH:MM)
+today_overlap_start = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
+today_overlap_end = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
 
-if now_utc < today_overlap_start:
+if utc_now < today_overlap_start:
     target_timestamp = today_overlap_start.timestamp()
     label = "London/NY Overlap Starts In:"
-elif now_utc < today_overlap_end:
+elif utc_now < today_overlap_end:
     target_timestamp = today_overlap_end.timestamp()
     label = "London/NY Overlap Ends In:"
 else:
-    next_day_overlap_start = today_overlap_start + datetime.timedelta(days=1)
+    next_day_overlap_start = today_overlap_start + timedelta(days=1)
     target_timestamp = next_day_overlap_start.timestamp()
     label = "London/NY Overlap Starts In:"
 
@@ -389,19 +409,25 @@ st.sidebar.markdown(f"""
 </div>
 
 <script>
-// Ensure this script only runs once
-if (!window.countdownInterval) {{
-    const targetTime = {target_timestamp} * 1000; // Convert to JS milliseconds
-    const timerElement = document.getElementById('countdown-timer');
+// --- FIXED COUNTDOWN SCRIPT ---
+// Clear any existing timer to prevent conflicts on rerun
+if (window.countdownInterval) {{
+    clearInterval(window.countdownInterval);
+}}
 
+const targetTime = {target_timestamp} * 1000; // Convert to JS milliseconds
+const timerElement = document.getElementById('countdown-timer');
+
+// Only run if the element exists
+if (timerElement) {{
     const updateTimer = () => {{
         const now = new Date().getTime();
-        const distance = targetTime - now;
+        // Get distance to target time in UTC
+        const distance = targetTime - (now - (new Date().getTimezoneOffset() * 60000));
 
         if (distance < 0) {{
             timerElement.innerHTML = "00:00";
             // Force a page reload to get the next target time
-            // This is safer than trying to find the rerun button
             if (!window.reloading) {{
                 window.reloading = true;
                 window.location.reload();
@@ -419,7 +445,7 @@ if (!window.countdownInterval) {{
     }};
 
     updateTimer(); // Run once immediately
-    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second so minute ticks over
+    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second
 }}
 </script>
 """, unsafe_allow_html=True)
