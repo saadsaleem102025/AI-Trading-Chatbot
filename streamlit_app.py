@@ -129,17 +129,17 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
-# Placeholder for other APIs you might add later
 IEX_API_KEY = st.secrets.get("IEX_CLOUD_API_KEY", "")
 POLYGON_API_KEY = st.secrets.get("POLYGON_API_KEY", "")
 
 # === HELPERS FOR FORMATTING ===
 def format_price(p):
     """Return a human-friendly price string."""
-    if p is None: return "N/A" # This case is now avoided in the main loop
+    if p is None: return "N/A" 
     try: p = float(p)
     except Exception: return "N/A" 
     
+    # Adjust formatting based on magnitude (e.g., more decimals for crypto/forex)
     if abs(p) >= 10: s = f"{p:,.2f}"
     elif abs(p) >= 1: s = f"{p:,.4f}" 
     else: s = f"{p:.6f}"
@@ -154,21 +154,27 @@ def format_change(ch):
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
     return f"<span class='{color_class}'>({sign}{ch:.2f}%)</span>"
 
+def get_coingecko_id(symbol):
+    # Mapping common symbols to Coingecko IDs for robust crypto price fetching
+    return {
+        "BTCUSD": "bitcoin", "ETHUSD": "ethereum", "XLMUSD": "stellar", 
+        "XRPUSD": "ripple", "ADAUSD": "cardano", "DOGEUSD": "dogecoin"
+    }.get(symbol, None)
+
 # === UNIVERSAL PRICE FETCHER (Maximum Safe Backups) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
-    # 1) Coingecko PUBLIC API
-    if symbol in ("BTCUSD", "ETHUSD"):
+    # 1) Coingecko PUBLIC API (Prioritized for Crypto)
+    cg_id = get_coingecko_id(symbol)
+    if cg_id:
         try:
-            cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
-            if cg_id:
-                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
-                if cg_id in r and vs_currency in r[cg_id]:
-                    price = r[cg_id].get(vs_currency)
-                    change = r[cg_id].get(f"{vs_currency}_24h_change")
-                    if price is not None and price > 0:
-                        return float(price), round(float(change), 2) if change is not None else None
+            r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
+            if cg_id in r and vs_currency in r[cg_id]:
+                price = r[cg_id].get(vs_currency)
+                change = r[cg_id].get(f"{vs_currency}_24h_change")
+                if price is not None and price > 0:
+                    return float(price), round(float(change), 2) if change is not None else None
         except Exception:
             pass
 
@@ -206,22 +212,14 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
             
-    # 5) IEX Cloud Placeholder (Needs full implementation if key is provided)
-    if IEX_API_KEY:
-        # NOTE: Full IEX implementation is complex; this is a placeholder
-        pass
-
-    # 6) Polygon Placeholder (Needs full implementation if key is provided)
-    if POLYGON_API_KEY:
-        # NOTE: Full Polygon implementation is complex; this is a placeholder
-        pass
+    # 5) IEX Cloud/Polygon Placeholders...
         
     return None, None
 
 # === HISTORICAL FETCH (Maximum Safe Backups) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
     
-    # 1) TwelveData
+    # 1) TwelveData (Primary for historical)
     if TWELVE_API_KEY:
         try:
             url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
@@ -233,8 +231,8 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
         except Exception:
             pass
     
-    # 2) Alpha Vantage
-    if AV_API_KEY and outputsize <= 100: # Limit AV calls due to rate limits/data structure
+    # 2) Alpha Vantage (Secondary for historical)
+    if AV_API_KEY and outputsize <= 100: 
         try:
             func = {"15min": "TIME_SERIES_INTRADAY", "1h": "TIME_SERIES_INTRADAY", "4h": "TIME_SERIES_DAILY"}.get(interval, "TIME_SERIES_DAILY")
             output_s = "full" if outputsize > 100 else "compact"
@@ -261,7 +259,9 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.005):
     # Use symbol hash for unique but stable series per asset
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
-    base = float(price_hint or 1.0)
+    
+    # Use 0.27 as a better default for cryptos if price_hint is low/missing
+    base = float(price_hint or 0.27) 
     
     returns = np.random.normal(0, volatility_pct, size=length)
     series = base * np.exp(np.cumsum(returns))
@@ -274,7 +274,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.005):
     })
     return df.iloc[-length:]
 
-# === INDICATORS (Unchanged logic) ===
+# === INDICATORS ===
 def kde_rsi(df):
     closes = df["close"].astype(float).values
     if len(closes) < 5: return 50.0
@@ -290,13 +290,30 @@ def kde_rsi(df):
     w = np.exp(-0.5 * (np.linspace(-2, 2, max(len(rsi[-30:]),1)))**2)
     return float(np.average(rsi[-30:], weights=w))
 
+# NEW: Rule-based output for KDE RSI
+def get_kde_rsi_status(kde_val):
+    if kde_val < 10:
+        return f"🔴 {kde_val:.2f}% → Reversal Danger Zones (Very High Bullish Reversal Probabilit)"
+    elif kde_val < 20:
+        return f"🔴 {kde_val:.2f}% → Extreme Oversold (High chance of Bullish Reversal)"
+    elif kde_val < 40:
+        return f"🟠 {kde_val:.2f}% → Weak Bearish (Possible Bullish Trend Starting)"
+    elif kde_val < 60:
+        return f"🟡 {kde_val:.2f}% → Neutral Zone (Trend Continuation or Consolidation)"
+    elif kde_val < 80:
+        return f"🟢 {kde_val:.2f}% → Strong Bullish (Bullish Trend Likely Continuing)"
+    elif kde_val < 90:
+        return f"🔵 {kde_val:.2f}% → Extreme Overbought (High chance of Bearish Reversal)"
+    else: # > 90
+        return f"🟣 {kde_val:.2f}% → Reversal Danger Zones (Very High Bearish Reversal Probabilit)"
+
 def supertrend_status(df):
-    if "high" not in df.columns or "low" not in df.columns or df.empty: return "Supertrend: N/A"
+    if "high" not in df.columns or "low" not in df.columns or df.empty: return "N/A"
     hl2 = (df["high"] + df["low"]) / 2
-    if hl2.empty: return "Supertrend: N/A"
+    if hl2.empty: return "N/A"
     
     last_close = df["close"].iloc[-1]
-    return "Supertrend: Bullish" if last_close > hl2.iloc[-1] else "Supertrend: Bearish"
+    return "Bullish" if last_close > hl2.iloc[-1] else "Bearish"
 
 def bollinger_status(df):
     close = df["close"]
@@ -309,46 +326,31 @@ def bollinger_status(df):
     if last < lower: return "Lower Band — Oversold"
     return "Within Bands — Normal"
 
-def combined_bias(kde_val, st_text, bb_text):
+def combined_bias(kde_val, st_text):
+    # Simplified bias score based on just KDE and Supertrend status 
     score = 0
-    if kde_val < 20: score += 50
-    elif kde_val < 40: score += 25
-    elif kde_val < 60: score += 0
-    elif kde_val < 80: score -= 25
-    else: score -= 50
+    if kde_val < 40: score += 25
+    elif kde_val > 60: score -= 25
     
-    if "Bullish" in st_text: score += 30
-    elif "Bearish" in st_text: score -= 30
+    if "Bullish (4H)" in st_text: score += 30
+    elif "Bearish (4H)" in st_text: score -= 30
     
-    if "overbought" in bb_text.lower(): score -= 20
-    elif "oversold" in bb_text.lower(): score += 20
+    if "Bullish (1H)" in st_text: score += 20
+    elif "Bearish (1H)" in st_text: score -= 20
     
-    if score > 20: return "Bullish"
-    if score < -20: return "Bearish"
+    if score > 30: return "Bullish"
+    if score < -30: return "Bearish"
     return "Neutral (wait for confirmation)"
-
-# === VOLATILITY LOGIC (Compacted) ===
-def fx_volatility_analysis(curr_range_pct, avg_range_pct):
-    """Apply Boitoki-like volatility logic."""
-    ratio = (curr_range_pct / avg_range_pct) * 100
-    if ratio < 20:
-        status = "Flat / Very Low Volatility"
-    elif 20 <= ratio < 60:
-        status = "Low Volatility / Room to Move"
-    elif 60 <= ratio < 100:
-        status = "Moderate Volatility / Near Average"
-    else:
-        status = "High Volatility / Possible Exhaustion"
-    # Return only status and percentage
-    return f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)"
 
 # === ANALYZE (Structured Output enforced, completely fail-proof) ===
 def analyze(symbol, price_raw, vs_currency):
     
-    # 1. Guaranteed Historical Data (Synthetic is the final backup)
+    # 1. Guaranteed Historical Data and Price Hint
     # Use synthetic data to provide a price HINT if all API calls failed previously
-    df_4h_synth = synthesize_series(price_raw or 1.0, symbol)
-    price_hint = df_4h_synth["close"].iloc[-1]
+    # Use a better default price for crypto if price_raw is None
+    synth_base_price = price_raw if price_raw is not None and price_raw > 0 else 0.27
+    df_synth = synthesize_series(synth_base_price, symbol)
+    price_hint = df_synth["close"].iloc[-1] # This is the price if all APIs fail
     
     # Attempt to get real historical data, using synth as final fallback
     df_4h = get_historical_data(symbol, "4h") or synthesize_series(price_hint, symbol)
@@ -356,14 +358,19 @@ def analyze(symbol, price_raw, vs_currency):
     df_15m = get_historical_data(symbol, "15min") or synthesize_series(price_hint, symbol)
 
     # 2. Guaranteed Current Price
-    # If price_raw failed (is None), use the most recent price from the 15m data (either API or synthetic)
-    current_price = price_raw if price_raw is not None else df_15m["close"].iloc[-1] 
+    current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["close"].iloc[-1] 
     
     # 3. Indicator Calculations
     kde_val = kde_rsi(df_1h)
-    st_status = f"{supertrend_status(df_4h)} (4H) • {supertrend_status(df_1h)} (1H)"
+    st_status_4h = supertrend_status(df_4h)
+    st_status_1h = supertrend_status(df_1h)
+    
+    # NEW FORMATTING
+    supertrend_output = f"SuperTrend : {st_status_4h}(4H) , {st_status_1h}(1H)"
+    kde_rsi_output = get_kde_rsi_status(kde_val)
+    
     bb_status = bollinger_status(df_15m)
-    bias = combined_bias(kde_val, st_status, bb_status)
+    bias = combined_bias(kde_val, supertrend_output)
     
     # 4. Risk Calculations
     base = current_price
@@ -371,6 +378,7 @@ def analyze(symbol, price_raw, vs_currency):
         recent_range = df_1h["high"].iloc[-10:].max() - df_1h["low"].iloc[-10:].min()
         atr = recent_range * 0.2 
     else:
+        # Default ATR is dynamically based on the current price (real or synthetic)
         atr = base * 0.005 if base > 1.0 else 0.005 
 
     # Suggested levels adjusted based on bias
@@ -400,30 +408,29 @@ def analyze(symbol, price_raw, vs_currency):
 <div class='analysis-item'>Exit/Target Price: <span class='bullish'>{format_price(target)}</span></div>
 <div class='analysis-item'>Stop Loss: <span class='bearish'>{format_price(stop)}</span></div>
 <hr style='border-top: 1px dotted #374151; margin: 15px 0;'>
-<div class='analysis-item'>KDE RSI: <b>{kde_val:.2f}%</b> ({"Oversold/Bullish" if kde_val < 40 else "Overbought/Bearish" if kde_val > 60 else "Neutral"})</div>
-<div class='analysis-item'>Supertrend Status: <b>{st_status}</b></div>
+<div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
+<div class='analysis-item'>{supertrend_output}</div>
 <div class='analysis-item'>Bollinger Bands Status: <b>{bb_status}</b></div>
 <div class='analysis-bias'>Overall Bias: <span class='{bias.split(" ")[0].lower()}'>{bias}</span></div>
 <div class='analysis-motto'>Trading Psychology: {motivation}</div>
 </div>
 """
 
-# === Session Logic (Using UTC) ===
+# === Session Logic (Unchanged) ===
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
-SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    # 00:00 - 09:00 UTC
-SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) # 08:00 - 17:00 UTC
-SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   # 13:00 - 22:00 UTC
-OVERLAP_START_UTC = dt_time(13, 0) # 13:00 UTC
-OVERLAP_END_UTC = dt_time(17, 0)   # 17:00 UTC
+SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    
+SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) 
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   
+OVERLAP_START_UTC = dt_time(13, 0) 
+OVERLAP_END_UTC = dt_time(17, 0)   
 
-current_range_pct = 0.02 # Default Dummy %
-avg_range_pct = 0.1 # Default Dummy %
+current_range_pct = 0.02 
+avg_range_pct = 0.1 
 current_time_utc = utc_now.time()
-session_name = "Quiet/Sydney Session" # Default Session Name
+session_name = "Quiet/Sydney Session" 
 
-# Re-evaluate session logic to ensure correct high-volatility session is picked
 if OVERLAP_START_UTC <= current_time_utc < OVERLAP_END_UTC:
     session_name = "Overlap: London / New York"
     current_range_pct = 0.30 
@@ -443,50 +450,48 @@ else:
     session_name = "Quiet/Sydney Session"
     current_range_pct = 0.02
 
+def fx_volatility_analysis(curr_range_pct, avg_range_pct):
+    ratio = (curr_range_pct / avg_range_pct) * 100
+    if ratio < 20: status = "Flat / Very Low Volatility"
+    elif 20 <= ratio < 60: status = "Low Volatility / Room to Move"
+    elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
+    else: status = "High Volatility / Possible Exhaustion"
+    return f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)"
+
 volatility_html = fx_volatility_analysis(current_range_pct, avg_range_pct)
 
-# --- SIDEBAR ---
+# --- SIDEBAR (Unchanged) ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# 1. BTC/ETH Display (Always attempts to fetch)
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 2. Timezone Selection
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
 tz_options = sorted(list(set(tz_options))) 
 
-try:
-    default_ix = tz_options.index("UTC+05:00") # Default to Pakistan Time
-except ValueError:
-    default_ix = tz_options.index("UTC+00:00") # Fallback to UTC
+try: default_ix = tz_options.index("UTC+05:00") 
+except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
 selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
 
-# Parse the selected string to get user's local time
 offset_str = selected_tz_str.replace("UTC", "")
 hours, minutes = map(int, offset_str.split(':'))
 total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.startswith('-') else 1)
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# 3. Time Display (Cleaned up)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> {user_local_time.strftime('%H:%M')} ({selected_tz_str})</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 4. Static Overlap Time Display
-# Get UTC overlap datetimes
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
 today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
 
-# Convert to user's selected timezone
 overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
 overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 
-# Display the converted times
 st.sidebar.markdown(f"""
 <div class='sidebar-item sidebar-overlap-time'>
 <b>London/NY Overlap Times</b><br>
@@ -501,7 +506,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EURUSD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., XLM, AAPL, EURUSD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
@@ -511,7 +516,7 @@ if user_input:
     # 1. Attempt to get real-time price
     price, _ = get_asset_price(symbol, vs_currency)
     
-    # 2. Always run the analysis now, which handles the final fallback to synthetic data if 'price' is None
+    # 2. Always run the analysis
     st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
     
 else:
