@@ -65,18 +65,25 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
-/* FINAL CHANGE 1: Local Time Info Value Color to Bright Red */
+/* FINAL CHANGE 1: Local Time Info Value Color to Vibrant Cyan */
 .local-time-info {
-    color: #FF4500 !important; /* Bright Red */
+    color: #00FFFF !important; /* Vibrant Cyan/Turquoise */
     font-weight: 700;
     font-size: 16px !important; 
 }
-/* FINAL CHANGE 2: Active Session/Status Info Value Color to Vivid Green */
-.session-status-info {
+/* FINAL CHANGE 2: Active Session Info Value Color to Deep Orange */
+.active-session-info {
+    color: #FF8C00 !important; /* Deep Orange */
+    font-weight: 700;
+    font-size: 16px !important; 
+}
+/* FINAL CHANGE 3: Status Info Value Color to Vivid Green */
+.status-volatility-info {
     color: #32CD32 !important; /* Vivid Green (LimeGreen) */
     font-weight: 700;
     font-size: 16px !important; 
 }
+
 /* Labels (Headings) to Pure Bold White */
 .sidebar-item b {
     color: #FFFFFF !important; 
@@ -492,7 +499,7 @@ def get_session_info(utc_now):
     else: status = "High Volatility / Possible Exhaustion"
     
     # This element uses the Vivid Green class
-    volatility_html = f"<span class='session-status-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
+    volatility_html = f"<span class='status-volatility-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
 
 session_name, volatility_html = get_session_info(utc_now)
@@ -533,10 +540,11 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# Applying Bright Red for Local Time
+# Applying Vibrant Cyan for Local Time
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
-# Applying Vivid Green for Active Session/Status
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='session-status-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+
+# Applying Deep Orange for Active Session
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 # 3. Static Overlap Time Display
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
@@ -560,7 +568,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLM, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
