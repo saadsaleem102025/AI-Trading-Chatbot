@@ -65,19 +65,19 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
-/* FINAL CHANGE 1: Local Time Info Value Color to Vibrant Cyan */
+/* Local Time Info Value Color: Vibrant Cyan */
 .local-time-info {
     color: #00FFFF !important; /* Vibrant Cyan/Turquoise */
     font-weight: 700;
     font-size: 16px !important; 
 }
-/* FINAL CHANGE 2: Active Session Info Value Color to Deep Orange */
+/* Active Session Info Value Color: Deep Orange */
 .active-session-info {
     color: #FF8C00 !important; /* Deep Orange */
     font-weight: 700;
     font-size: 16px !important; 
 }
-/* FINAL CHANGE 3: Status Info Value Color to Vivid Green */
+/* Status Info Value Color: Vivid Green */
 .status-volatility-info {
     color: #32CD32 !important; /* Vivid Green (LimeGreen) */
     font-weight: 700;
@@ -191,7 +191,7 @@ AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === HELPERS FOR FORMATTING ===
+# === HELPERS FOR FORMATTING (No Change) ===
 def format_price(p):
     """Return a human-friendly price string."""
     if p is None: return "N/A" 
@@ -230,7 +230,7 @@ def get_coingecko_id(symbol):
         "XRPUSD": "ripple", "ADAUSD": "cardano", "DOGEUSD": "dogecoin"
     }.get(symbol.replace("USD", "").replace("USDT", ""), None)
 
-# === UNIVERSAL PRICE FETCHER (Maximum Safe Backups) ===
+# === UNIVERSAL PRICE FETCHER (No Change) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
@@ -292,7 +292,7 @@ def get_asset_price(symbol, vs_currency="usd"):
         
     return None, None
 
-# === HISTORICAL FETCH (Maximum Safe Backups) ===
+# === HISTORICAL FETCH (No Change) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
     interval_map_td = {"4h": "4h", "1h": "1h", "15min": "15min"}
     interval_map_av = {"4h": "60min", "1h": "60min", "15min": "15min"}
@@ -330,7 +330,7 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
 
     return None
 
-# === SYNTHETIC BACKUP (Always returns the same valid OHLC data) ===
+# === SYNTHETIC BACKUP (No Change) ===
 def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): 
     """Generates consistent synthetic OHLC data using a symbol-based seed."""
     seed_val = int(hash(symbol) % (2**31 - 1))
@@ -349,9 +349,9 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATORS (Using fixed/plausible placeholders) ===
+# === INDICATORS (No Change) ===
 def kde_rsi(df):
-    """Placeholder for KDE RSI calculation. Returns a value based on the symbol's hash for consistency."""
+    """Placeholder for KDE RSI calculation."""
     kde_val = (int(hash(df.index.to_series().astype(str).str.cat()) % 50) + 30)
     return float(kde_val)
 
@@ -386,7 +386,7 @@ def combined_bias(kde_val, st_text):
     if kde_val < 40: return "Bearish"
     return "Neutral (wait for confirmation)"
 
-# === ANALYZE (Structured Output enforced, completely fail-proof) ===
+# === ANALYZE (No Change) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # 1. Guaranteed Historical Data and Price Hint
@@ -460,10 +460,11 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 </div>
 """
 
-# === Session Logic (For Sidebar) ===
+# === Session Logic (Restored Forex-based logic) ===
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
+# RESTORED FOREX SESSIONS (UTC)
 SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    
 SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) 
 SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   
@@ -475,6 +476,7 @@ def get_session_info(utc_now):
     session_name = "Quiet/Sydney Session"
     current_range_pct = 0.02
     
+    # RESTORED FOREX OVERLAP LOGIC
     if OVERLAP_START_UTC <= current_time_utc < OVERLAP_END_UTC:
         session_name = "Overlap: London / New York"
         current_range_pct = 0.30 
@@ -528,6 +530,7 @@ tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
 tz_options = sorted(list(set(tz_options))) 
 
+# Setting default timezone to UTC+05:00 for the user's current location (PKT)
 try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
@@ -543,10 +546,10 @@ user_local_time = datetime.datetime.now(user_tz)
 # Applying Vibrant Cyan for Local Time
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
 
-# Applying Deep Orange for Active Session
+# Applying Deep Orange for Active Session (and Vivid Green for Status)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 3. Static Overlap Time Display
+# 3. Static Overlap Time Display (RESTORED)
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
 today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
 
@@ -556,7 +559,7 @@ overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 # Overlap Times remain a bright color for emphasis
 st.sidebar.markdown(f"""
 <div class='sidebar-item sidebar-overlap-time'>
-<b>London/NY Overlap Times</b><br>
+<b>London/NY Overlap Times (Peak Liquidity)</b><br>
 <span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
 {overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
 </span>
@@ -568,14 +571,15 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
+    # Adjusted prompt for Stocks/Crypto focus
+    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, BTC/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
 if user_input:
     symbol = user_input.strip().upper()
     
-    # 1. Attempt to get real-time price and 24h change (Now with multi-API priority)
+    # 1. Attempt to get real-time price and 24h change
     price, price_change_24h = get_asset_price(symbol, vs_currency)
     
     # 2. Always run the analysis
