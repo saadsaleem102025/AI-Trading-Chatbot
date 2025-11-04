@@ -10,7 +10,7 @@ except Exception:
 
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. MODERN STYLE UPDATE (Teal/Cyan High-Tech Theme) ===
+# === 1. UPDATED STYLE (Contrast Theme) ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
@@ -25,15 +25,15 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     line-height: 1.7 !important;
 }
 
-/* Main background */
+/* --- NEW COLOR SCHEME --- */
+/* Main background (Lighter) */
 [data-testid="stAppViewContainer"] {
-    background: #0A0F18; /* Very dark blue-grey */
+    background: #1F2937; /* Lighter blue-grey */
     color: #E0E0E0 !important;
     padding-left: 360px !important;
     padding-right: 25px;
 }
-
-/* Sidebar styling */
+/* Sidebar styling (Darker) */
 [data-testid="stSidebar"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
@@ -42,6 +42,17 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-right: 1px solid #1F2937; /* Subtle border */
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
+/* Main content boxes (Darker, to contrast main bg) */
+.big-text {
+    background: #111827; /* Darker, matches sidebar */
+    border: 1px solid #374151; 
+    border-radius: 16px; 
+    padding: 28px; 
+    margin-top: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+/* --- END NEW COLOR SCHEME --- */
+
 .sidebar-title {
     font-size: 32px; 
     font-weight: 800; 
@@ -50,9 +61,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
 }
 .sidebar-item {
-    background: #1F2937; /* Dark item background */
+    background: #1F2937; /* Matches main bg */
     border-radius: 10px; 
-    padding: 14px 16px; /* Taller items */
+    padding: 14px 16px; 
     margin: 10px 0; 
     font-size: 17px; 
     color: #9CA3AF; /* Grey text for info */
@@ -73,8 +84,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-radius: 10px;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
 }
-
-/* Main content styling */
+/* Section Headers */
 .section-header {
     font-size: 24px; 
     font-weight: 700; 
@@ -83,14 +93,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-left: 4px solid #22D3EE; 
     padding-left: 10px;
 }
-.big-text {
-    background: #111827; 
-    border: 1px solid #374151; 
-    border-radius: 16px; 
-    padding: 28px; 
-    margin-top: 15px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
+/* Inputs */
 [data-baseweb="input"] input { 
     background-color: #1F2937 !important; 
     color: #F5F9FF !important; 
@@ -115,51 +118,36 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
-CG_API_KEY = st.secrets.get("COINGECKO_API_KEY", "") # Added for crypto backup
+CG_API_KEY = st.secrets.get("COINGECKO_API_KEY", "") 
 
-# === safe autorefresh import fallback ===
-try:
-    from streamlit_autorefresh import st_autorefresh
-except Exception:
-    def st_autorefresh(interval=0, limit=None, key=None):
-        return None
+# === safe autorefresh import fallback (REMOVED, using JS for timer) ===
+# No longer needed, as the JS timer handles the live countdown.
 
 # === HELPERS FOR FORMATTING (avoid TypeError) ===
 def format_price(p):
-    """Return a human-friendly price string with trimmed trailing zeros.
-        Returns 'N/A' for None."""
-    if p is None:
-        return "N/A"
-    try:
-        p = float(p)
-    except Exception:
-        return "N/A"
-    if abs(p) >= 10:
-        s = f"{p:,.2f}"
-    elif abs(p) >= 1:
-        s = f"{p:,.3f}"
-    else:
-        s = f"{p:.6f}"
+    """Return a human-friendly price string."""
+    if p is None: return "N/A"
+    try: p = float(p)
+    except Exception: return "N/A"
+    if abs(p) >= 10: s = f"{p:,.2f}"
+    elif abs(p) >= 1: s = f"{p:,.3f}"
+    else: s = f"{p:.6f}"
     return s.rstrip("0").rstrip(".")
 
 def format_change(ch):
-    """Format percent change with sign and 2 decimals, 'N/A' for None"""
-    if ch is None:
-        return "N/A"
-    try:
-        ch = float(ch)
-    except Exception:
-        return "N/A"
+    """Format percent change with sign and color."""
+    if ch is None: return "N/A"
+    try: ch = float(ch)
+    except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
-    # 2. UPDATED: Returns colored HTML span for sidebar
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
     return f"<span class='{color_class}'>({sign}{ch:.2f}%)</span>"
 
-# === 5. UNIVERSAL PRICE FETCHER (safe number of APIs for backup) ===
+# === UNIVERSAL PRICE FETCHER (With Public Fallback) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
-    # 0) Coingecko (Primary for BTC/ETH/Crypto)
+    # 0) Coingecko (Primary for BTC/ETH/Crypto - using API Key)
     if CG_API_KEY and symbol in ("BTCUSD", "ETHUSD"):
         try:
             cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
@@ -176,8 +164,7 @@ def get_asset_price(symbol, vs_currency="usd"):
     # 1) Finnhub (Stocks/Forex/Crypto)
     if FH_API_KEY:
         try:
-            r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6)
-            d = r.json()
+            r = requests.get(f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FH_API_KEY}", timeout=6).json()
             if isinstance(d, dict) and d.get("c") not in (None, 0):
                 chg = None
                 if "pc" in d and d.get("pc") and d.get("c") != d.get("pc"):
@@ -201,14 +188,25 @@ def get_asset_price(symbol, vs_currency="usd"):
     # 3) TwelveData (Stocks/Forex/Crypto)
     if TWELVE_API_KEY:
         try:
-            if symbol.endswith(vs_currency.upper()):
-                td_symbol = symbol 
-            else:
-                td_symbol = f"{symbol}/{vs_currency.upper()}" 
-                
+            td_symbol = f"{symbol}/{vs_currency.upper()}" if not symbol.endswith(vs_currency.upper()) else symbol
             r = requests.get(f"https://api.twelvedata.com/price?symbol={td_symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if "price" in r:
                 return float(r["price"]), None
+        except Exception:
+            pass
+
+    # 4) PUBLIC FALLBACK (No Key - for Demo)
+    if symbol in ("BTCUSD", "ETHUSD"):
+        try:
+            cg_id = {"BTCUSD": "bitcoin", "ETHUSD": "ethereum"}.get(symbol)
+            if cg_id:
+                # Using the public API endpoint
+                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
+                if cg_id in r and vs_currency in r[cg_id]:
+                    price = r[cg_id].get(vs_currency)
+                    change = r[cg_id].get(f"{vs_currency}_24h_change")
+                    if price is not None and price > 0:
+                        return float(price), round(float(change), 2) if change is not None else None
         except Exception:
             pass
 
@@ -217,13 +215,11 @@ def get_asset_price(symbol, vs_currency="usd"):
 
 # === HISTORICAL FETCH (TwelveData) ===
 def get_twelve_data(symbol, interval="1h", outputsize=200):
-    if not TWELVE_API_KEY:
-        return None
+    if not TWELVE_API_KEY: return None
     try:
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
-        if "values" not in res:
-            return None
+        if "values" not in res: return None
         df = pd.DataFrame(res["values"])
         df[["close","high","low"]] = df[["close","high","low"]].astype(float)
         return df.sort_values("datetime").reset_index(drop=True)
@@ -238,17 +234,14 @@ def synthesize_series(price, length=100, volatility_pct=0.005):
     series = base * np.exp(np.cumsum(returns))
     df = pd.DataFrame({
         "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
-        "close": series,
-        "high": series * (1 + np.random.normal(0, volatility_pct/2, size=length)),
-        "low": series * (1 - np.random.normal(0, volatility_pct/2, size=length)),
+        "close": series, "high": series * (1.002), "low": series * (0.998),
     })
     return df
 
-# === INDICATORS (kept unchanged) ===
+# === INDICATORS ===
 def kde_rsi(df):
     closes = df["close"].astype(float).values
-    if len(closes) < 5:
-        return 50.0
+    if len(closes) < 5: return 50.0
     deltas = np.diff(closes)
     gains = np.where(deltas > 0, deltas, 0)
     losses = np.where(deltas < 0, -deltas, 0)
@@ -260,6 +253,7 @@ def kde_rsi(df):
     return float(np.average(rsi[-30:], weights=w))
 
 def supertrend_status(df):
+    if "high" not in df.columns or "low" not in df.columns: return "Supertrend: N/A"
     hl2 = (df["high"] + df["low"]) / 2
     tr = pd.concat([
         df["high"] - df["low"],
@@ -272,8 +266,7 @@ def supertrend_status(df):
 
 def bollinger_status(df):
     close = df["close"]
-    if len(close) < 20:
-        return "Within Bands — Normal"
+    if len(close) < 20: return "Within Bands — Normal"
     ma = close.rolling(20).mean().iloc[-1]
     std = close.rolling(20).std().iloc[-1]
     upper, lower = ma + 2*std, ma - 2*std
@@ -297,16 +290,10 @@ def combined_bias(kde_val, st_text, bb_text):
     if score < -20: return "Bearish"
     return "Neutral"
 
-# === 4. VOLATILITY LOGIC (for sidebar) ===
+# === VOLATILITY LOGIC (for sidebar) ===
 def fx_volatility_analysis(curr_range_pct, avg_range_pct):
-    """
-    Apply Boitoki-like volatility logic.
-    We use dummy percentages here as real ADR data isn't available.
-    """
-    # 1. Calculate the Current vs. Average ratio
+    """Apply Boitoki-like volatility logic."""
     ratio = (curr_range_pct / avg_range_pct) * 100
-
-    # Apply rules
     if ratio < 20:
         status = "Flat / Very Low Volatility"
         action = "Market is flat. Skip or reduce risk."
@@ -319,13 +306,9 @@ def fx_volatility_analysis(curr_range_pct, avg_range_pct):
     else:
         status = "High Volatility / Possible Exhaustion"
         action = "Session moved a lot. Beware of reversals."
-        
-    return f"""
-        <b>Status:</b> {status} ({ratio:.0f}% of Avg)<br>
-        <b>Action:</b> {action}
-    """
+    return f"<b>Status:</b> {status} ({ratio:.0f}% of Avg)<br><b>Action:</b> {action}"
 
-# === ANALYZE (Volatility logic removed from here) ===
+# === ANALYZE ===
 def analyze(symbol, price, vs_currency):
     df_4h = get_twelve_data(symbol, "4h") or synthesize_series(price or 1.0)
     df_1h = get_twelve_data(symbol, "1h") or synthesize_series(price or 1.0)
@@ -369,30 +352,15 @@ Stop Loss: <b style='color:#EF4444;'>{format_price(stop)}</b>
 </div>
 """
 
-# === 3. Timezone Logic (Fixed) ===
-# We cannot reliably get the *user's* local timezone from the backend.
-# `tzlocal` gets the *server's* time. We will default to UTC for all logic.
-# The user's time is displayed using a fallback, but labeled as "System Time".
-try:
-    if get_localzone:
-        tz = get_localzone() # Get server's local timezone
-    else:
-        tz = pytz.utc
-except Exception:
-    tz = pytz.utc
-# This time is the server's local time, NOT the user's.
-system_local_time = datetime.datetime.now(tz)
-
-# --- 4. & 5. Session Logic & Countdown (Using UTC) ---
+# === Session Logic (Using UTC) ===
 utc_now = datetime.datetime.utcnow()
 utc_hour = utc_now.hour
 
-# Session Times in UTC
 SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    # 00:00 - 09:00 UTC
 SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) # 08:00 - 17:00 UTC
 SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   # 13:00 - 22:00 UTC
-OVERLAP_START = dt_time(13, 0) # 13:00 UTC
-OVERLAP_END = dt_time(17, 0)   # 17:00 UTC
+OVERLAP_START_UTC = dt_time(13, 0) # 13:00 UTC
+OVERLAP_END_UTC = dt_time(17, 0)   # 17:00 UTC
 
 session_name = "Quiet/Sydney Session"
 current_range_pct = 0.02 # Dummy %
@@ -408,64 +376,91 @@ if SESSION_LONDON[0] <= current_time_utc < SESSION_LONDON[1]:
 if SESSION_NY[0] <= current_time_utc < SESSION_NY[1]:
     session_name = "US Session (New York)"
     current_range_pct = 0.15
-# Overlaps
 if dt_time(8, 0) <= current_time_utc < dt_time(9, 0):
     session_name = "Overlap: Tokyo / London"
     current_range_pct = 0.18
-if dt_time(13, 0) <= current_time_utc < dt_time(17, 0):
+if OVERLAP_START_UTC <= current_time_utc < OVERLAP_END_UTC:
     session_name = "Overlap: London / New York"
     current_range_pct = 0.30 # Most volatile
 
-# Generate Volatility HTML
 volatility_html = fx_volatility_analysis(current_range_pct, avg_range_pct)
-
-# 5. Countdown Logic
-def get_overlap_countdown():
-    now_utc = datetime.datetime.utcnow()
-    today_overlap_start = datetime.datetime.combine(now_utc.date(), OVERLAP_START)
-    today_overlap_end = datetime.datetime.combine(now_utc.date(), OVERLAP_END)
-
-    if now_utc < today_overlap_start:
-        # Before overlap
-        delta = today_overlap_start - now_utc
-        label = "London/NY Overlap Starts In:"
-    elif now_utc < today_overlap_end:
-        # During overlap
-        delta = today_overlap_end - now_utc
-        label = "London/NY Overlap Ends In:"
-    else:
-        # After overlap, count to next day
-        next_day_overlap_start = today_overlap_start + datetime.timedelta(days=1)
-        delta = next_day_overlap_start - now_utc
-        label = "London/NY Overlap Starts In:"
-        
-    hours, remainder = divmod(delta.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"<b>{label}</b><br><span style='font-size: 22px; color: #22D3EE; font-weight: 700;'>{hours:02}:{minutes:02}:{seconds:02}</span>"
 
 # --- SIDEBAR ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+
+# 1. API KEY WARNING
+st.sidebar.warning("""
+**Prices `N/A`?**
+This app requires API keys. Please add your keys for `COINGECKO_API_KEY`, `FINNHUB_API_KEY`, etc., to your **Streamlit Secrets** to fetch live data.
+""")
+
+# 2. BTC/ETH Display
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
-
-# 2. UPDATED BTC/ETH Display
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 3. UPDATED Time Display (More honest labeling)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Market Time (UTC):</b> {utc_now.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
-# This shows the *server's* local time, which is what tzlocal detects.
-st.sidebar.markdown(f"<div class='sidebar-item'><b>System Time:</b> {system_local_time.strftime('%H:%M:%S (%Z)')}</div>", unsafe_allow_html=True)
-
-# 4. UPDATED Volatility Display
+# 3. Time Display (Cleaned up)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Current Time (UTC):</b> {utc_now.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 5. NEW Countdown Display
-st.sidebar.markdown(f"<div class='sidebar-item sidebar-countdown'>{get_overlap_countdown()}</div>", unsafe_allow_html=True)
+# 4. JAVASCRIPT LIVE COUNTDOWN
+# This calculates the target time in Python, then passes it to JavaScript to handle the live countdown.
+now_utc = datetime.datetime.utcnow()
+today_overlap_start = datetime.datetime.combine(now_utc.date(), OVERLAP_START_UTC)
+today_overlap_end = datetime.datetime.combine(now_utc.date(), OVERLAP_END_UTC)
 
-# safe auto-refresh (no-op if streamlit_autorefresh not installed)
-# Refresh every 60 seconds (60000ms) to keep data/countdown fresh
-st_autorefresh(interval=60000, limit=None, key="auto_refresh_key")
+if now_utc < today_overlap_start:
+    target_timestamp = today_overlap_start.timestamp()
+    label = "London/NY Overlap Starts In:"
+elif now_utc < today_overlap_end:
+    target_timestamp = today_overlap_end.timestamp()
+    label = "London/NY Overlap Ends In:"
+else:
+    next_day_overlap_start = today_overlap_start + datetime.timedelta(days=1)
+    target_timestamp = next_day_overlap_start.timestamp()
+    label = "London/NY Overlap Starts In:"
+
+# Inject the JavaScript
+st.sidebar.markdown(f"""
+<div class='sidebar-item sidebar-countdown'>
+<b>{label}</b><br>
+<span id='countdown-timer' style='font-size: 22px; color: #22D3EE; font-weight: 700;'>Loading...</span>
+</div>
+
+<script>
+// Ensure this script only runs once
+if (!window.countdownInterval) {{
+    const targetTime = {target_timestamp} * 1000; // Convert to JS milliseconds
+    const timerElement = document.getElementById('countdown-timer');
+
+    const updateTimer = () => {{
+        const now = new Date().getTime();
+        const distance = targetTime - now;
+
+        if (distance < 0) {{
+            timerElement.innerHTML = "00:00:00";
+            // Optionally, force a Streamlit rerun to get the next target time
+            // window.parent.document.querySelector('.stApp [data-testid="stToolbar"] .st-emotion-cache-1f4w9kd .st-emotion-cache-6i8l1n').click();
+            return;
+        }}
+
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        timerElement.innerHTML = 
+            (hours < 10 ? "0" : "") + hours + ":" + 
+            (minutes < 10 ? "0" : "") + minutes + ":" + 
+            (seconds < 10 ? "0" : "") + seconds;
+    }};
+
+    updateTimer(); // Run once immediately
+    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second
+}}
+</script>
+""", unsafe_allow_html=True)
+
 
 # === MAIN ===
 st.title("AI Trading Chatbot")
@@ -477,7 +472,6 @@ with col2:
 
 if user_input:
     symbol = user_input.strip().upper()
-    
     price, _ = get_asset_price(symbol, vs_currency)
     
     if price is None:
@@ -485,8 +479,7 @@ if user_input:
         price = float(df["close"].iloc[-1]) if df is not None and not df.empty else None
         
     if price is None:
-        # Removed the error message as requested, using a simple info box
-        st.info(f"Could not retrieve data for {symbol}. Please check the symbol or try again.")
+        st.info(f"Could not retrieve data for {symbol}. Please check the symbol or your API keys.")
     else:
         st.markdown(analyze(symbol, price, vs_currency), unsafe_allow_html=True)
 else:
