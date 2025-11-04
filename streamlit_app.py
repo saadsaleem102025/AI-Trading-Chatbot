@@ -64,8 +64,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #E5E7EB;
     font-weight: 600;
 }
-/* Specific item for countdown */
-.sidebar-countdown {
+/* Specific item for overlap time display */
+.sidebar-overlap-time {
     background: linear-gradient(145deg, #1F2937, #111827);
     border: 1px solid #22D3EE;
     color: #E5E7EB;
@@ -174,7 +174,7 @@ def get_asset_price(symbol, vs_currency="usd"):
     if TWELVE_API_KEY:
         try:
             td_symbol = f"{symbol}/{vs_currency.upper()}" if not symbol.endswith(vs_currency.upper()) else symbol
-            r = requests.get(f"https://api.twelvedata.com/price?symbol={td_symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
+            r = requests.get(f"https.://api.twelvedata.com/price?symbol={td_symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if "price" in r:
                 return float(r["price"]), None
         except Exception:
@@ -186,7 +186,7 @@ def get_asset_price(symbol, vs_currency="usd"):
 def get_twelve_data(symbol, interval="1h", outputsize=200):
     if not TWELVE_API_KEY: return None
     try:
-        url = f"httpsD://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
+        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&outputsize={outputsize}&apikey={TWELVE_API_KEY}"
         res = requests.get(url, timeout=10).json()
         if "values" not in res: return None
         df = pd.DataFrame(res["values"])
@@ -360,12 +360,10 @@ eth, eth_ch = get_asset_price("ETHUSD")
 st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> ${format_price(btc)} {format_change(btc_ch)}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> ${format_price(eth)} {format_change(eth_ch)}</div>", unsafe_allow_html=True)
 
-# 2. NEW: Timezone Selection
-# Create a list of common UTC offsets
+# 2. Timezone Selection
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
-# Add specific non-standard offsets
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
-tz_options = sorted(list(set(tz_options))) # Clean and sort
+tz_options = sorted(list(set(tz_options))) 
 
 try:
     default_ix = tz_options.index("UTC+05:00") # Default to Pakistan Time
@@ -383,73 +381,27 @@ user_local_time = datetime.datetime.now(user_tz)
 
 # 3. Time Display (Cleaned up)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> {user_local_time.strftime('%H:%M')} ({selected_tz_str})</div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Market Time (UTC):</b> {utc_now.strftime('%H:%M')}</div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> {session_name}<br>{volatility_html}</div>", unsafe_allow_html=True)
 
-# 4. JAVASCRIPT LIVE COUNTDOWN (HH:MM)
-today_overlap_start = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
-today_overlap_end = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
+# 4. NEW: Static Overlap Time Display
+# Get UTC overlap datetimes
+today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
+today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
 
-if utc_now < today_overlap_start:
-    target_timestamp = today_overlap_start.timestamp()
-    label = "London/NY Overlap Starts In:"
-elif utc_now < today_overlap_end:
-    target_timestamp = today_overlap_end.timestamp()
-    label = "London/NY Overlap Ends In:"
-else:
-    next_day_overlap_start = today_overlap_start + timedelta(days=1)
-    target_timestamp = next_day_overlap_start.timestamp()
-    label = "London/NY Overlap Starts In:"
+# Convert to user's selected timezone
+overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
+overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 
-# Inject the JavaScript
+# Display the converted times
 st.sidebar.markdown(f"""
-<div class='sidebar-item sidebar-countdown'>
-<b>{label}</b><br>
-<span id='countdown-timer' style='font-size: 22px; color: #22D3EE; font-weight: 700;'>Loading...</span>
+<div class='sidebar-item sidebar-overlap-time'>
+<b>London/NY Overlap Times</b><br>
+<span style='font-size: 22px; color: #22D3EE; font-weight: 700;'>
+{overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
+</span>
+<br>({selected_tz_str})
 </div>
-
-<script>
-// --- FIXED COUNTDOWN SCRIPT ---
-// Clear any existing timer to prevent conflicts on rerun
-if (window.countdownInterval) {{
-    clearInterval(window.countdownInterval);
-}}
-
-const targetTime = {target_timestamp} * 1000; // Convert to JS milliseconds
-const timerElement = document.getElementById('countdown-timer');
-
-// Only run if the element exists
-if (timerElement) {{
-    const updateTimer = () => {{
-        const now = new Date().getTime();
-        // Get distance to target time in UTC
-        const distance = targetTime - (now - (new Date().getTimezoneOffset() * 60000));
-
-        if (distance < 0) {{
-            timerElement.innerHTML = "00:00";
-            // Force a page reload to get the next target time
-            if (!window.reloading) {{
-                window.reloading = true;
-                window.location.reload();
-            }}
-            return;
-        }}
-
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        
-        // --- UPDATED: No seconds displayed ---
-        timerElement.innerHTML = 
-            (hours < 10 ? "0" : "") + hours + ":" + 
-            (minutes < 10 ? "0" : "") + minutes;
-    }};
-
-    updateTimer(); // Run once immediately
-    window.countdownInterval = setInterval(updateTimer, 1000); // Update every second
-}}
-</script>
 """, unsafe_allow_html=True)
-
 
 # === MAIN ===
 st.title("AI Trading Chatbot")
