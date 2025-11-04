@@ -46,7 +46,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 /* --- SIDEBAR COMPONENTS (Maximized Vertical Compactness) --- */
-/* Market Context Title Color */
+/* Market Context Title Color (Green) */
 .sidebar-title {
     font-size: 28px; 
     font-weight: 800; 
@@ -65,9 +65,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #9CA3AF;
     border: 1px solid #374151;
 }
-/* Colorize key info text (Active Session, Local Time) to Vivid Pink */
+/* FINAL CHANGE: Local Time/Active Session/Status Info Color (Electric Cyan/Blue) */
 .sidebar-status-info {
-    color: #EC4899 !important; /* Vivid Pink */
+    color: #67E8F9 !important; /* Electric Cyan */
     font-weight: 700;
     font-size: 16px !important; 
 }
@@ -85,7 +85,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #E5E7EB;
     font-weight: 600;
 }
-/* Asset Price Figure Color */
+/* Asset Price Figure Color (Yellow/Gold) */
 .asset-price-value {
     color: #F59E0B; /* Vivid Yellow/Gold */
     font-weight: 800;
@@ -480,7 +480,7 @@ def get_session_info(utc_now):
     elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
     else: status = "High Volatility / Possible Exhaustion"
     
-    # Use the new status info class
+    # Use the Electric Cyan status info class
     volatility_html = f"<span class='sidebar-status-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
 
@@ -522,7 +522,7 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# Applying the new status info class (Vivid Pink)
+# Applying the Electric Cyan status info class
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-status-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-status-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
@@ -533,6 +533,7 @@ today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UT
 overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
 overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 
+# Overlap Times remain a bright color for emphasis
 st.sidebar.markdown(f"""
 <div class='sidebar-item sidebar-overlap-time'>
 <b>London/NY Overlap Times</b><br>
