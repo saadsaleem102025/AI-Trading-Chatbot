@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* Final minimal padding for single-view */
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem; 
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -46,35 +46,52 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 /* --- SIDEBAR COMPONENTS (Maximized Vertical Compactness) --- */
+/* FINAL CHANGE: Market Context Title Color to Bright Green */
 .sidebar-title {
     font-size: 28px; 
     font-weight: 800; 
-    color: #22D3EE; /* Bright Cyan */
+    color: #10B981; /* Bright Green */
     margin-top: 0px; 
     margin-bottom: 5px; 
     padding-top: 5px; 
-    text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
 }
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
     border-radius: 8px;
     padding: 8px 14px; 
-    margin: 3px 0; /* Minimized vertical margin */
+    margin: 3px 0; 
     font-size: 16px; 
     color: #9CA3AF;
     border: 1px solid #374151;
 }
 /* FINAL CHANGE: Colorize all key info text in sidebar to bright cyan */
 .sidebar-item-info {
-    color: #22D3EE !important; 
+    color: #22D3EE !important; /* Bright Cyan */
     font-weight: 700;
-    font-size: 16px !important; /* Keep size readable */
+    font-size: 16px !important; 
 }
-
-.sidebar-item b {
+/* FINAL CHANGE: Custom class for the two-line asset price structure */
+.sidebar-asset-price-item {
+    background: #1F2937; 
+    border-radius: 8px;
+    padding: 8px 14px; 
+    margin: 3px 0; 
+    font-size: 16px; 
+    color: #E5E7EB; /* Base text color for label */
+    border: 1px solid #374151;
+}
+.sidebar-asset-price-item b {
     color: #E5E7EB;
     font-weight: 600;
 }
+/* FINAL CHANGE: Asset Price Figure Color */
+.asset-price-value {
+    color: #F59E0B; /* Vivid Yellow/Gold */
+    font-weight: 800;
+    font-size: 18px; /* Slightly larger for emphasis */
+}
+
 /* Specific item for overlap time display */
 .sidebar-overlap-time {
     background: linear-gradient(145deg, #1F2937, #111827);
@@ -168,15 +185,24 @@ def format_price(p):
     else: s = f"{p:.6f}"
     return s.rstrip("0").rstrip(".")
 
-def format_change(ch):
-    """Format percent change with sign and color, separated by a pipe character."""
+def format_change_sidebar(ch):
+    """Format percent change for sidebar - line 2 of asset display."""
     if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    # Using pipe separator and bold purple label
-    # NOTE: The entire output is wrapped in a span for single-line display in the narrow sidebar
+    # Pipe separator with change figure and bold purple label
+    return f"<div style='text-align: right; margin-top: 2px;'><span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span></div>"
+
+def format_change_main(ch):
+    """Format percent change for main area - single line display."""
+    if ch is None: return "N/A"
+    try: ch = float(ch)
+    except Exception: return "N/A"
+    sign = "+" if ch > 0 else ""
+    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
+    # Pipe separator with change figure and bold purple label
     return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
 
 def get_coingecko_id(symbol):
@@ -396,7 +422,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # 6. Final Output Formatting
     price_display = format_price(current_price) 
-    change_display = format_change(price_change_24h)
+    change_display = format_change_main(price_change_24h)
     
     # REVISED PRICE LINE FORMAT: Price + Currency + Pipe + 24h Change
     current_price_line = f"Current Price of <b>{symbol}</b>: <span style='color:#67E8F9; font-weight:700;'>{price_display} {vs_currency.upper()}{change_display}</span>"
@@ -463,13 +489,20 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# 1. BTC/ETH Display (Uses the robust get_asset_price with API fail-safes)
+# 1. BTC/ETH Display (Two-line structure)
 btc, btc_ch = get_asset_price("BTCUSD")
 eth, eth_ch = get_asset_price("ETHUSD")
 
-# Optimized for single line display
-st.sidebar.markdown(f"<div class='sidebar-item'><b>BTC:</b> <span class='sidebar-item-info'>${format_price(btc)}{format_change(btc_ch)}</span></div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>ETH:</b> <span class='sidebar-item-info'>${format_price(eth)}{format_change(eth_ch)}</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"""
+<div class='sidebar-asset-price-item'>
+    <b>BTC:</b> <span class='asset-price-value'>${format_price(btc)} USD</span>
+    {format_change_sidebar(btc_ch)}
+</div>
+<div class='sidebar-asset-price-item'>
+    <b>ETH:</b> <span class='asset-price-value'>${format_price(eth)} USD</span>
+    {format_change_sidebar(eth_ch)}
+</div>
+""", unsafe_allow_html=True)
 
 # 2. Timezone Selection and Local Time Display
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
@@ -488,7 +521,7 @@ total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.sta
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
-# FINAL CHANGE: Removed offset from display
+# Removed offset from display
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='sidebar-item-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='sidebar-item-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
@@ -509,7 +542,7 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# === MAIN CONTENT AREA ===
+# --- MAIN CONTENT AREA ---
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
