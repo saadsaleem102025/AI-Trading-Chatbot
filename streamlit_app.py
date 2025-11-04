@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 1.0rem 1.2rem 1.0rem 1.2rem;
+    padding: 0.5rem 1.2rem 1.0rem 1.2rem; /* ADJUSTED: Reduced top padding from 1.0rem to 0.5rem */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -127,8 +127,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
-# IEX_API_KEY = st.secrets.get("IEX_CLOUD_API_KEY", "") # Not used in final implementation
-# POLYGON_API_KEY = st.secrets.get("POLYGON_API_KEY", "") # Not used in final implementation
 
 # === HELPERS FOR FORMATTING ===
 def format_price(p):
@@ -195,8 +193,7 @@ def get_asset_price(symbol, vs_currency="usd"):
             r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if isinstance(r, dict) and r.get("price"):
                 price = float(r["price"])
-                # TwelveData simple quote doesn't always have 24h change, so we try another endpoint
-                # or proceed with price only. For simplicity here, we return price and look for change later.
+                # TwelveData simple quote doesn't always have 24h change, so we return price and look for change later.
                 return price, None
         except Exception:
             pass
@@ -247,12 +244,12 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
         except Exception:
             pass
     
-    # 2) Alpha Vantage (Intraday is only 1min, 5min, 15min, 30min, 60min)
+    # 2) Alpha Vantage
     if AV_API_KEY and interval in interval_map_av:
         try:
             function = "TIME_SERIES_INTRADAY"
-            if interval == "4h": # 4h not supported, skip or use daily
-                pass # skip AV for 4h for simplicity
+            if interval == "4h":
+                pass 
             
             if interval == "1h" or interval == "15min":
                 url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&interval={interval_map_av[interval]}&outputsize=compact&apikey={AV_API_KEY}"
@@ -288,10 +285,10 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.005):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATORS (Using fixed/plausible placeholders for this final code block) ===
+# === INDICATORS (Using fixed/plausible placeholders) ===
 def kde_rsi(df):
     """Placeholder for KDE RSI calculation. Returns a value based on the symbol's hash for consistency."""
-    kde_val = (int(hash(df.index.to_series().astype(str).str.cat()) % 50) + 30) # 30-80
+    kde_val = (int(hash(df.index.to_series().astype(str).str.cat()) % 50) + 30) # 30-80 range for demo
     return float(kde_val)
 
 def get_kde_rsi_status(kde_val):
@@ -342,7 +339,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["close"].iloc[-1] 
     
     # 3. Indicator Calculations (Using consistent/placeholder results)
-    # KDE RSI logic uses synthetic data if real data fails, ensuring a calculation is always possible.
     kde_val = kde_rsi(df_1h) 
     st_status_4h = supertrend_status(df_4h) 
     st_status_1h = supertrend_status(df_1h) 
@@ -509,4 +505,3 @@ if user_input:
     
 else:
     st.info("Enter an asset symbol to GET REAL-TIME AI INSIGHT.")
-
