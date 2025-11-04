@@ -490,7 +490,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTCUSD, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
