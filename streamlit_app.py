@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.5rem 1.2rem 1.0rem 1.2rem; /* ADJUSTED: Reduced top padding from 1.0rem to 0.5rem */
+    padding: 0.1rem 1.2rem 1.0rem 1.2rem; /* ADJUSTED: Reduced top padding to 0.1rem for maximum height */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
