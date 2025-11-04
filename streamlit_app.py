@@ -32,7 +32,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827; /* Darker sidebar */
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* FINAL ADJUSTMENT: Minimized top and bottom padding */
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem; /* Final minimal padding */
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -45,20 +45,22 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-top: 15px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
+/* --- SIDEBAR COMPONENTS (Maximized Vertical Compactness) --- */
 .sidebar-title {
-    font-size: 28px; /* Reduced title size */
+    font-size: 28px; 
     font-weight: 800; 
     color: #22D3EE; /* Bright Cyan */
-    margin-top: 5px; /* Reduced top margin */
-    margin-bottom: 10px; /* Reduced bottom margin */
+    margin-top: 0px; /* Minimized top margin */
+    margin-bottom: 5px; /* Minimized bottom margin */
+    padding-top: 5px; /* Reduced internal padding */
     text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
 }
 .sidebar-item {
     background: #1F2937; /* Matches main bg */
-    border-radius: 8px; /* Slightly smaller border radius */
+    border-radius: 8px;
     padding: 8px 14px; /* Reduced internal padding */
-    margin: 5px 0; /* Reduced vertical margin */
-    font-size: 16px; /* Reduced font size for content */
+    margin: 3px 0; /* Minimized vertical margin */
+    font-size: 16px; 
     color: #9CA3AF;
     border: 1px solid #374151;
 }
@@ -72,11 +74,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border: 1px solid #22D3EE;
     color: #E5E7EB;
     text-align: center;
-    padding: 8px 14px; /* Reduced internal padding */
-    font-size: 16px; /* Reduced font size */
+    padding: 8px 14px; 
+    font-size: 16px; 
     border-radius: 8px;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+    margin-top: 5px; /* Minimized top margin */
 }
+
 /* Custom CSS for the required output format (no headings) */
 .analysis-item {
     font-size: 18px;
@@ -101,6 +105,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-top: 10px;
 }
 
+/* Input boxes in main area */
 [data-baseweb="input"] input { 
     background-color: #1F2937 !important; 
     color: #F5F9FF !important; 
@@ -112,19 +117,28 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border: 1px solid #22D3EE !important;
     box-shadow: 0 0 5px rgba(34, 211, 238, 0.5) !important;
 }
+
+/* Sidebar selectbox style (Target the container) */
+[data-testid="stSidebar"] [data-baseweb="select"] {
+    margin-top: -15px !important; /* Pull up selectbox closer to label */
+    margin-bottom: 0px !important;
+}
+
+/* Colors for data/bias */
 .bullish { color: #10B981; font-weight: 700; } 
 .bearish { color: #EF4444; font-weight: 700; } 
 .neutral { color: #F59E0B; font-weight: 700; } 
-.kde-red { color: #EF4444; } /* Red for < 20 or > 80 */
-.kde-orange { color: #F59E0B; } /* Orange for 20-40 */
-.kde-yellow { color: #FFCC00; } /* Yellow for 40-60 */
-.kde-green { color: #10B981; } /* Green for 60-80 */
-.kde-purple { color: #C084FC; } /* Purple for < 10 or > 90 */
+.percent-label { color: #67E8F9; font-weight: 500; } /* CYANN color for (24h% Change) text */
+
+.kde-red { color: #EF4444; } 
+.kde-orange { color: #F59E0B; } 
+.kde-yellow { color: #FFCC00; } 
+.kde-green { color: #10B981; } 
+.kde-purple { color: #C084FC; } 
 </style>
 """, unsafe_allow_html=True)
 
 # === API KEYS from Streamlit secrets ===
-# NOTE: These keys MUST be set in your Streamlit secrets or env vars to work!
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
@@ -142,14 +156,15 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change(ch):
-    """Format percent change with sign and color."""
+    """Format percent change with sign and color, and add the cyan label."""
     if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    # Added the "(24h% Change)" text for clarity
-    return f"<span class='{color_class}'>{sign}{ch:.2f}% (24h% Change)</span>"
+    # Apply color_class only to the percentage value
+    # Apply percent-label class to the literal text
+    return f"<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span>"
 
 def get_coingecko_id(symbol):
     """Map common symbols to Coingecko IDs for robust crypto price fetching."""
@@ -160,10 +175,10 @@ def get_coingecko_id(symbol):
 
 # === UNIVERSAL PRICE FETCHER (Maximum Safe Backups) ===
 def get_asset_price(symbol, vs_currency="usd"):
+    # ... (API fetching functions remain the same for reliability) ...
     symbol = symbol.upper()
     
     # --- API PRIORITY SEQUENCE ---
-
     # 1) Coingecko PUBLIC API (Prioritized for Crypto)
     cg_id = get_coingecko_id(symbol)
     if cg_id:
@@ -195,7 +210,6 @@ def get_asset_price(symbol, vs_currency="usd"):
             r = requests.get(f"https://api.twelvedata.com/price?symbol={symbol}&apikey={TWELVE_API_KEY}", timeout=6).json()
             if isinstance(r, dict) and r.get("price"):
                 price = float(r["price"])
-                # TwelveData simple quote doesn't always have 24h change, so we return price and look for change later.
                 return price, None
         except Exception:
             pass
@@ -203,11 +217,9 @@ def get_asset_price(symbol, vs_currency="usd"):
     # 4) Alpha Vantage (Stocks/Forex/Fallback Crypto)
     if AV_API_KEY:
         try:
-            # Note: AV free tier is heavily rate-limited (25 requests/day). Used as last resort.
             r = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}", timeout=6).json()
             if "Global Quote" in r and '05. price' in r['Global Quote']:
                 price = float(r['Global Quote']['05. price'])
-                # Calculate change from previous close (08. previous close)
                 if '08. previous close' in r['Global Quote']:
                     prev_close = float(r['Global Quote']['08. previous close'])
                     change = ((price - prev_close) / prev_close) * 100
@@ -217,7 +229,6 @@ def get_asset_price(symbol, vs_currency="usd"):
             pass
             
     # --- FINAL FAIL-SAFE FALLBACKS ---
-    # Guarantees a price for the sidebar critical assets if all APIs fail
     if symbol == "BTCUSD":
         return 105000.00, -5.00
     if symbol == "ETHUSD":
@@ -227,8 +238,7 @@ def get_asset_price(symbol, vs_currency="usd"):
 
 # === HISTORICAL FETCH (Maximum Safe Backups) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
-    
-    # Map common intervals to API formats
+    # ... (Historical data fetch remains the same for reliability) ...
     interval_map_td = {"4h": "4h", "1h": "1h", "15min": "15min"}
     interval_map_av = {"4h": "60min", "1h": "60min", "15min": "15min"}
     
@@ -250,9 +260,6 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
     if AV_API_KEY and interval in interval_map_av:
         try:
             function = "TIME_SERIES_INTRADAY"
-            if interval == "4h":
-                pass 
-            
             if interval == "1h" or interval == "15min":
                 url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&interval={interval_map_av[interval]}&outputsize=compact&apikey={AV_API_KEY}"
                 r = requests.get(url, timeout=10).json()
@@ -290,7 +297,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
 # === INDICATORS (Using fixed/plausible placeholders) ===
 def kde_rsi(df):
     """Placeholder for KDE RSI calculation. Returns a value based on the symbol's hash for consistency."""
-    kde_val = (int(hash(df.index.to_series().astype(str).str.cat()) % 50) + 30) # 30-80 range for demo
+    kde_val = (int(hash(df.index.to_series().astype(str).str.cat()) % 50) + 30)
     return float(kde_val)
 
 def get_kde_rsi_status(kde_val):
@@ -353,7 +360,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # 4. Risk Calculations (ATR-like volatility)
     base = current_price
-    # ATR is calculated as 0.8% of the price (based on the synthetic data setting)
     atr = base * 0.008 
 
     # Suggested levels adjusted based on bias - WIDER RANGES
@@ -460,10 +466,9 @@ tz_options = sorted(list(set(tz_options)))
 try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
-# Reducing the vertical space taken by the selectbox/label by reducing padding above the sidebar items
-st.sidebar.markdown("<p style='margin-top: -10px; margin-bottom: 5px; font-size: 16px; color: #9CA3AF;'>Select Your Timezone</p>", unsafe_allow_html=True)
-selected_tz_str = st.sidebar.selectbox(" ", tz_options, index=default_ix, label_visibility="collapsed")
-
+# Re-labeled and minimal margin for "Select Your Timezone"
+st.sidebar.markdown("<p style='margin-top: -5px; margin-bottom: 0px; font-size: 16px; color: #9CA3AF;'>Select Your Timezone</p>", unsafe_allow_html=True)
+selected_tz_str = st.sidebar.selectbox(" ", tz_options, index=default_ix, label_visibility="collapsed") # Selectbox now has a collapsed label for compactness
 
 offset_str = selected_tz_str.replace("UTC", "")
 hours, minutes = map(int, offset_str.split(':'))
@@ -495,7 +500,7 @@ st.sidebar.markdown(f"""
 st.title("AI Trading Chatbot")
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol (e.g., XLMUSD, AAPL, EUR/USD)")
+    user_input = st.text_input("Enter Asset Symbol (e.g., BTC, AAPL, EUR/USD)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower()
 
