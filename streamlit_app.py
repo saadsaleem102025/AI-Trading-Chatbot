@@ -245,7 +245,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATORS (Advanced Placeholders - Fix applied here) ===
+# === INDICATORS (Advanced Placeholders) ===
 def kde_rsi(df_placeholder, symbol):
     """Placeholder for KDE RSI calculation, accepts symbol for reliable override."""
     
@@ -333,7 +333,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["close"].iloc[-1] 
     
     # 3. Indicator Calculations (Passing symbol for safe scenario override)
-    # kde_rsi(df_1h) changed to kde_rsi(df_1h, symbol)
     kde_val = kde_rsi(df_1h, symbol) 
     st_status_4h = supertrend_status(df_4h) 
     st_status_1h = supertrend_status(df_1h) 
@@ -516,6 +515,3 @@ if user_input:
     resolved_symbol = resolve_asset_symbol(user_input, vs_currency)
     price, price_change_24h = get_asset_price(resolved_symbol, vs_currency)
     st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency), unsafe_allow_html=True)
-else:
-    # FIX: Concise instructional prompt
-    st.info("Awaiting asset symbol or name.")
