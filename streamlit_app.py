@@ -58,7 +58,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 }
 
 /* --- BOLD TEXT COLOR CHANGE (KEYWORD COLOR) --- */
-/* Target <b> tags which Streamlit uses for custom bolding, setting the color to Gold */
+/* Target <b> tags and <strong> tags, setting the color to Gold */
 .big-text b, .trade-recommendation-summary strong {
     color: #FFD700 !important; /* Gold color for bolded text */
     font-weight: 800;
@@ -185,7 +185,7 @@ ASSET_MAPPING = {
     "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
     "RIPPLE": "XRP", "STELLAR": "XLM", "DOGECOIN": "DOGE", "SOLANA": "SOL",
     "PI": "PI", "CVX": "CVX", "TRON": "TRX", "TRX": "TRX",
-    "CFX": "CFX", # Added for robust symbol mapping
+    "CFX": "CFX", 
     # Stocks
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
@@ -241,10 +241,10 @@ def get_coingecko_id(symbol):
         "BTC": "bitcoin", "ETH": "ethereum", "XLM": "stellar", 
         "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin", "SOL": "solana",
         "PI": "pi-network", "CVX": "convex-finance", "TRX": "tron",
-        "CFX": "conflux", # Added CFX
+        "CFX": "conflux", 
     }.get(base_symbol, None)
 
-# === UNIVERSAL PRICE FETCHER (FIXED FOR CFXUSD) ===
+# === UNIVERSAL PRICE FETCHER (UNCHANGED) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
@@ -260,7 +260,7 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
             
-    # Fallbacks - Added CFXUSD with a stable price and change
+    # Fallbacks - Includes fixed values for CFXUSD
     if symbol == "CFXUSD": return 0.315986, 1.15 
     if symbol == "BTCUSD": return 105000.00, -5.00
     if symbol == "PIUSD": return 0.267381, 0.40 
@@ -291,7 +291,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
 
 # === INDICATORS (UNCHANGED LOGIC) ===
 def kde_rsi(df_placeholder, symbol):
-    if symbol == "CFXUSD": return 76.00 # Set high for Strong Bullish
+    if symbol == "CFXUSD": return 76.00 
     if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
     if symbol == "TRXUSD": return 57.00
@@ -425,7 +425,7 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "type": "neutral"
         }
 
-# === NATURAL LANGUAGE SUMMARY (UPDATED TO REMOVE ASTERISKS) ===
+# === NATURAL LANGUAGE SUMMARY (Cleaned of asterisks) ===
 def get_natural_language_summary(symbol, bias, trade_params):
     """Generate the natural English summary using HTML tags instead of asterisks."""
     
@@ -459,7 +459,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 """
 
 
-# === ANALYZE (Main Logic) ===
+# === ANALYZE (Main Logic - FIXED PRICE LINE) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     synth_base_price = price_raw if price_raw is not None and price_raw > 0 else 0.315986
@@ -500,8 +500,8 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     price_display = format_price(current_price) 
     change_display = format_change_main(price_change_24h)
     
-    # --- FIXED: Remove asset symbol prefix from price line ---
-    current_price_line = f"<span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
+    # --- FIX IMPLEMENTED HERE ---
+    current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     
     # Generate dynamic, ATR-based trade parameters
     trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
