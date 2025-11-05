@@ -443,7 +443,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     price_display = format_price(current_price) 
     change_display = format_change_main(price_change_24h)
     
-    # MODIFIED LINE: Removed "Current Price of"
     current_price_line = f"<b>{symbol}</b>: <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     
     trade_recommendation = get_trade_recommendation(bias, entry, target, stop)
@@ -539,7 +538,7 @@ st.sidebar.markdown(f"""
     <b>BTC:</b> <span class='asset-price-value'>${format_price(btc)} USD</span>
     {format_change_sidebar(btc_ch)}
 </div>
-<div classs='sidebar-asset-price-item'>
+<div class='sidebar-asset-price-item'>
     <b>ETH:</b> <span class='asset-price-value'>${format_price(eth)} USD</span>
     {format_change_sidebar(eth_ch)}
 </div>
