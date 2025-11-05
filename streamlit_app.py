@@ -3,7 +3,20 @@ import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
 import openai
 
-# === 1. STYLE (FIXED) ===
+# Initialize a global client variable
+openai_client = None
+
+# Mock OpenAI client class for when the key is missing (prevents crashes)
+class MockOpenAI:
+    def chat(self):
+        class MockCompletions:
+            def create(self, **kwargs):
+                class MockResponse:
+                    choices = [type('MockChoice', (object,), {'message': type('MockMessage', (object,), {'content': 'AI Insight feature is currently disabled because the OpenAI API key is missing or invalid.'})})()]
+                return MockResponse()
+        return type('MockChat', (object,), {'completions': MockCompletions()})
+
+# === 1. STYLE (ORIGINAL & FIXED FOR LAYOUT) ===
 st.markdown("""
 <style>
 /* Aggressive fix for Streamlit's main background color */
@@ -179,17 +192,6 @@ COINGECKO_API_KEY = st.secrets.get("COINGECKO_API_KEY", "")
 
 # AI API
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
-openai_client = None
-
-# Mock OpenAI client class for when the key is missing
-class MockOpenAI:
-    def chat(self):
-        class MockCompletions:
-            def create(self, **kwargs):
-                class MockResponse:
-                    choices = [type('MockChoice', (object,), {'message': type('MockMessage', (object,), {'content': 'AI Insight feature is currently disabled because the OpenAI API key is missing or invalid.'})})()]
-                return MockResponse()
-        return type('MockChat', (object,), {'completions': MockCompletions()})
 
 # Initialize OpenAI client or the mock client
 if OPENAI_API_KEY:
@@ -625,6 +627,7 @@ def get_ai_insight(symbol, bias, kde_val, price, price_change):
     """
     # Check if we are using the Mock client
     if isinstance(openai_client, MockOpenAI):
+        # This will return the safe "disabled" message from the Mock client
         return openai_client.chat().completions.create().choices[0].message.content
     
     try:
