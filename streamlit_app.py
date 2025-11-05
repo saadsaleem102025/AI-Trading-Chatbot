@@ -3,7 +3,7 @@ import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
 import openai # Added the missing import for OpenAI
 
-# === 1. STYLE (Contrast Theme) ===
+# === 1. STYLE (As provided by you) ===
 st.markdown("""
 <style>
 /* AI Insight Box */
@@ -142,7 +142,13 @@ COINGECKO_API_KEY = st.secrets.get("COINGECKO_API_KEY", "")
 # AI API
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 if OPENAI_API_KEY:
-    openai.api_key = OPENAI_API_KEY # <-- This line is now clean
+    try:
+        openai.api_key = OPENAI_API_KEY
+    except NameError:
+        st.error("OpenAI library not imported. AI features will be disabled.")
+    except Exception as e:
+        st.error(f"Error setting OpenAI key: {e}")
+
 
 # === ASSET MAPPING ===
 ASSET_MAPPING = {
@@ -188,7 +194,7 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change_sidebar(ch):
-    if ch is None: return "N/A"
+    if ch is None: return "N/Trigger"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
@@ -573,7 +579,7 @@ Current Data:
 Focus on: 1) Key risk factors, 2) What to watch next, 3) One actionable tip.
 Keep it under 50 words, direct and practical."""
 
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create( # Updated to new OpenAI v1.x+ syntax
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a concise, professional trading analyst."},
@@ -588,6 +594,9 @@ Keep it under 50 words, direct and practical."""
         
     except Exception as e:
         print(f"OpenAI error: {e}")
+        # Add a check for authentication error
+        if "Authentication" in str(e):
+             return "AI Insight feature disabled. Check OpenAI API key."
         return None
 
 # === ANALYZE (Main Logic with AI) ===
@@ -654,19 +663,18 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 </div>
 """
     
+    # This is the new HTML structure using your CSS classes
     return f"""
 <div class='big-text'>
-<div class='analysis-item'>{current_price_line}</div>
+<div class'analysis-item'>{current_price_line}</div>
 
 {ai_section}
-
-<div class='section-header'>📊 Technical Analysis</div>
 
 <div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
 <div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
 <div class='analysis-item'><b>{supertrend_output}</b></div>
-<div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
+<div class'indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
 
 <div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
 <div class='indicator-explanation'>{get_bollinger_explanation(bb_status)}</div>
@@ -677,7 +685,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 <div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
 <div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
 
-<div class='section-header'>🎯 Trade Setup</div>
 <div class='trade-recommendation'>
 {trade_recommendation}
 </div>
@@ -735,7 +742,7 @@ def get_session_info(utc_now):
 session_name, volatility_html = get_session_info(utc_now)
 
 # --- SIDEBAR DISPLAY ---
-st.sidebar.markdown("<p class'sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 btc_symbol = resolve_asset_symbol("BTC", "USD")
 eth_symbol = resolve_asset_symbol("ETH", "USD")
@@ -777,7 +784,7 @@ overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
 overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
 
 st.sidebar.markdown(f"""
-<div class'sidebar-item sidebar-overlap-time'>
+<div class='sidebar-item sidebar-overlap-time'>
 <b>London/NY Overlap Times (Peak Liquidity)</b><br>
 <span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
 {overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
@@ -799,3 +806,5 @@ if user_input:
     resolved_symbol = resolve_asset_symbol(user_input, vs_currency)
     price, price_change_24h = get_asset_price(resolved_symbol, vs_currency)
     
+    # This line ensures the HTML is rendered correctly
+    st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency), unsafe_allow_html=True)
