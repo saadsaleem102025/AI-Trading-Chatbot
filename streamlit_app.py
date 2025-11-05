@@ -1,102 +1,83 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
-import openai
 
-# Initialize a global client variable
-openai_client = None
+# --- STREAMLIT CONFIGURATION ---
+st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# Mock OpenAI client class for when the key is missing (prevents crashes)
-class MockOpenAI:
-    def chat(self):
-        class MockCompletions:
-            def create(self, **kwargs):
-                class MockResponse:
-                    choices = [type('MockChoice', (object,), {'message': type('MockMessage', (object,), {'content': 'AI Insight feature is currently disabled because the OpenAI API key is missing or invalid.'})})()]
-                return MockResponse()
-        return type('MockChat', (object,), {'completions': MockCompletions()})
-
-# === 1. STYLE (REFINED DARK THEME & FIXED LAYOUT) ===
+# === 1. STYLE (Contrast Theme & Prominence) ===
 st.markdown("""
 <style>
-/* 1. Main Background: Deep Navy Blue */
-:root {
-    --main-bg-color: #0F172A; /* Deep Navy/Slate */
-    --sidebar-bg-color: #1A2437; /* Slightly lighter dark blue for distinction */
-    --card-bg-color: #1F2937; /* Darker card/input color */
-    --primary-blue: #60A5FA; /* Streamlit/Accent Blue */
-    --primary-yellow: #F59E0B; /* Price/Motto Yellow */
+/* Base Streamlit overrides */
+header[data-testid="stHeader"], footer {visibility: hidden !important;}
+#MainMenu {visibility: hidden !important;}
+
+/* Base font and colors */
+html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
+    font-size: 18px !important;
+    color: #E0E0E0 !important;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    line-height: 1.7 !important;
 }
 
-/* Aggressively set background colors to eliminate white areas */
-body {
-    background-color: var(--main-bg-color) !important; 
+/* Main background (Lighter) */
+[data-testid="stAppViewContainer"] {
+    background: #1F2937;
+    color: #E0E0E0 !important;
+    padding-left: 360px !important;
+    padding-right: 25px;
 }
-.stApp {
-    background-color: var(--main-bg-color);
-    color: #E5E7EB; /* Light off-white for main text */
-}
-
-/* Ensure main content container matches */
-.main, .block-container {
-    background-color: var(--main-bg-color);
-}
-
-/* Streamlit Sidebar Background (FIXED to use darker, distinct color) */
+/* Sidebar styling (Darker) */
 [data-testid="stSidebar"] {
-    background-color: var(--sidebar-bg-color) !important;
+    background: #111827;
+    width: 340px !important; min-width: 340px !important; max-width: 350px !important;
+    position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem; 
+    border-right: 1px solid #1F2937;
+    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
+}
+/* Main content boxes (Darker, to contrast main bg) */
+.big-text {
+    background: #111827;
+    border: 1px solid #374151; 
+    border-radius: 16px; 
+    padding: 28px; 
+    margin-top: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-/* FIX FOR SIDEBAR OVERLAP */
-section.main {
-    padding-left: 230px !important; 
-}
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
-}
-
-
-/* AI Insight Box */
-.ai-insight {
-    background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
-    border: 2px solid var(--primary-blue);
-    border-radius: 12px;
-    padding: 20px;
+/* Section headers */
+.section-header {
+    font-size: 22px;
+    font-weight: 700;
+    color: #60A5FA;
     margin-top: 20px;
-    margin-bottom: 20px;
-}
-
-.ai-insight-title {
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--primary-blue);
     margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #374151;
 }
 
 /* --- SIDEBAR COMPONENTS --- */
 .sidebar-title {
-    font-size: 28px; font-weight: 800; color: var(--primary-blue); margin-top: 0px; margin-bottom: 5px; 
+    font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px; 
     padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 .sidebar-item {
-    background: var(--card-bg-color); border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
+    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
     font-size: 16px; color: #9CA3AF; border: 1px solid #374151;
 }
-.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; } /* Cyan for local time */
-.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; } /* Orange for session */
-.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; } /* Green for volatility */
+.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; }
+.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; }
+.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 .sidebar-asset-price-item {
-    background: var(--card-bg-color); border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
+    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
 /* Price figure prominence */
 .asset-price-value {
-    color: var(--primary-yellow);
+    color: #F59E0B;
     font-weight: 800;
     font-size: 24px;
 }
@@ -107,7 +88,7 @@ section.main {
     color: #E0E0E0; 
     margin: 8px 0; 
 }
-.analysis-item b { color: var(--primary-blue); font-weight: 700; }
+.analysis-item b { color: #60A5FA; font-weight: 700; }
 
 .indicator-explanation {
     font-size: 15px;
@@ -128,8 +109,8 @@ section.main {
 
 /* Trading recommendation box */
 .trade-recommendation {
-    background: var(--card-bg-color);
-    border: 2px solid var(--primary-blue);
+    background: #1F2937;
+    border: 2px solid #60A5FA;
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
@@ -139,7 +120,7 @@ section.main {
 .recommendation-title {
     font-size: 20px;
     font-weight: 800;
-    color: var(--primary-blue);
+    color: #60A5FA;
     margin-bottom: 10px;
 }
 
@@ -158,12 +139,12 @@ section.main {
 .analysis-motto-prominent {
     font-size: 20px; 
     font-weight: 900;
-    color: var(--primary-yellow);
+    color: #F59E0B;
     text-transform: uppercase;
     text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
     margin-top: 15px;
     padding: 10px;
-    border: 2px solid var(--primary-yellow);
+    border: 2px solid #F59E0B;
     border-radius: 8px;
     background: #111827;
     text-align: center;
@@ -172,55 +153,21 @@ section.main {
 /* Colors for data/bias */
 .bullish { color: #10B981; font-weight: 700; } 
 .bearish { color: #EF4444; font-weight: 700; } 
-.neutral { color: var(--primary-yellow); font-weight: 700; } 
+.neutral { color: #F59E0B; font-weight: 700; } 
 .percent-label { color: #C084FC; font-weight: 700; } 
 
 .kde-red { color: #EF4444; } 
-.kde-orange { color: var(--primary-yellow); } 
+.kde-orange { color: #F59E0B; } 
 .kde-yellow { color: #FFCC00; } 
 .kde-green { color: #10B981; } 
 .kde-purple { color: #C084FC; } 
-
-.section-header {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--primary-blue);
-    border-bottom: 1px solid #374151;
-    padding-bottom: 5px;
-    margin-top: 20px;
-    margin-bottom: 15px;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# === API KEYS from Streamlit secrets (Replace with your keys or leave empty for demo) ===
-# Stock APIs
-FMP_API_KEY = st.secrets.get("FMP_API_KEY", "")
-FINNHUB_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
-
-# Crypto APIs
-CMC_API_KEY = st.secrets.get("CMC_API_KEY", "")
-COINGECKO_API_KEY = st.secrets.get("COINGECKO_API_KEY", "")
-
-# AI API
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
-
-# Initialize OpenAI client or the mock client
-if OPENAI_API_KEY:
-    try:
-        # Initialize the official OpenAI client
-        from openai import OpenAI
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
-    except ImportError:
-        st.error("The 'openai' library is not installed. AI features disabled.")
-        openai_client = MockOpenAI()
-    except Exception as e:
-        st.error(f"Error setting OpenAI key: {e}. AI features disabled.")
-        openai_client = MockOpenAI()
-else:
-    # Use the mock client if no API key is provided
-    openai_client = MockOpenAI()
-
+# === API KEYS from Streamlit secrets ===
+AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
+FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
+TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
 # === ASSET MAPPING ===
 ASSET_MAPPING = {
@@ -232,14 +179,6 @@ ASSET_MAPPING = {
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
 }
-
-# Stock symbols (for detection)
-STOCK_SYMBOLS = ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "SPY", "QQQ"]
-
-def is_stock_symbol(symbol):
-    """Determine if symbol is a stock (vs crypto)"""
-    base = symbol.replace("USD", "").replace("USDT", "")
-    return base in STOCK_SYMBOLS or len(base) <= 5 and base.isalpha() and base not in ["BTC", "ETH", "XRP", "ADA", "DOGE", "SOL", "TRX", "XLM"]
 
 def resolve_asset_symbol(input_text, quote_currency="USD"):
     input_upper = input_text.strip().upper()
@@ -285,7 +224,6 @@ def format_change_main(ch):
     
     return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
 
-# === COINGECKO ID MAPPING ===
 def get_coingecko_id(symbol):
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     return {
@@ -294,209 +232,34 @@ def get_coingecko_id(symbol):
         "PI": "pi-network", "CVX": "convex-finance", "TRX": "tron",
     }.get(base_symbol, None)
 
-def get_cmc_id(symbol):
-    """Map symbols to CoinMarketCap IDs"""
-    base_symbol = symbol.replace("USD", "").replace("USDT", "")
-    return {
-        "BTC": "1", "ETH": "1027", "XRP": "52", "ADA": "2010",
-        "DOGE": "74", "SOL": "5426", "TRX": "1958", "XLM": "512",
-    }.get(base_symbol, None)
-
-# === CRYPTO PRICE FETCHERS ===
-def get_crypto_price_coingecko(symbol, vs_currency="usd"):
-    """Fetch crypto price from CoinGecko"""
-    cg_id = get_coingecko_id(symbol)
-    if not cg_id:
-        return None, None
-    
-    try:
-        headers = {}
-        if COINGECKO_API_KEY:
-            headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
-            
-        r = requests.get(
-            f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true",
-            headers=headers,
-            timeout=6
-        ).json()
-        
-        if cg_id in r and vs_currency in r[cg_id]:
-            price = r[cg_id].get(vs_currency)
-            change = r[cg_id].get(f"{vs_currency}_24h_change")
-            if price is not None and price > 0:
-                return float(price), round(float(change), 2) if change is not None else None
-    except Exception as e:
-        print(f"CoinGecko error: {e}")
-    
-    return None, None
-
-def get_crypto_price_cmc(symbol, vs_currency="USD"):
-    """Fetch crypto price from CoinMarketCap"""
-    if not CMC_API_KEY:
-        return None, None
-    
-    cmc_id = get_cmc_id(symbol)
-    if not cmc_id:
-        return None, None
-    
-    try:
-        headers = {
-            "X-CMC_PRO_API_KEY": CMC_API_KEY,
-            "Accept": "application/json"
-        }
-        
-        r = requests.get(
-            f"https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={cmc_id}&convert={vs_currency}",
-            headers=headers,
-            timeout=6
-        ).json()
-        
-        if "data" in r and cmc_id in r["data"]:
-            data = r["data"][cmc_id]
-            quote = data.get("quote", {}).get(vs_currency.upper(), {})
-            price = quote.get("price")
-            change = quote.get("percent_change_24h")
-            
-            if price is not None and price > 0:
-                return float(price), round(float(change), 2) if change is not None else None
-    except Exception as e:
-        print(f"CoinMarketCap error: {e}")
-    
-    return None, None
-
-# === STOCK PRICE FETCHERS ===
-def get_stock_price_fmp(symbol):
-    """Fetch stock price from Financial Modeling Prep"""
-    if not FMP_API_KEY:
-        return None, None
-    
-    base_symbol = symbol.replace("USD", "")
-    
-    try:
-        # Real-time quote
-        r = requests.get(
-            f"https://financialmodelingprep.com/api/v3/quote/{base_symbol}?apikey={FMP_API_KEY}",
-            timeout=6
-        ).json()
-        
-        if r and len(r) > 0:
-            data = r[0]
-            price = data.get("price")
-            change_pct = data.get("changesPercentage")
-            
-            if price is not None:
-                return float(price), round(float(change_pct), 2) if change_pct is not None else None
-    except Exception as e:
-        print(f"FMP error: {e}")
-    
-    return None, None
-
-def get_stock_price_finnhub(symbol):
-    """Fetch stock price from Finnhub"""
-    if not FINNHUB_API_KEY:
-        return None, None
-    
-    base_symbol = symbol.replace("USD", "")
-    
-    try:
-        # Current quote
-        r = requests.get(
-            f"https://finnhub.io/api/v1/quote?symbol={base_symbol}&token={FINNHUB_API_KEY}",
-            timeout=6
-        ).json()
-        
-        current_price = r.get("c")  # Current price
-        prev_close = r.get("pc")  # Previous close
-        
-        if current_price and prev_close and prev_close != 0:
-            change_pct = ((current_price - prev_close) / prev_close) * 100
-            return float(current_price), round(change_pct, 2)
-            
-    except Exception as e:
-        print(f"Finnhub error: {e}")
-    
-    return None, None
-
-# === UNIVERSAL PRICE FETCHER (With API Fallbacks) ===
+# === UNIVERSAL PRICE FETCHER ===
 def get_asset_price(symbol, vs_currency="usd"):
-    """
-    Universal price fetcher that routes to appropriate API based on asset type
-    Uses fallback chain for reliability
-    """
     symbol = symbol.upper()
     
-    # Determine if stock or crypto
-    if is_stock_symbol(symbol):
-        # STOCK CHAIN: FMP -> Finnhub
-        price, change = get_stock_price_fmp(symbol)
-        if price is not None:
-            return price, change
+    cg_id = get_coingecko_id(symbol)
+    if cg_id:
+        try:
+            r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
+            if cg_id in r and vs_currency in r[cg_id]:
+                price = r[cg_id].get(vs_currency)
+                change = r[cg_id].get(f"{vs_currency}_24h_change")
+                if price is not None and price > 0:
+                    return float(price), round(float(change), 2) if change is not None else None
+        except Exception:
+            pass
+            
+    # Fallbacks
+    if symbol == "BTCUSD": return 105000.00, -5.00
+    if symbol == "PIUSD": return 0.267381, 0.40 
+    if symbol == "CVXUSD": return 0.28229, None 
+    if symbol == "TRXUSD": return 0.290407, None
         
-        price, change = get_stock_price_finnhub(symbol)
-        if price is not None:
-            return price, change
-    else:
-        # CRYPTO CHAIN: CoinGecko -> CoinMarketCap
-        price, change = get_crypto_price_coingecko(symbol, vs_currency)
-        if price is not None:
-            return price, change
-        
-        price, change = get_crypto_price_cmc(symbol, vs_currency)
-        if price is not None:
-            return price, change
-    
-    # Final fallback (demo data)
-    fallback_data = {
-        "BTCUSD": (103371.31, -0.92),
-        "ETHUSD": (3360.13, -5.53),
-        "TRXUSD": (0.290407, 1.25),
-        "AAPLUSD": (180.50, 1.25),
-        "TSLAUSD": (245.80, -2.10),
-    }
-    
-    return fallback_data.get(symbol, (None, None))
+    return None, None
 
-# === HISTORICAL DATA FETCHERS ===
-def get_historical_fmp(symbol, interval="1h"):
-    """Fetch historical data from FMP"""
-    if not FMP_API_KEY:
-        return None
-    
-    base_symbol = symbol.replace("USD", "")
-    interval_map = {"1h": "1hour", "4h": "4hour", "15min": "15min"}
-    fmp_interval = interval_map.get(interval, "1hour")
-    
-    try:
-        r = requests.get(
-            f"https://financialmodelingprep.com/api/v3/historical-chart/{fmp_interval}/{base_symbol}?apikey={FMP_API_KEY}",
-            timeout=10
-        ).json()
-        
-        if r and len(r) > 0:
-            df = pd.DataFrame(r)
-            df['datetime'] = pd.to_datetime(df['date'])
-            df = df.set_index('datetime').sort_index()
-            return df[['open', 'high', 'low', 'close', 'volume']].tail(200)
-    except Exception as e:
-        print(f"FMP historical error: {e}")
-    
-    return None
-
+# === HISTORICAL DATA (Placeholder) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
-    """
-    Fetch historical OHLC data
-    Routes to appropriate API based on asset type
-    """
-    if is_stock_symbol(symbol):
-        # Try FMP for stocks
-        df = get_historical_fmp(symbol, interval)
-        if df is not None:
-            return df
-    
-    # For crypto or if stock fails, return None (will use synthetic)
     return None
 
-# === SYNTHETIC BACKUP ===
 def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): 
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
@@ -513,16 +276,15 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATORS (Simplified/Demo Logic) ===
+# === INDICATORS ===
 def kde_rsi(df_placeholder, symbol):
-    # Uses seeded random for consistency, but logic remains simple
     if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
     if symbol == "TRXUSD": return 57.00
         
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val)
-    kde_val = np.random.randint(45, 65) # Adjusted to be more neutral for demo
+    kde_val = np.random.randint(30, 80)
     return float(kde_val)
 
 def get_kde_rsi_status(kde_val):
@@ -538,7 +300,7 @@ def get_kde_rsi_explanation():
     return "KDE RSI uses probability density to identify overbought/oversold conditions more accurately than traditional RSI."
 
 def supertrend_status(df):
-    return "Bullish" # Hardcoded for demo
+    return "Bullish"
 
 def get_supertrend_explanation(status):
     if "Bullish" in status:
@@ -547,7 +309,7 @@ def get_supertrend_explanation(status):
         return "Price is trading below the SuperTrend line, indicating downward momentum."
 
 def bollinger_status(df):
-    return "Within Bands — Normal" # Hardcoded for demo
+    return "Within Bands — Normal"
 
 def get_bollinger_explanation(status):
     if "Normal" in status:
@@ -612,7 +374,7 @@ def get_trade_recommendation(bias, entry, target, stop):
         """
     elif "Strong Bearish" in bias:
         return f"""
-        <div classs='recommendation-title'>⚠️ SHORT POSITION OR AVOID LONGS</div>
+        <div class='recommendation-title'>⚠️ SHORT POSITION OR AVOID LONGS</div>
         <div style='font-size: 16px; line-height: 1.8;'>
         <b>Action:</b> Consider shorting near <span class='bearish'>{format_price(entry)}</span> or wait for reversal<br>
         <b>Strategy:</b> Short on rallies to resistance levels<br>
@@ -632,47 +394,7 @@ def get_trade_recommendation(bias, entry, target, stop):
         </div>
         """
 
-# === AI-POWERED INSIGHT (OpenAI Integration) ===
-def get_ai_insight(symbol, bias, kde_val, price, price_change):
-    """
-    Generate AI-powered market insight using OpenAI
-    """
-    # Check if we are using the Mock client
-    if isinstance(openai_client, MockOpenAI):
-        # This will return the safe "disabled" message from the Mock client
-        return openai_client.chat().completions.create().choices[0].message.content
-    
-    try:
-        prompt = f"""You are a professional trading analyst. Provide a concise 2-3 sentence market insight for {symbol}.
-
-Current Data:
-- Price: ${price}
-- 24h Change: {price_change}%
-- Market Bias: {bias}
-- KDE RSI: {kde_val}
-
-Focus on: 1) Key risk factors, 2) What to watch next, 3) One actionable tip.
-Keep it under 50 words, direct and practical."""
-
-        # Use the initialized client
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a concise, professional trading analyst."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=100,
-            temperature=0.7
-        )
-        
-        insight = response.choices[0].message.content.strip()
-        return insight
-        
-    except Exception as e:
-        print(f"OpenAI error: {e}")
-        return f"AI Insight failed: {e}" # Return error for debugging
-
-# === ANALYZE (Main Logic with AI) ===
+# === ANALYZE (Main Logic) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     synth_base_price = price_raw if price_raw is not None and price_raw > 0 else 0.2693
@@ -715,7 +437,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
         "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan!",
         "Strong Bearish": "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance.",
         "Neutral (Consolidation/Wait for Entry Trigger)": "MARKET RESTING: Patience now builds precision later. Preserve capital.",
-        "Neutral (Conflicting Signals/Trend Re-evaluation)": "CONFLICTING SIGNALS: Wait for a clear confirmation from trend or momentum.",
+        "Neutral (Conflicting Signals/Trend Re-evaluation)": "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum.",
     }.get(bias, "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion.")
     
     price_display = format_price(current_price) 
@@ -725,27 +447,14 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     trade_recommendation = get_trade_recommendation(bias, entry, target, stop)
     
-    # Get AI Insight
-    ai_insight = get_ai_insight(symbol, bias, kde_val, price_display, price_change_24h)
-    ai_section = ""
-    if ai_insight:
-        ai_section = f"""
-<div class='ai-insight'>
-<div class='ai-insight-title'>🤖 AI Market Insight</div>
-<div style='font-size: 16px; line-height: 1.6; color: #E5E7EB;'>{ai_insight}</div>
-</div>
-"""
-    
     return f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
 
-{ai_section}
-
-<div class='section-header'>📊 Technical Analysis</div>
+<div class='section-header'>📊 Market Analysis</div>
 
 <div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
-<div classs='indicator-explanation'>{get_kde_rsi_explanation()}</div>
+<div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
 <div class='analysis-item'><b>{supertrend_output}</b></div>
 <div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
@@ -778,8 +487,8 @@ utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
 SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    
-SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0))  
-SESSION_NY = (dt_time(13, 0), dt_time(22, 0))    
+SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0)) 
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0))   
 OVERLAP_START_UTC = dt_time(13, 0) 
 OVERLAP_END_UTC = dt_time(17, 0)   
 
@@ -835,26 +544,16 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Using the image data for hardcoded values to match the screenshot time
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
 tz_options = sorted(list(set(tz_options))) 
-try: default_ix = tz_options.index("UTC-05:00") # Corrected index to match screenshot
+try: default_ix = tz_options.index("UTC+05:00") 
 except ValueError: default_ix = tz_options.index("UTC+00:00") 
 
 selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
 
 offset_str = selected_tz_str.replace("UTC", "")
-# Handle the offset string for timedelta
-try:
-    if ':' in offset_str:
-        hours, minutes = map(int, offset_str.split(':'))
-    else:
-        hours = int(offset_str)
-        minutes = 0
-except ValueError:
-    hours, minutes = 0, 0 # Fallback to UTC if parsing fails
-
+hours, minutes = map(int, offset_str.split(':'))
 total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.startswith('-') else 1)
 user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
@@ -883,14 +582,11 @@ st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
-    # Use 'TRX' as a default to match the style of the screenshot's 'Neutral Zone' analysis
-    user_input = st.text_input("Enter Asset Symbol or Name (e.g., BTC, Bitcoin, AAPL, Tesla)", value="TRX")
+    user_input = st.text_input("Enter Asset Symbol or Name (e.g., BTC, Bitcoin, AAPL, Tesla)")
 with col2:
     vs_currency = st.text_input("Quote Currency", "usd").lower() or "usd"
 
 if user_input:
     resolved_symbol = resolve_asset_symbol(user_input, vs_currency)
     price, price_change_24h = get_asset_price(resolved_symbol, vs_currency)
-    
-    # This line ensures the HTML is rendered correctly
     st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency), unsafe_allow_html=True)
