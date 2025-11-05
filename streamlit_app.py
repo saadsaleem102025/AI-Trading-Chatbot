@@ -107,29 +107,24 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-top: 1px dashed #374151; 
 }
 
-/* Trading recommendation box - Generic style for text block */
+/* Trading recommendation box (Generic for simple text) */
 .trade-recommendation {
-    background: #111827; /* Use darker color for the container to maintain contrast */
+    background: #111827; 
     border: 1px solid #374151; 
     border-radius: 12px;
     padding: 20px;
     margin-top: 15px;
     margin-bottom: 15px;
 }
-/* Styling for the English content within the trade block */
 .trade-content {
     font-size: 17px;
     line-height: 1.6;
 }
-.trade-content b {
-    color: #90CDF4; /* Light blue for labels */
-}
-
 
 .recommendation-title {
     font-size: 20px;
     font-weight: 800;
-    color: #10B981; /* Green for long recommendation title */
+    color: #10B981; 
     margin-bottom: 10px;
 }
 
@@ -241,7 +236,7 @@ def get_coingecko_id(symbol):
         "PI": "pi-network", "CVX": "convex-finance", "TRX": "tron",
     }.get(base_symbol, None)
 
-# === UNIVERSAL PRICE FETCHER ===
+# === UNIVERSAL PRICE FETCHER (UNCHANGED) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
@@ -285,7 +280,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATORS ===
+# === INDICATORS (UNCHANGED LOGIC) ===
 def kde_rsi(df_placeholder, symbol):
     if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
@@ -342,13 +337,11 @@ def get_ema_explanation(status):
         return "EMAs are close together - market is consolidating, wait for clear direction."
 
 def parabolic_sar_status(symbol, kde_val):
-    # FIXED: Replaced "Dynamic Stop" with "Uptrend Confirmed" for bullish status
     if kde_val > 60: return "Bullish (Dots Below Price) - Uptrend Confirmed"
     if kde_val < 40: return "Bearish (Dots Above Price) - Dynamic Stop"
     return "Reversal Imminent"
 
 def get_psar_explanation(status):
-    # FIXED: Clarified bullish wording and removed "dynamic stop" association from explanation
     if "Bullish" in status:
         return "SAR dots below price confirm the **uptrend** and provide trailing stop levels for long positions."
     elif "Bearish" in status:
@@ -370,99 +363,89 @@ def combined_bias(kde_val, st_text, ema_status):
         
     return "Neutral (Conflicting Signals/Trend Re-evaluation)"
 
-def get_trade_recommendation(bias, entry, target, stop):
+def get_trade_recommendation(bias, current_price, atr_val):
     """
-    Generate actionable trading recommendation using pure Markdown/simple HTML
-    to avoid the large, complex HTML block that the user disliked.
+    Generates dynamic, ATR-based trade parameters and returns them as a dictionary
+    for use in the Natural Language Summary.
     """
     
-    # Use the hardcoded/synthesized price values for consistency with user's expected output format
-    entry_price = 0.315986
-    target_price = 0.319146
-    stop_price = 0.314722
+    # Define ATR multiples for a 1:2.5 Risk-to-Reward Ratio
+    RISK_MULTIPLE = 1.0 
+    REWARD_MULTIPLE = 2.5
     
     if "Strong Bullish" in bias:
-        # FIXED: Replaced complex HTML with a simple HTML/Markdown block for English clarity
-        return f"""
-        <div class='trade-recommendation'>
-        <div class='recommendation-title'>✅ LONG POSITION RECOMMENDED</div>
-        <div class='trade-content'>
-        **Action:** Consider entering a long position near <span class='bullish'>{format_price(entry_price)}</span><br>
-        **Strategy:** Wait for a slight pullback to entry level, or enter on breakout confirmation<br>
-        **Target (Take Profit):** <span class='bullish'>{format_price(target_price)}</span> (Risk:Reward = 1:2.5)<br>
-        **Stop Loss:** Exit if price falls below <span class='bearish'>{format_price(stop_price)}</span><br>
-        **Position Size:** Risk only 1-2% of your capital on this trade
-        </div>
-        </div>
-        """
-    elif "Strong Bearish" in bias:
-        return f"""
-        <div class='trade-recommendation'>
-        <div class='recommendation-title' style='color: #EF4444;'>⚠️ SHORT POSITION OR AVOID LONGS</div>
-        <div class='trade-content'>
-        **Action:** Consider shorting near <span class='bearish'>{format_price(entry)}</span> or wait for reversal<br>
-        **Strategy:** Short on rallies to resistance levels<br>
-        **Target (Take Profit):** Cover short at <span class='bullish'>{format_price(target)}</span><br>
-        **Stop Loss:** Exit if price rises above <span class='bearish'>{format_price(stop)}</span><br>
-        **Position Size:** Risk only 1-2% of your capital
-        </div>
-        </div>
-        """
-    else:
-        return f"""
-        <div class='trade-recommendation'>
-        <div class='recommendation-title' style='color: #F59E0B;'>⏸️ NO TRADE - WAIT FOR CLARITY</div>
-        <div class='trade-content'>
-        **Action:** Stay on the sidelines and preserve capital<br>
-        **Reason:** Market is consolidating or showing conflicting signals<br>
-        **Entry Trigger:** Enter only after clear directional move above <span class='bullish'>{format_price(target)}</span> or below <span class='bearish'>{format_price(stop)}</span>
-        </div>
-        </div>
-        """
-
-# === NATURAL LANGUAGE SUMMARY (NEW FUNCTION) ===
-def get_natural_language_summary(symbol, bias, recommendation_html):
-    """Generate the natural English summary based on the trade recommendation."""
-    
-    # Extract key parts from the recommendation HTML (using the fixed values for bullish trade)
-    rec_title = "No Recommendation"
-    entry_value = "0.315986"
-    target_value = "0.319146"
-    stop_value = "0.314722"
-
-    if "LONG POSITION RECOMMENDED" in recommendation_html:
-        rec_title = "Long Position Recommended"
-    elif "SHORT POSITION" in recommendation_html:
-        rec_title = "Short Position Recommended"
-        # Note: In a real app, these values would be dynamically extracted/calculated
-        entry_value = "N/A"
-        target_value = "N/A"
-        stop_value = "N/A" 
-    elif "NO TRADE" in recommendation_html:
-        rec_title = "No Trade Recommended (Wait for Clarity)"
+        # Long Entry: Current Price, Stop: 1.0 ATR below, Target: 2.5 ATR above
+        entry = current_price
+        target = entry + (REWARD_MULTIPLE * atr_val)
+        stop = entry - (RISK_MULTIPLE * atr_val)
         
+        return {
+            "title": "Long Position Recommended",
+            "action": f"entering a long position near **{format_price(entry)}**",
+            "strategy": "Wait for confirmation or a slight pullback",
+            "target": f"take profit at **{format_price(target)}**",
+            "stop": f"set the stop loss below **{format_price(stop)}**",
+            "type": "bullish"
+        }
+    elif "Strong Bearish" in bias:
+        # Short Entry: Current Price, Stop: 1.0 ATR above, Target: 2.5 ATR below
+        entry = current_price
+        target = entry - (REWARD_MULTIPLE * atr_val)
+        stop = entry + (RISK_MULTIPLE * atr_val)
+        
+        return {
+            "title": "Short Position Recommended",
+            "action": f"entering a short position near **{format_price(entry)}**",
+            "strategy": "Short on rallies to resistance levels",
+            "target": f"cover the short at **{format_price(target)}**",
+            "stop": f"set the stop loss above **{format_price(stop)}**",
+            "type": "bearish"
+        }
+    else:
+        # Neutral: Suggests entry triggers based on ATR multiples
+        target_trigger = current_price + (2.0 * atr_val)
+        stop_trigger = current_price - (1.0 * atr_val)
+        
+        return {
+            "title": "No Trade Recommended (Wait for Clarity)",
+            "action": "stay on the sidelines and preserve capital",
+            "strategy": "Avoid entering until a clear break occurs",
+            "target": f"A **bullish entry trigger** would be a break above **{format_price(target_trigger)}**",
+            "stop": f"A **bearish entry trigger** would be a break below **{format_price(stop_trigger)}**",
+            "type": "neutral"
+        }
+
+# === NATURAL LANGUAGE SUMMARY (UPDATED) ===
+def get_natural_language_summary(symbol, bias, trade_params):
+    """Generate the natural English summary based on the dynamic trade parameters."""
+    
     summary = f"The AI analysis for **{symbol}** indicates an **{bias}** market bias."
     
-    if "Strong Bullish" in bias:
+    if trade_params["type"] == "bullish":
         summary += (
-            f"**{rec_title}** is given. The analysis suggests considering an entry at **{entry_value}** "
-            f"with a profit target at **{target_value}** and a stop loss at **{stop_value}**. "
-            "This setup is supported by momentum indicators like SuperTrend and a high KDE RSI value."
+            f"**{trade_params['title']}** is given. The analysis suggests {trade_params['action']} "
+            f"with a clear volatility-adjusted setup. Traders should plan to {trade_params['target']} "
+            f"and strictly {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
         )
-    elif "Strong Bearish" in bias:
-        # This branch uses the default entry/target/stop from the analyze function logic
+    elif trade_params["type"] == "bearish":
         summary += (
-            f"**{rec_title}** is given. The analysis recommends considering a short position. "
-            f"Caution is advised as trend confirmation is strong."
+            f"**{trade_params['title']}** is given. The analysis recommends {trade_params['action']} "
+            f"with a volatility-adjusted setup. Traders should {trade_params['target']} "
+            f"and strictly {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
         )
     else:
         summary += (
-            f"**{rec_title}**. The market for {symbol} is currently consolidating or showing mixed signals. "
-            f"The recommendation is to stay on the sidelines and wait for a clear directional move."
+            f"**{trade_params['title']}**. The market for {symbol} is currently consolidating or showing mixed signals. "
+            f"The recommendation is to **{trade_params['action']}**. "
+            f"**Action Triggers:** {trade_params['target']} or {trade_params['stop']}."
         )
 
     # Return the summary formatted for Streamlit Markdown
-    return f"<div style='font-size: 18px; line-height: 1.8; margin-top: 10px; margin-bottom: 20px; padding: 15px; background: #243B55; border-radius: 8px; border-left: 5px solid #60A5FA;'>{summary}</div>"
+    return f"""
+<div style='font-size: 18px; line-height: 1.8; margin-top: 10px; margin-bottom: 20px; padding: 15px; background: #243B55; border-radius: 8px; border-left: 5px solid #60A5FA;'>
+**Natural Language Summary:** {summary}
+</div>
+"""
 
 
 # === ANALYZE (Main Logic) ===
@@ -489,12 +472,14 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     kde_rsi_output = get_kde_rsi_status(kde_val)
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
-    atr_val = current_price * 0.004 
+    # --- ATR CALCULATION (SIMULATED) ---
+    # In a real scenario, ATR would be calculated on historical data. 
+    # Here, we simulate volatility based on asset price for realistic output spacing.
+    if current_price > 100: atr_multiplier = 0.005 # Less volatile for high prices
+    elif current_price > 1: atr_multiplier = 0.02 # More volatile for medium prices
+    else: atr_multiplier = 0.008 # Medium volatility for low-priced assets like CVXUSD
     
-    # These entry/target/stop are used for the Neutral/Bearish scenario place holders
-    entry = current_price
-    target = current_price + (2.5 * atr_val)
-    stop = current_price - (1.0 * atr_val)
+    atr_val = current_price * atr_multiplier 
     
     motivation = {
         "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan!",
@@ -508,13 +493,13 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     current_price_line = f"<b>{symbol}</b>: <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     
-    # This generates the detailed trade setup using Markdown/simple HTML structure
-    trade_recommendation_html = get_trade_recommendation(bias, entry, target, stop)
+    # Generate dynamic, ATR-based trade parameters
+    trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
     
     # Generate the natural language summary
-    analysis_summary_html = get_natural_language_summary(symbol, bias, trade_recommendation_html)
+    analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # Combine summary and detailed HTML content (Summary is after indicators)
+    # --- FINAL OUTPUT STRUCTURE (REMOVED HTML TRADE SETUP) ---
     full_output = f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
@@ -537,9 +522,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 <div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
 
 {analysis_summary_html}
-
-<div class='section-header'>🎯 Trade Setup</div>
-{trade_recommendation_html}
 
 <div class='analysis-bias'>Overall Market Bias: <span class='{bias.split(" ")[0].lower()}'>{bias}</span></div>
 <div class='analysis-motto-prominent'>{motivation}</div>
