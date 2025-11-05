@@ -57,6 +57,22 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-bottom: 2px solid #374151;
 }
 
+/* --- BOLD TEXT COLOR CHANGE --- */
+/* Target <b> tags which Streamlit uses for custom bolding, setting the color to Gold */
+.big-text b {
+    color: #FFD700 !important; /* Gold color for bolded text */
+    font-weight: 800;
+}
+/* Ensure the sidebar bold text remains white for contrast */
+[data-testid="stSidebar"] b { 
+    color: #FFFFFF !important; 
+    font-weight: 800; 
+}
+/* Ensure Analysis items headers remain blue */
+.analysis-item b { color: #60A5FA; font-weight: 700; }
+/* Override Gold for the Asset Price which uses a different color */
+.asset-price-value { color: #F59E0B !important; }
+
 /* --- SIDEBAR COMPONENTS --- */
 .sidebar-title {
     font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px; 
@@ -88,7 +104,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #E0E0E0; 
     margin: 8px 0; 
 }
-.analysis-item b { color: #60A5FA; font-weight: 700; }
 
 .indicator-explanation {
     font-size: 15px;
@@ -107,25 +122,16 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-top: 1px dashed #374151; 
 }
 
-/* Trading recommendation box (Generic for simple text) */
-.trade-recommendation {
-    background: #111827; 
-    border: 1px solid #374151; 
-    border-radius: 12px;
-    padding: 20px;
-    margin-top: 15px;
-    margin-bottom: 15px;
-}
-.trade-content {
-    font-size: 17px;
-    line-height: 1.6;
-}
-
-.recommendation-title {
-    font-size: 20px;
-    font-weight: 800;
-    color: #10B981; 
-    margin-bottom: 10px;
+/* Trading recommendation (for Natural Language Summary box) */
+.trade-recommendation-summary {
+    font-size: 18px; 
+    line-height: 1.8; 
+    margin-top: 10px; 
+    margin-bottom: 20px; 
+    padding: 15px; 
+    background: #243B55; 
+    border-radius: 8px; 
+    border-left: 5px solid #60A5FA;
 }
 
 /* Risk warning */
@@ -383,8 +389,8 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "title": "Long Position Recommended",
             "action": f"entering a long position near **{format_price(entry)}**",
             "strategy": "Wait for confirmation or a slight pullback",
-            "target": f"take profit at **{format_price(target)}**",
-            "stop": f"set the stop loss below **{format_price(stop)}**",
+            "target": f"plan to take profit at **{format_price(target)}**",
+            "stop": f"strictly set the stop loss below **{format_price(stop)}**",
             "type": "bullish"
         }
     elif "Strong Bearish" in bias:
@@ -397,8 +403,8 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "title": "Short Position Recommended",
             "action": f"entering a short position near **{format_price(entry)}**",
             "strategy": "Short on rallies to resistance levels",
-            "target": f"cover the short at **{format_price(target)}**",
-            "stop": f"set the stop loss above **{format_price(stop)}**",
+            "target": f"plan to cover the short at **{format_price(target)}**",
+            "stop": f"strictly set the stop loss above **{format_price(stop)}**",
             "type": "bearish"
         }
     else:
@@ -415,23 +421,25 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "type": "neutral"
         }
 
-# === NATURAL LANGUAGE SUMMARY (UPDATED) ===
+# === NATURAL LANGUAGE SUMMARY (UPDATED TO REMOVE BOLD HEADER TEXT) ===
 def get_natural_language_summary(symbol, bias, trade_params):
-    """Generate the natural English summary based on the dynamic trade parameters."""
+    """Generate the natural English summary based on the dynamic trade parameters, 
+    but without the bold 'Natural Language Summary:' header text."""
     
+    # Removed "Natural Language Summary:" from the beginning of the string
     summary = f"The AI analysis for **{symbol}** indicates an **{bias}** market bias."
     
     if trade_params["type"] == "bullish":
         summary += (
             f"**{trade_params['title']}** is given. The analysis suggests {trade_params['action']} "
-            f"with a clear volatility-adjusted setup. Traders should plan to {trade_params['target']} "
-            f"and strictly {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
+            f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
+            f"and {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
         )
     elif trade_params["type"] == "bearish":
         summary += (
             f"**{trade_params['title']}** is given. The analysis recommends {trade_params['action']} "
             f"with a volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and strictly {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
+            f"and {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
         )
     else:
         summary += (
@@ -442,8 +450,8 @@ def get_natural_language_summary(symbol, bias, trade_params):
 
     # Return the summary formatted for Streamlit Markdown
     return f"""
-<div style='font-size: 18px; line-height: 1.8; margin-top: 10px; margin-bottom: 20px; padding: 15px; background: #243B55; border-radius: 8px; border-left: 5px solid #60A5FA;'>
-**Natural Language Summary:** {summary}
+<div class='trade-recommendation-summary'>
+{summary}
 </div>
 """
 
@@ -473,11 +481,9 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
     # --- ATR CALCULATION (SIMULATED) ---
-    # In a real scenario, ATR would be calculated on historical data. 
-    # Here, we simulate volatility based on asset price for realistic output spacing.
-    if current_price > 100: atr_multiplier = 0.005 # Less volatile for high prices
-    elif current_price > 1: atr_multiplier = 0.02 # More volatile for medium prices
-    else: atr_multiplier = 0.008 # Medium volatility for low-priced assets like CVXUSD
+    if current_price > 100: atr_multiplier = 0.005 
+    elif current_price > 1: atr_multiplier = 0.02 
+    else: atr_multiplier = 0.008 
     
     atr_val = current_price * atr_multiplier 
     
@@ -496,10 +502,10 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     # Generate dynamic, ATR-based trade parameters
     trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
     
-    # Generate the natural language summary
+    # Generate the natural language summary (now without the bold header)
     analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # --- FINAL OUTPUT STRUCTURE (REMOVED HTML TRADE SETUP) ---
+    # --- FINAL OUTPUT STRUCTURE (Summary is kept, but the content inside is fixed) ---
     full_output = f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
