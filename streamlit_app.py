@@ -16,29 +16,41 @@ class MockOpenAI:
                 return MockResponse()
         return type('MockChat', (object,), {'completions': MockCompletions()})
 
-# === 1. STYLE (ORIGINAL & FIXED FOR LAYOUT) ===
+# === 1. STYLE (REFINED DARK THEME & FIXED LAYOUT) ===
 st.markdown("""
 <style>
-/* Aggressive fix for Streamlit's main background color */
-body {
-    background-color: #0F172A !important; 
-}
-.stApp {
-    background-color: #0F172A;
-    color: #E5E7EB;
-}
-/* Ensure main content container matches */
-.main {
-    background-color: #0F172A;
+/* 1. Main Background: Deep Navy Blue */
+:root {
+    --main-bg-color: #0F172A; /* Deep Navy/Slate */
+    --sidebar-bg-color: #1A2437; /* Slightly lighter dark blue for distinction */
+    --card-bg-color: #1F2937; /* Darker card/input color */
+    --primary-blue: #60A5FA; /* Streamlit/Accent Blue */
+    --primary-yellow: #F59E0B; /* Price/Motto Yellow */
 }
 
-/* 🎯 FIX FOR SIDEBAR OVERLAP */
-/* Increase padding on the left of the main content to move it right, 
-   past the default sidebar width (~210px) */
-section.main {
-    padding-left: 230px !important; /* Adjust as needed, 230px is usually safe */
+/* Aggressively set background colors to eliminate white areas */
+body {
+    background-color: var(--main-bg-color) !important; 
 }
-/* For Streamlit's new container approach */
+.stApp {
+    background-color: var(--main-bg-color);
+    color: #E5E7EB; /* Light off-white for main text */
+}
+
+/* Ensure main content container matches */
+.main, .block-container {
+    background-color: var(--main-bg-color);
+}
+
+/* Streamlit Sidebar Background (FIXED to use darker, distinct color) */
+[data-testid="stSidebar"] {
+    background-color: var(--sidebar-bg-color) !important;
+}
+
+/* FIX FOR SIDEBAR OVERLAP */
+section.main {
+    padding-left: 230px !important; 
+}
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
@@ -50,7 +62,7 @@ section.main {
 /* AI Insight Box */
 .ai-insight {
     background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
-    border: 2px solid #60A5FA;
+    border: 2px solid var(--primary-blue);
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
@@ -60,31 +72,31 @@ section.main {
 .ai-insight-title {
     font-size: 20px;
     font-weight: 800;
-    color: #60A5FA;
+    color: var(--primary-blue);
     margin-bottom: 10px;
 }
 
 /* --- SIDEBAR COMPONENTS --- */
 .sidebar-title {
-    font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px; 
+    font-size: 28px; font-weight: 800; color: var(--primary-blue); margin-top: 0px; margin-bottom: 5px; 
     padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 .sidebar-item {
-    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
+    background: var(--card-bg-color); border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
     font-size: 16px; color: #9CA3AF; border: 1px solid #374151;
 }
-.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; }
-.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; }
-.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
+.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; } /* Cyan for local time */
+.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; } /* Orange for session */
+.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; } /* Green for volatility */
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 .sidebar-asset-price-item {
-    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
+    background: var(--card-bg-color); border-radius: 8px; padding: 8px 14px; margin: 3px 0; 
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
 /* Price figure prominence */
 .asset-price-value {
-    color: #F59E0B;
+    color: var(--primary-yellow);
     font-weight: 800;
     font-size: 24px;
 }
@@ -95,7 +107,7 @@ section.main {
     color: #E0E0E0; 
     margin: 8px 0; 
 }
-.analysis-item b { color: #60A5FA; font-weight: 700; }
+.analysis-item b { color: var(--primary-blue); font-weight: 700; }
 
 .indicator-explanation {
     font-size: 15px;
@@ -116,8 +128,8 @@ section.main {
 
 /* Trading recommendation box */
 .trade-recommendation {
-    background: #1F2937;
-    border: 2px solid #60A5FA;
+    background: var(--card-bg-color);
+    border: 2px solid var(--primary-blue);
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
@@ -127,7 +139,7 @@ section.main {
 .recommendation-title {
     font-size: 20px;
     font-weight: 800;
-    color: #60A5FA;
+    color: var(--primary-blue);
     margin-bottom: 10px;
 }
 
@@ -146,12 +158,12 @@ section.main {
 .analysis-motto-prominent {
     font-size: 20px; 
     font-weight: 900;
-    color: #F59E0B;
+    color: var(--primary-yellow);
     text-transform: uppercase;
     text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
     margin-top: 15px;
     padding: 10px;
-    border: 2px solid #F59E0B;
+    border: 2px solid var(--primary-yellow);
     border-radius: 8px;
     background: #111827;
     text-align: center;
@@ -160,11 +172,11 @@ section.main {
 /* Colors for data/bias */
 .bullish { color: #10B981; font-weight: 700; } 
 .bearish { color: #EF4444; font-weight: 700; } 
-.neutral { color: #F59E0B; font-weight: 700; } 
+.neutral { color: var(--primary-yellow); font-weight: 700; } 
 .percent-label { color: #C084FC; font-weight: 700; } 
 
 .kde-red { color: #EF4444; } 
-.kde-orange { color: #F59E0B; } 
+.kde-orange { color: var(--primary-yellow); } 
 .kde-yellow { color: #FFCC00; } 
 .kde-green { color: #10B981; } 
 .kde-purple { color: #C084FC; } 
@@ -172,7 +184,7 @@ section.main {
 .section-header {
     font-size: 22px;
     font-weight: 700;
-    color: #60A5FA;
+    color: var(--primary-blue);
     border-bottom: 1px solid #374151;
     padding-bottom: 5px;
     margin-top: 20px;
@@ -600,7 +612,7 @@ def get_trade_recommendation(bias, entry, target, stop):
         """
     elif "Strong Bearish" in bias:
         return f"""
-        <div class='recommendation-title'>⚠️ SHORT POSITION OR AVOID LONGS</div>
+        <div classs='recommendation-title'>⚠️ SHORT POSITION OR AVOID LONGS</div>
         <div style='font-size: 16px; line-height: 1.8;'>
         <b>Action:</b> Consider shorting near <span class='bearish'>{format_price(entry)}</span> or wait for reversal<br>
         <b>Strategy:</b> Short on rallies to resistance levels<br>
@@ -733,7 +745,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 <div class='section-header'>📊 Technical Analysis</div>
 
 <div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
-<div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
+<div classs='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
 <div class='analysis-item'><b>{supertrend_output}</b></div>
 <div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
