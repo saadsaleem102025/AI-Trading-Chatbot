@@ -6,6 +6,19 @@ import openai # Added the missing import for OpenAI
 # === 1. STYLE (As provided by you) ===
 st.markdown("""
 <style>
+/* Aggressive fix for Streamlit's main background color */
+body {
+    background-color: #0F172A !important; 
+}
+.stApp {
+    background-color: #0F172A;
+    color: #E5E7EB;
+}
+/* Ensure main content container matches */
+.main {
+    background-color: #0F172A;
+}
+
 /* AI Insight Box */
 .ai-insight {
     background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
@@ -127,6 +140,16 @@ st.markdown("""
 .kde-yellow { color: #FFCC00; } 
 .kde-green { color: #10B981; } 
 .kde-purple { color: #C084FC; } 
+
+.section-header {
+    font-size: 22px;
+    font-weight: 700;
+    color: #60A5FA;
+    border-bottom: 1px solid #374151;
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -194,7 +217,7 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change_sidebar(ch):
-    if ch is None: return "N/Trigger"
+    if ch is None: return "N/A"
     try: ch = float(ch)
     except Exception: return "N/A"
     sign = "+" if ch > 0 else ""
@@ -579,7 +602,8 @@ Current Data:
 Focus on: 1) Key risk factors, 2) What to watch next, 3) One actionable tip.
 Keep it under 50 words, direct and practical."""
 
-        response = openai.chat.completions.create( # Updated to new OpenAI v1.x+ syntax
+        # Use the updated v1.x+ syntax for OpenAI
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a concise, professional trading analyst."},
@@ -594,10 +618,9 @@ Keep it under 50 words, direct and practical."""
         
     except Exception as e:
         print(f"OpenAI error: {e}")
-        # Add a check for authentication error
         if "Authentication" in str(e):
              return "AI Insight feature disabled. Check OpenAI API key."
-        return None
+        return f"AI Insight failed: {e}" # Return error for debugging
 
 # === ANALYZE (Main Logic with AI) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
@@ -663,18 +686,20 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 </div>
 """
     
-    # This is the new HTML structure using your CSS classes
+    # *** THIS HTML STRUCTURE IS NOW CORRECTLY TERMINATED WITH THE CLOSING QUOTE ***
     return f"""
 <div class='big-text'>
-<div class'analysis-item'>{current_price_line}</div>
+<div class='analysis-item'>{current_price_line}</div>
 
 {ai_section}
+
+<div class='section-header'>📊 Technical Analysis</div>
 
 <div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
 <div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
 <div class='analysis-item'><b>{supertrend_output}</b></div>
-<div class'indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
+<div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
 
 <div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
 <div class='indicator-explanation'>{get_bollinger_explanation(bb_status)}</div>
@@ -685,6 +710,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 <div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
 <div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
 
+<div class='section-header'>🎯 Trade Setup</div>
 <div class='trade-recommendation'>
 {trade_recommendation}
 </div>
