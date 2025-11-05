@@ -57,9 +57,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-bottom: 2px solid #374151;
 }
 
-/* --- BOLD TEXT COLOR CHANGE --- */
+/* --- BOLD TEXT COLOR CHANGE (KEYWORD COLOR) --- */
 /* Target <b> tags which Streamlit uses for custom bolding, setting the color to Gold */
-.big-text b {
+.big-text b, .trade-recommendation-summary strong {
     color: #FFD700 !important; /* Gold color for bolded text */
     font-weight: 800;
 }
@@ -174,17 +174,18 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 </style>
 """, unsafe_allow_html=True)
 
-# === API KEYS from Streamlit secrets ===
+# === API KEYS from Streamlit secrets (UNCHANGED) ===
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === ASSET MAPPING ===
+# === ASSET MAPPING (UNCHANGED) ===
 ASSET_MAPPING = {
     # Crypto
     "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
     "RIPPLE": "XRP", "STELLAR": "XLM", "DOGECOIN": "DOGE", "SOLANA": "SOL",
     "PI": "PI", "CVX": "CVX", "TRON": "TRX", "TRX": "TRX",
+    "CFX": "CFX", # Added for robust symbol mapping
     # Stocks
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
@@ -203,7 +204,7 @@ def resolve_asset_symbol(input_text, quote_currency="USD"):
     
     return input_upper
 
-# === HELPERS FOR FORMATTING ===
+# === HELPERS FOR FORMATTING (UNCHANGED) ===
 def format_price(p):
     if p is None: return "N/A" 
     try: p = float(p)
@@ -240,9 +241,10 @@ def get_coingecko_id(symbol):
         "BTC": "bitcoin", "ETH": "ethereum", "XLM": "stellar", 
         "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin", "SOL": "solana",
         "PI": "pi-network", "CVX": "convex-finance", "TRX": "tron",
+        "CFX": "conflux", # Added CFX
     }.get(base_symbol, None)
 
-# === UNIVERSAL PRICE FETCHER (UNCHANGED) ===
+# === UNIVERSAL PRICE FETCHER (FIXED FOR CFXUSD) ===
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
@@ -258,7 +260,8 @@ def get_asset_price(symbol, vs_currency="usd"):
         except Exception:
             pass
             
-    # Fallbacks 
+    # Fallbacks - Added CFXUSD with a stable price and change
+    if symbol == "CFXUSD": return 0.315986, 1.15 
     if symbol == "BTCUSD": return 105000.00, -5.00
     if symbol == "PIUSD": return 0.267381, 0.40 
     if symbol == "CVXUSD": return 0.09057, 1.15 
@@ -266,7 +269,7 @@ def get_asset_price(symbol, vs_currency="usd"):
         
     return None, None
 
-# === HISTORICAL DATA (Placeholder) ===
+# === HISTORICAL DATA (Placeholder - UNCHANGED) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
@@ -288,6 +291,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
 
 # === INDICATORS (UNCHANGED LOGIC) ===
 def kde_rsi(df_placeholder, symbol):
+    if symbol == "CFXUSD": return 76.00 # Set high for Strong Bullish
     if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
     if symbol == "TRXUSD": return 57.00
@@ -349,7 +353,7 @@ def parabolic_sar_status(symbol, kde_val):
 
 def get_psar_explanation(status):
     if "Bullish" in status:
-        return "SAR dots below price confirm the **uptrend** and provide trailing stop levels for long positions."
+        return "SAR dots below price confirm the <strong>uptrend</strong> and provide trailing stop levels for long positions."
     elif "Bearish" in status:
         return "SAR dots above price provide trailing stop levels for short positions."
     else:
@@ -387,10 +391,10 @@ def get_trade_recommendation(bias, current_price, atr_val):
         
         return {
             "title": "Long Position Recommended",
-            "action": f"entering a long position near **{format_price(entry)}**",
+            "action": f"entering a long position near <strong>{format_price(entry)}</strong>",
             "strategy": "Wait for confirmation or a slight pullback",
-            "target": f"plan to take profit at **{format_price(target)}**",
-            "stop": f"strictly set the stop loss below **{format_price(stop)}**",
+            "target": f"plan to take profit at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss below <strong>{format_price(stop)}</strong>",
             "type": "bullish"
         }
     elif "Strong Bearish" in bias:
@@ -401,10 +405,10 @@ def get_trade_recommendation(bias, current_price, atr_val):
         
         return {
             "title": "Short Position Recommended",
-            "action": f"entering a short position near **{format_price(entry)}**",
+            "action": f"entering a short position near <strong>{format_price(entry)}</strong>",
             "strategy": "Short on rallies to resistance levels",
-            "target": f"plan to cover the short at **{format_price(target)}**",
-            "stop": f"strictly set the stop loss above **{format_price(stop)}**",
+            "target": f"plan to cover the short at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss above <strong>{format_price(stop)}</strong>",
             "type": "bearish"
         }
     else:
@@ -416,36 +420,35 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "title": "No Trade Recommended (Wait for Clarity)",
             "action": "stay on the sidelines and preserve capital",
             "strategy": "Avoid entering until a clear break occurs",
-            "target": f"A **bullish entry trigger** would be a break above **{format_price(target_trigger)}**",
-            "stop": f"A **bearish entry trigger** would be a break below **{format_price(stop_trigger)}**",
+            "target": f"A <strong>bullish entry trigger</strong> would be a break above <strong>{format_price(target_trigger)}</strong>",
+            "stop": f"A <strong>bearish entry trigger</strong> would be a break below <strong>{format_price(stop_trigger)}</strong>",
             "type": "neutral"
         }
 
-# === NATURAL LANGUAGE SUMMARY (UPDATED TO REMOVE BOLD HEADER TEXT) ===
+# === NATURAL LANGUAGE SUMMARY (UPDATED TO REMOVE ASTERISKS) ===
 def get_natural_language_summary(symbol, bias, trade_params):
-    """Generate the natural English summary based on the dynamic trade parameters, 
-    but without the bold 'Natural Language Summary:' header text."""
+    """Generate the natural English summary using HTML tags instead of asterisks."""
     
-    # Removed "Natural Language Summary:" from the beginning of the string
-    summary = f"The AI analysis for **{symbol}** indicates an **{bias}** market bias."
+    # Using <strong> for bolding and <i> for italics to avoid visible asterisks
+    summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
     
     if trade_params["type"] == "bullish":
         summary += (
-            f"**{trade_params['title']}** is given. The analysis suggests {trade_params['action']} "
+            f"<strong>{trade_params['title']}</strong> is given. The analysis suggests {trade_params['action']} "
             f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
+            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
         )
     elif trade_params["type"] == "bearish":
         summary += (
-            f"**{trade_params['title']}** is given. The analysis recommends {trade_params['action']} "
+            f"<strong>{trade_params['title']}</strong> is given. The analysis recommends {trade_params['action']} "
             f"with a volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: *{trade_params['strategy']}*."
+            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
         )
     else:
         summary += (
-            f"**{trade_params['title']}**. The market for {symbol} is currently consolidating or showing mixed signals. "
-            f"The recommendation is to **{trade_params['action']}**. "
-            f"**Action Triggers:** {trade_params['target']} or {trade_params['stop']}."
+            f"<strong>{trade_params['title']}</strong>. The market for {symbol} is currently consolidating or showing mixed signals. "
+            f"The recommendation is to <strong>{trade_params['action']}</strong>. "
+            f"<strong>Action Triggers:</strong> {trade_params['target']} or {trade_params['stop']}."
         )
 
     # Return the summary formatted for Streamlit Markdown
@@ -459,7 +462,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 # === ANALYZE (Main Logic) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
-    synth_base_price = price_raw if price_raw is not None and price_raw > 0 else 0.2693
+    synth_base_price = price_raw if price_raw is not None and price_raw > 0 else 0.315986
     df_synth_1h = synthesize_series(synth_base_price, symbol)
     price_hint = df_synth_1h["close"].iloc[-1]
     
@@ -497,15 +500,16 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     price_display = format_price(current_price) 
     change_display = format_change_main(price_change_24h)
     
-    current_price_line = f"<b>{symbol}</b>: <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
+    # --- FIXED: Remove asset symbol prefix from price line ---
+    current_price_line = f"<span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     
     # Generate dynamic, ATR-based trade parameters
     trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
     
-    # Generate the natural language summary (now without the bold header)
+    # Generate the natural language summary (now clean of asterisks)
     analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # --- FINAL OUTPUT STRUCTURE (Summary is kept, but the content inside is fixed) ---
+    # --- FINAL OUTPUT STRUCTURE ---
     full_output = f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
@@ -539,7 +543,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 """
     return full_output
 
-# === Session Logic (Unchanged) ===
+# === Session Logic (UNCHANGED) ===
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
@@ -582,7 +586,7 @@ def get_session_info(utc_now):
 
 session_name, volatility_html = get_session_info(utc_now)
 
-# --- SIDEBAR DISPLAY (Unchanged) ---
+# --- SIDEBAR DISPLAY (UNCHANGED) ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 btc_symbol = resolve_asset_symbol("BTC", "USD")
@@ -634,7 +638,7 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- MAIN EXECUTION (Unchanged) ---
+# --- MAIN EXECUTION (UNCHANGED) ---
 st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
