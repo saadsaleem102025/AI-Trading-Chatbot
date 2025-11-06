@@ -1,6 +1,7 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
+import pandas_ta as ta # <<< NEW IMPORT for ATR calculation
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -246,7 +247,7 @@ def get_coingecko_id(symbol):
         "CFX": "conflux", 
     }.get(base_symbol, None)
 
-# === UNIVERSAL PRICE FETCHER (FIXED FALLBACKS & CACHING) ===
+# === UNIVERSAL PRICE FETCHER (UNCHANGED) ===
 @st.cache_data(ttl=60)
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
@@ -274,11 +275,12 @@ def get_asset_price(symbol, vs_currency="usd"):
         
     return None, None
 
-# === HISTORICAL DATA (Placeholder - UNCHANGED) ===
+# === HISTORICAL DATA (Placeholder) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
 def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): 
+    # <<< CHANGES HERE FOR ATR COMPATIBILITY >>>
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
     
@@ -288,9 +290,10 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     
     df = pd.DataFrame({
         "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
-        "close": series, 
-        "high": series * (1.002 + np.random.uniform(0, 0.001, size=length)), 
-        "low": series * (0.998 - np.random.uniform(0, 0.001, size=length)),
+        "Close": series, # Renamed to 'Close'
+        "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), # Renamed to 'High'
+        "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), # Renamed to 'Low'
+        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)), # Added 'Open'
     })
     return df.iloc[-length:].set_index('datetime')
 
@@ -384,7 +387,7 @@ def get_trade_recommendation(bias, current_price, atr_val):
     for use in the Natural Language Summary.
     """
     
-    # Define ATR multiples for a 1:2.5 Risk-to-Reward Ratio
+    # Define ATR multiples for a 1:2.5 Risk-to-Reward Ratio (UNCHANGED)
     RISK_MULTIPLE = 1.0 
     REWARD_MULTIPLE = 2.5
     
@@ -430,7 +433,7 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "type": "neutral"
         }
 
-# === NATURAL LANGUAGE SUMMARY (Cleaned of asterisks) ===
+# === NATURAL LANGUAGE SUMMARY (UNCHANGED) ===
 def get_natural_language_summary(symbol, bias, trade_params):
     """Generate the natural English summary using HTML tags instead of asterisks."""
     
@@ -464,7 +467,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 """
 
 
-# === ANALYZE (Main Logic - FIXED FALLBACK AND PRICE LINE) ===
+# === ANALYZE (Main Logic - ATR Calculation Updated) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # Determine a sensible price for synthesis if the API failed
@@ -479,14 +482,15 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # Use synthesis only if price_raw is None or zero
     df_synth_1h = synthesize_series(synth_base_price, symbol)
-    price_hint = df_synth_1h["close"].iloc[-1]
+    price_hint = df_synth_1h["Close"].iloc[-1] # Uses 'Close'
     
+    # NOTE: df_1h, df_4h, df_15m now have 'Open', 'High', 'Low', 'Close'
     df_4h = get_historical_data(symbol, "4h") or synthesize_series(price_hint, symbol + "4H", length=48)
     df_1h = get_historical_data(symbol, "1h") or df_synth_1h 
     df_15m = get_historical_data(symbol, "15min") or synthesize_series(price_hint, symbol + "15M", length=80)
 
     # Use the real price if available, otherwise use the last synthesized price
-    current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["close"].iloc[-1] 
+    current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["Close"].iloc[-1] # Uses 'Close'
     
     kde_val = kde_rsi(df_1h, symbol) 
     st_status_4h = supertrend_status(df_4h) 
@@ -499,12 +503,20 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     kde_rsi_output = get_kde_rsi_status(kde_val)
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
-    # --- ATR CALCULATION (SIMULATED) ---
-    if current_price > 100: atr_multiplier = 0.005 
-    elif current_price > 1: atr_multiplier = 0.02 
-    else: atr_multiplier = 0.008 
+    # --- ATR CALCULATION (REALISTIC using pandas_ta) ---
+    # Calculate 14-period ATR on the 1-hour dataframe.
+    df_1h.ta.atr(append=True, length=14)
+    # The ATR value is the last (most recent) value of the ATR_14 column
+    atr_val = df_1h['ATR_14'].iloc[-1]
     
-    atr_val = current_price * atr_multiplier 
+    # Fallback to a sensible simulation if ATR calculation fails (e.g., NaN from short data)
+    if pd.isna(atr_val) or atr_val <= 0: 
+        # Calculate a simulated ATR based on price (safer than hardcoding)
+        if current_price > 100: atr_multiplier = 0.005 
+        elif current_price > 1: atr_multiplier = 0.02 
+        else: atr_multiplier = 0.008
+        atr_val = current_price * atr_multiplier 
+    # --- END ATR CALCULATION ---
     
     motivation = {
         "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan!",
@@ -525,7 +537,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     # Generate the natural language summary
     analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # --- FINAL OUTPUT STRUCTURE ---
+    # --- FINAL OUTPUT STRUCTURE (UNCHANGED) ---
     full_output = f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
