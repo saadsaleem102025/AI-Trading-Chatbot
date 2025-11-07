@@ -495,7 +495,7 @@ def generate_error_message(title, message, details=""):
 """
 
 
-# === ANALYZE (Main Logic) ===
+# === ANALYZE (Main Logic - UPDATED MOTIVATION) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
     # --- STEP 1: HANDLE API FAILURE ---
@@ -542,12 +542,12 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
         volatility_percent = atr_synth_val / synth_base
         atr_val = current_price * volatility_percent
         
-    # --- STEP 4: OUTPUT GENERATION ---
+    # --- STEP 4: OUTPUT GENERATION (MOTIVATION UPDATED) ---
     motivation = {
-        "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan!",
-        "Strong Bearish": "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance.",
-        "Neutral (Consolidation/Wait for Entry Trigger)": "MARKET RESTING: Patience now builds precision later. Preserve capital.",
-        "Neutral (Conflicting Signals/Trend Re-evaluation)": "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum.",
+        "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
+        "Strong Bearish": "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. **Keep risk management paramount.**",
+        "Neutral (Consolidation/Wait for Entry Trigger)": "MARKET RESTING: Patience now builds precision later. Preserve capital. **Successful trading is 80% waiting.**",
+        "Neutral (Conflicting Signals/Trend Re-evaluation)": "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. **Avoid emotional trading; trade only what you see.**",
     }.get(bias, "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion.")
     
     current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
