@@ -180,7 +180,7 @@ AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === ASSET MAPPING (NDX Added, ETH kept for user input flexibility) ===
+# === ASSET MAPPING ===
 ASSET_MAPPING = {
     # Crypto
     "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
@@ -249,11 +249,24 @@ def get_coingecko_id(symbol):
         "CFX": "conflux", 
     }.get(base_symbol, None)
 
-# === UNIVERSAL PRICE FETCHER (UNCHANGED) ===
+# === UNIVERSAL PRICE FETCHER (FIXED FOR STOCK/INDEX FALLBACK) ===
 @st.cache_data(ttl=60)
 def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
-    
+    base_symbol = symbol.replace("USD", "").replace("USDT", "")
+
+    # --- 1. STOCK/INDEX FALLBACK LOGIC ---
+    # This block handles real-world assets (TSLA, AAPL, NDX) that Coingecko can't handle.
+    if base_symbol in ["TSLA", "AAPL", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NDX"]:
+        # NOTE: This is a placeholder for a real stock/index API integration (e.g., AlphaVantage, Finnhub)
+        if base_symbol == "TSLA": return 250.00, -1.50  # Tesla placeholder
+        if base_symbol == "AAPL": return 185.00, 0.75   # Apple placeholder
+        if base_symbol == "MSFT": return 400.00, 1.20   # Microsoft placeholder
+        if base_symbol == "NDX": return 19800.00, 0.85 # NASDAQ 100 placeholder
+        # Default placeholder for other stocks/indices
+        return 100.00, 0.50
+            
+    # --- 2. CRYPTO PRICE FETCH (COINGECKO) ---
     cg_id = get_coingecko_id(symbol)
     if cg_id:
         try:
@@ -268,14 +281,14 @@ def get_asset_price(symbol, vs_currency="usd"):
             time.sleep(3) # Longer sleep on failure
             pass
             
-    # --- FIXED FALLBACK VALUES FOR REALISTIC SIMULATION (NDX ADDED) ---
+    # --- 3. CRYPTO FALLBACK VALUES (for crypto assets Coingecko misses) ---
     if symbol == "CFXUSD": return 0.315986, 1.15 
     if symbol == "CVXUSD": return 0.09057, 1.15 
     if symbol == "TRXUSD": return 0.290407, 3.50
     if symbol == "PIUSD": return 0.267381, 0.40 
     if symbol == "BTCUSD": return 105000.00, -5.00
-    if symbol == "NDXUSD": return 19800.00, 0.85 # NASDAQ 100 Placeholder
-        
+    
+    # Final default return if all attempts fail
     return None, None
 
 # === HISTORICAL DATA (Placeholder) ===
@@ -302,10 +315,14 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
 
 # === INDICATORS (UNCHANGED LOGIC) ===
 def kde_rsi(df_placeholder, symbol):
+    # Fixed values for specific symbols to simulate different market states
     if symbol == "CFXUSD": return 76.00 
     if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
     if symbol == "TRXUSD": return 57.00
+    # Add stock/index specific simulation values (e.g., NDX often bullish)
+    if "NDX" in symbol: return 70.00
+    if "TSLA" in symbol: return 40.00
         
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val)
@@ -325,6 +342,7 @@ def get_kde_rsi_explanation():
     return "KDE RSI uses probability density to identify overbought/oversold conditions more accurately than traditional RSI."
 
 def supertrend_status(df):
+    # Simplistic status for MVP
     return "Bullish"
 
 def get_supertrend_explanation(status):
@@ -479,22 +497,23 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     elif symbol == "TRXUSD": synth_fallback = 0.290407
     elif symbol == "PIUSD": synth_fallback = 0.267381
     elif symbol == "BTCUSD": synth_fallback = 105000.00
-    elif symbol == "NDXUSD": synth_fallback = 19800.00
-    else: synth_fallback = 1.0 # Default fallback for unrecognized assets
+    # Added stock/index fallback for synthesis base
+    elif "NDX" in symbol: synth_fallback = 19800.00
+    elif "TSLA" in symbol: synth_fallback = 250.00
+    else: synth_fallback = 1.0 
 
     synth_base_price = price_raw if price_raw is not None and price_raw > 0 else synth_fallback
     
     # Use synthesis only if price_raw is None or zero
     df_synth_1h = synthesize_series(synth_base_price, symbol)
-    price_hint = df_synth_1h["Close"].iloc[-1] # Uses 'Close'
+    price_hint = df_synth_1h["Close"].iloc[-1] 
     
-    # NOTE: df_1h, df_4h, df_15m now have 'Open', 'High', 'Low', 'Close'
     df_4h = get_historical_data(symbol, "4h") or synthesize_series(price_hint, symbol + "4H", length=48)
     df_1h = get_historical_data(symbol, "1h") or df_synth_1h 
     df_15m = get_historical_data(symbol, "15min") or synthesize_series(price_hint, symbol + "15M", length=80)
 
     # Use the real price if available, otherwise use the last synthesized price
-    current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["Close"].iloc[-1] # Uses 'Close'
+    current_price = price_raw if price_raw is not None and price_raw > 0 else df_15m["Close"].iloc[-1] 
     
     kde_val = kde_rsi(df_1h, symbol) 
     st_status_4h = supertrend_status(df_4h) 
@@ -508,21 +527,19 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
     # --- ATR CALCULATION (REALISTIC using pandas_ta, with robust fallback) ---
-    # Calculate 14-period ATR on the 1-hour dataframe.
     df_1h.ta.atr(append=True, length=14)
     
     # Check if ATR column was successfully created and has data (FIX FOR KeyError)
     if 'ATR_14' in df_1h.columns and not df_1h['ATR_14'].empty:
-        # The ATR value is the last (most recent) value of the ATR_14 column
         atr_val = df_1h['ATR_14'].iloc[-1]
     else:
-        # If ATR calculation failed, set to a default fallback value (NaN)
         atr_val = np.nan
     
     # Fallback to a sensible simulation if ATR calculation fails (e.g., NaN from short data or missing column)
     if pd.isna(atr_val) or atr_val <= 0: 
         # Calculate a simulated ATR based on price (safer than hardcoding)
-        if current_price > 100: atr_multiplier = 0.005 
+        if current_price > 1000: atr_multiplier = 0.005 # High value assets (BTC, NDX)
+        elif current_price > 100: atr_multiplier = 0.015 # Mid value assets (TSLA, AAPL)
         elif current_price > 1: atr_multiplier = 0.02 
         else: atr_multiplier = 0.008
         atr_val = current_price * atr_multiplier 
@@ -626,7 +643,7 @@ def get_session_info(utc_now):
 
 session_name, volatility_html = get_session_info(utc_now)
 
-# --- SIDEBAR DISPLAY (NDX Replaces ETH) ---
+# --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 btc_symbol = resolve_asset_symbol("BTC", "USD")
@@ -678,7 +695,7 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- MAIN EXECUTION (QUOTE CURRENCY REMOVED) ---
+# --- MAIN EXECUTION ---
 st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
