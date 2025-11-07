@@ -180,7 +180,7 @@ AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === ASSET MAPPING (UNCHANGED) ===
+# === ASSET MAPPING (NDX Added, ETH kept for user input flexibility) ===
 ASSET_MAPPING = {
     # Crypto
     "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
@@ -274,7 +274,7 @@ def get_asset_price(symbol, vs_currency="usd"):
     if symbol == "TRXUSD": return 0.290407, 3.50
     if symbol == "PIUSD": return 0.267381, 0.40 
     if symbol == "BTCUSD": return 105000.00, -5.00
-    if symbol == "NDXUSD": return 19800.00, 0.85 # NEW: NASDAQ 100 Placeholder
+    if symbol == "NDXUSD": return 19800.00, 0.85 # NASDAQ 100 Placeholder
         
     return None, None
 
@@ -283,7 +283,7 @@ def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
 def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008): 
-    # <<< CHANGES HERE FOR ATR COMPATIBILITY >>>
+    # This length is sufficient for ATR (14 periods)
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
     
@@ -293,10 +293,10 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
     
     df = pd.DataFrame({
         "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
-        "Close": series, # Renamed to 'Close'
-        "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), # Renamed to 'High'
-        "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), # Renamed to 'Low'
-        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)), # Added 'Open'
+        "Close": series, 
+        "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), 
+        "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), 
+        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)), 
     })
     return df.iloc[-length:].set_index('datetime')
 
@@ -470,7 +470,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 """
 
 
-# === ANALYZE (Main Logic - ATR Calculation Updated) ===
+# === ANALYZE (Main Logic - ATR Calculation FIXED) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # Determine a sensible price for synthesis if the API failed
@@ -507,13 +507,19 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     kde_rsi_output = get_kde_rsi_status(kde_val)
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
-    # --- ATR CALCULATION (REALISTIC using pandas_ta) ---
+    # --- ATR CALCULATION (REALISTIC using pandas_ta, with robust fallback) ---
     # Calculate 14-period ATR on the 1-hour dataframe.
     df_1h.ta.atr(append=True, length=14)
-    # The ATR value is the last (most recent) value of the ATR_14 column
-    atr_val = df_1h['ATR_14'].iloc[-1]
     
-    # Fallback to a sensible simulation if ATR calculation fails (e.g., NaN from short data)
+    # Check if ATR column was successfully created and has data (FIX FOR KeyError)
+    if 'ATR_14' in df_1h.columns and not df_1h['ATR_14'].empty:
+        # The ATR value is the last (most recent) value of the ATR_14 column
+        atr_val = df_1h['ATR_14'].iloc[-1]
+    else:
+        # If ATR calculation failed, set to a default fallback value (NaN)
+        atr_val = np.nan
+    
+    # Fallback to a sensible simulation if ATR calculation fails (e.g., NaN from short data or missing column)
     if pd.isna(atr_val) or atr_val <= 0: 
         # Calculate a simulated ATR based on price (safer than hardcoding)
         if current_price > 100: atr_multiplier = 0.005 
@@ -677,7 +683,7 @@ st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
-    user_input = st.text_input("Enter Asset Symbol or Name (e.g., BTC, Bitcoin, AAPL, Tesla)")
+    user_input = st.text_input("Enter Asset Symbol or Name (e.g., BTC, Bitcoin, AAPL, Tesla, NDX)")
 # vs_currency is hardcoded to "usd" for MVP
 vs_currency = "usd" 
 
