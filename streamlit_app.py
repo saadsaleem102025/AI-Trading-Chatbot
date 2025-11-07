@@ -567,7 +567,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 <div class='analysis-motto-prominent'>{motivation}</div>
 
 <div class='risk-warning'>
-⚠️ <b>Risk Disclaimer:</b> This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses and never risk more than 1-2% of your capital per trade.
+⚠️ <b>Risk Disclaimer:</b> This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
 </div>
 </div>
 """
