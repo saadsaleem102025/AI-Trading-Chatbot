@@ -175,12 +175,12 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 </style>
 """, unsafe_allow_html=True)
 
-# --- API KEYS from Streamlit secrets (UNCHANGED) ---
+# --- API KEYS from Streamlit secrets ---
 AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 
-# === ASSET MAPPING ===
+# === ASSET MAPPING (Name-to-Symbol Resolution) ===
 ASSET_MAPPING = {
     # Crypto
     "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
@@ -190,7 +190,7 @@ ASSET_MAPPING = {
     # Stocks
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
-    "MICROSTRATEGY": "MSTR", "MSTR": "MSTR",
+    "MICROSTRATEGY": "MSTR", "MSTR": "MSTR", "WALMART": "WMT", 
     # Index
     "NASDAQ": "NDX", "NDX": "NDX" 
 }
@@ -201,16 +201,18 @@ def resolve_asset_symbol(input_text, quote_currency="USD"):
     
     resolved_base = ASSET_MAPPING.get(input_upper)
     if resolved_base:
-        # Only append quote currency for crypto (USD is default for stocks, no append needed)
+        # If it's a known crypto base symbol, append the quote currency
         if resolved_base in ["BTC", "ETH", "ADA", "XRP", "XLM", "DOGE", "SOL", "PI", "CVX", "TRX", "CFX"]:
             return resolved_base + quote_currency_upper
+        # Otherwise, return the stock/index ticker directly
         return resolved_base
     
     # If the user enters a raw ticker (e.g., AAPL)
     if len(input_upper) <= 5 and not any(c in input_upper for c in ['/', ':']):
-        # Assume crypto if it looks like one, otherwise treat as stock ticker
+        # If it looks like a known crypto ticker, append the quote currency
         if input_upper in ["BTC", "ETH", "ADA", "XRP", "XLM", "DOGE", "SOL", "PI", "CVX", "TRX", "CFX"]:
             return input_upper + quote_currency_upper
+        # Otherwise, treat the short string as a stock/index ticker
         return input_upper 
     
     return input_upper
@@ -248,62 +250,88 @@ def format_change_main(ch):
     
     return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
 
-def get_coingecko_id(symbol):
-    base_symbol = symbol.replace("USD", "").replace("USDT", "")
-    return {
-        "BTC": "bitcoin", "ETH": "ethereum", "XLM": "stellar", 
-        "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin", "SOL": "solana",
-        "PI": "pi-network", "CVX": "convex-finance", "TRX": "tron",
-        "CFX": "conflux", 
-    }.get(base_symbol, None)
+# --- NEW API HELPERS ---
+def fetch_stock_price_alphavantage(ticker):
+    """Fetches real-time price and change from AlphaVantage."""
+    # NOTE: If AV_API_KEY is not set in secrets, this will fail and fall back to placeholders
+    if not AV_API_KEY:
+        # print("AlphaVantage API Key missing.")
+        return None, None
+        
+    url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={AV_API_KEY}"
+    try:
+        r = requests.get(url, timeout=5).json()
+        quote = r.get("Global Quote", {})
+        
+        if quote and quote.get("05. price") and quote.get("10. change percent"):
+            price = float(quote["05. price"])
+            # AlphaVantage change is "X.XX%"
+            change_percent = float(quote["10. change percent"].replace('%', ''))
+            
+            if price > 0:
+                time.sleep(1) # Be mindful of API rate limits
+                return price, change_percent
+    except Exception:
+        pass
+    return None, None
 
-# === UNIVERSAL PRICE FETCHER (MODIFIED TO USE ASSET_TYPE) ===
+def fetch_crypto_price_binance(symbol):
+    """Fetches real-time price from Binance Public API."""
+    # Binance uses USDT pairs (e.g., BTCUSDT)
+    binance_symbol = symbol.replace("USD", "USDT")
+    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
+    
+    try:
+        r = requests.get(url, timeout=5).json()
+        
+        # Check if the response contains price data (i.e., not an error message like {'code': -1121})
+        if 'lastPrice' in r and 'priceChangePercent' in r:
+            price = float(r['lastPrice'])
+            change_percent = float(r['priceChangePercent'])
+            
+            if price > 0:
+                time.sleep(1) # Be mindful of API rate limits
+                return price, change_percent
+    except Exception:
+        pass
+    return None, None
+
+# === UNIVERSAL PRICE FETCHER (NOW PRIORITIZING APIs) ===
 @st.cache_data(ttl=60)
 def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
 
-    # --- 1. STOCK/INDEX LOGIC (Fallback Placeholder for MVP) ---
+    # --- 1. STOCK/INDEX LOGIC ---
     if asset_type == "Stock/Index":
-        # This list defines which stocks/indices have specific placeholders
-        stock_symbols = ["TSLA", "AAPL", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NDX", "MSTR"]
+        # 🟢 1a. Attempt to fetch price via AlphaVantage API for ANY stock
+        price, change = fetch_stock_price_alphavantage(base_symbol)
+        if price is not None:
+            return price, change
         
-        if base_symbol in stock_symbols:
-            if base_symbol == "TSLA": return 250.00, -1.50   # Tesla
-            if base_symbol == "AAPL": return 185.00, 0.75    # Apple
-            if base_symbol == "MSFT": return 400.00, 1.20    # Microsoft
-            if base_symbol == "MSTR": return 240.00, 3.50    # MicroStrategy
-            if base_symbol == "NDX": return 19800.00, 0.85  # NASDAQ 100
-            
-            # Default placeholder for other stocks/indices (AMZN, GOOGL, NVDA, META)
-            time.sleep(1)
-            return 100.00, 0.50
+        # 🟡 1b. Fallback to hardcoded placeholders if API fails (Keep the list small for known assets)
+        if base_symbol == "TSLA": return 250.00, -1.50   # Tesla
+        if base_symbol == "MSTR": return 240.00, 3.50    # MicroStrategy
+        if base_symbol == "WMT": return 101.70, 0.23     # Walmart
+        if base_symbol == "NDX": return 19800.00, 0.85  # NASDAQ 100
         
-        # If an unrecognized stock/index is entered, return None (will trigger synthesis fallback)
-        return None, None
+        # 🔴 1c. Final generic fallback for any unrecognized stock/index
+        return 50.00, -0.35 
             
-    # --- 2. CRYPTO LOGIC (Coingecko API Attempt) ---
+    # --- 2. CRYPTO LOGIC ---
     if asset_type == "Crypto":
-        cg_id = get_coingecko_id(symbol)
-        if cg_id:
-            try:
-                r = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies={vs_currency}&include_24hr_change=true", timeout=6).json()
-                if cg_id in r and vs_currency in r[cg_id]:
-                    price = r[cg_id].get(vs_currency)
-                    change = r[cg_id].get(f"{vs_currency}_24h_change")
-                    if price is not None and price > 0:
-                        time.sleep(1) 
-                        return float(price), round(float(change), 2) if change is not None else None
-            except Exception:
-                time.sleep(3) 
-                pass
+        # 🟢 2a. Attempt to fetch price via Binance Public API for ANY crypto
+        price, change = fetch_crypto_price_binance(symbol)
+        if price is not None:
+            return price, change
                 
-        # --- CRYPTO FALLBACK VALUES (for crypto assets Coingecko misses) ---
+        # 🟡 2b. Fallback to hardcoded placeholders if API fails (for niche/unlisted coins)
+        if symbol == "BTCUSD": return 105000.00, -5.00 # Backup BTC price
         if symbol == "CFXUSD": return 0.315986, 1.15 
-        if symbol == "CVXUSD": return 0.09057, 1.15 
-        if symbol == "TRXUSD": return 0.290407, 3.50
         if symbol == "PIUSD": return 0.267381, 0.40 
-        if symbol == "BTCUSD": return 105000.00, -5.00
+        
+        # 🔴 2c. Final generic fallback for any unrecognized crypto
+        return 0.99, -2.50
     
     # Final default return if all attempts fail
     return None, None
@@ -334,9 +362,7 @@ def synthesize_series(price_hint, symbol, length=200, volatility_pct=0.008):
 def kde_rsi(df_placeholder, symbol):
     # Fixed values for specific symbols to simulate different market states
     if symbol == "CFXUSD": return 76.00 
-    if symbol == "CVXUSD": return 76.00
     if symbol == "PIUSD": return 50.00
-    if symbol == "TRXUSD": return 57.00
     if "NDX" in symbol: return 70.00
     if "TSLA" in symbol: return 40.00
         
@@ -509,17 +535,19 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     
     # Determine a sensible price for synthesis if the API failed
     # Fallback logic needs to handle both crypto (low price) and stock (high price) fallbacks
-    base_symbol = symbol.replace("USD", "")
+    base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
-    if base_symbol in ["CFX", "CVX", "TRX", "PI"]: synth_fallback = 0.3 # Low-priced crypto
+    # Simple logic to determine a fallback base price
+    if base_symbol in ["CFX", "PI"]: synth_fallback = 0.3 # Low-priced crypto
     elif base_symbol == "BTC": synth_fallback = 105000.00 # High-priced crypto
     elif base_symbol in ["NDX"]: synth_fallback = 19800.00 # Index
-    elif base_symbol in ["TSLA", "MSTR"]: synth_fallback = 240.00 # Stock
-    else: synth_fallback = 1.0 # Default fallback for unrecognized asset
-
+    elif base_symbol in ["TSLA", "MSTR", "AAPL", "MSFT"]: synth_fallback = 240.00 # Stock
+    else: synth_fallback = 50.00 # Default fallback for unrecognized asset
+    
+    # Use the fetched price or the sensible fallback for synthesis base
     synth_base_price = price_raw if price_raw is not None and price_raw > 0 else synth_fallback
     
-    # Use synthesis only if price_raw is None or zero
+    # Use synthesis to generate OHLCV data for indicator calculation
     df_synth_1h = synthesize_series(synth_base_price, symbol)
     price_hint = df_synth_1h["Close"].iloc[-1] 
     
@@ -542,11 +570,10 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     bias = combined_bias(kde_val, supertrend_output, ema_status)
     
     # --- ATR CALCULATION (REALISTIC using pandas_ta, with robust fallback) ---
-    df_1h.ta.atr(append=True, length=14)
-    
-    # Check if ATR column was successfully created and has data (FIX FOR KeyError)
-    if 'ATR_14' in df_1h.columns and not df_1h['ATR_14'].empty:
-        atr_val = df_1h['ATR_14'].iloc[-1]
+    # Ensure the dataframe has 'High', 'Low', 'Close' for ATR calculation
+    if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
+        df_1h.ta.atr(append=True, length=14)
+        atr_val = df_1h.get('ATR_14', pd.Series()).iloc[-1] if 'ATR_14' in df_1h.columns else np.nan
     else:
         atr_val = np.nan
     
@@ -615,15 +642,15 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 """
     return full_output
 
-# === Session Logic (UNCHANGED) ---
+# === Session Logic (CLEANED) ---
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
-SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    
-SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0))  
-SESSION_NY = (dt_time(13, 0), dt_time(22, 0))    
+SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))
+SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0))
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0)) 
 OVERLAP_START_UTC = dt_time(13, 0)
-OVERLAP_END_UTC = dt_time(17, 0)      
+OVERLAP_END_UTC = dt_time(17, 0) 
 
 def get_session_info(utc_now):
     current_time_utc = utc_now.time()
