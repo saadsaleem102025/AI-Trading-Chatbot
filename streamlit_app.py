@@ -1,7 +1,7 @@
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
-import pandas_ta as ta # <<< NEW IMPORT for ATR calculation
+import pandas_ta as ta
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -190,6 +190,8 @@ ASSET_MAPPING = {
     # Stocks
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
+    # Index
+    "NASDAQ": "NDX", "NDX": "NDX" 
 }
 
 def resolve_asset_symbol(input_text, quote_currency="USD"):
@@ -266,12 +268,13 @@ def get_asset_price(symbol, vs_currency="usd"):
             time.sleep(3) # Longer sleep on failure
             pass
             
-    # --- FIXED FALLBACK VALUES FOR REALISTIC SIMULATION ---
+    # --- FIXED FALLBACK VALUES FOR REALISTIC SIMULATION (NDX ADDED) ---
     if symbol == "CFXUSD": return 0.315986, 1.15 
     if symbol == "CVXUSD": return 0.09057, 1.15 
     if symbol == "TRXUSD": return 0.290407, 3.50
     if symbol == "PIUSD": return 0.267381, 0.40 
     if symbol == "BTCUSD": return 105000.00, -5.00
+    if symbol == "NDXUSD": return 19800.00, 0.85 # NEW: NASDAQ 100 Placeholder
         
     return None, None
 
@@ -476,6 +479,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
     elif symbol == "TRXUSD": synth_fallback = 0.290407
     elif symbol == "PIUSD": synth_fallback = 0.267381
     elif symbol == "BTCUSD": synth_fallback = 105000.00
+    elif symbol == "NDXUSD": synth_fallback = 19800.00
     else: synth_fallback = 1.0 # Default fallback for unrecognized assets
 
     synth_base_price = price_raw if price_raw is not None and price_raw > 0 else synth_fallback
@@ -577,11 +581,11 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency):
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
-SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))     
+SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))    
 SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0))  
-SESSION_NY = (dt_time(13, 0), dt_time(22, 0))     
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0))    
 OVERLAP_START_UTC = dt_time(13, 0)
-OVERLAP_END_UTC = dt_time(17, 0)     
+OVERLAP_END_UTC = dt_time(17, 0)      
 
 def get_session_info(utc_now):
     current_time_utc = utc_now.time()
@@ -616,13 +620,13 @@ def get_session_info(utc_now):
 
 session_name, volatility_html = get_session_info(utc_now)
 
-# --- SIDEBAR DISPLAY (UNCHANGED) ---
+# --- SIDEBAR DISPLAY (NDX Replaces ETH) ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 btc_symbol = resolve_asset_symbol("BTC", "USD")
-eth_symbol = resolve_asset_symbol("ETH", "USD")
+ndx_symbol = resolve_asset_symbol("NDX", "USD")
 btc, btc_ch = get_asset_price(btc_symbol)
-eth, eth_ch = get_asset_price(eth_symbol)
+ndx, ndx_ch = get_asset_price(ndx_symbol)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-asset-price-item'>
@@ -630,8 +634,8 @@ st.sidebar.markdown(f"""
     {format_change_sidebar(btc_ch)}
 </div>
 <div class='sidebar-asset-price-item'>
-    <b>ETH:</b> <span class='asset-price-value'>${format_price(eth)} USD</span>
-    {format_change_sidebar(eth_ch)}
+    <b>NDX:</b> <span class='asset-price-value'>${format_price(ndx)} USD</span> 
+    {format_change_sidebar(ndx_ch)}
 </div>
 """, unsafe_allow_html=True)
 
@@ -668,14 +672,14 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- MAIN EXECUTION (UNCHANGED) ---
+# --- MAIN EXECUTION (QUOTE CURRENCY REMOVED) ---
 st.title("AI Trading Chatbot")
 
 col1, col2 = st.columns([2, 1])
 with col1:
     user_input = st.text_input("Enter Asset Symbol or Name (e.g., BTC, Bitcoin, AAPL, Tesla)")
-with col2:
-    vs_currency = st.text_input("Quote Currency", "usd").lower() or "usd"
+# vs_currency is hardcoded to "usd" for MVP
+vs_currency = "usd" 
 
 if user_input:
     resolved_symbol = resolve_asset_symbol(user_input, vs_currency)
