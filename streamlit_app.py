@@ -86,19 +86,21 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px;
     padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
+/* 💡 CHANGE 1: Increased font size and padding for sidebar items */
 .sidebar-item {
-    background: #1F2937; border-radius: 8px; /* Adjusted padding and margin */
-    padding: 6px 10px; margin: 2px 0; 
-    font-size: 16px; color: #9CA3AF; border: 1px solid #374151;
+    background: #1F2937; border-radius: 8px;
+    padding: 8px 12px; margin: 4px 0; 
+    font-size: 17px; /* Increased from 16px */
+    color: #9CA3AF; border: 1px solid #374151;
 }
-.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; }
-.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; }
-.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
+.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 17px !important; }
+.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 17px !important; }
+.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 17px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 
 /* Sidebar Asset Price block (No longer used, but kept for future) */
 .sidebar-asset-price-item {
-    background: #1F2937; border-radius: 8px; /* Adjusted padding and margin */
+    background: #1F2937; border-radius: 8px;
     padding: 6px 10px; margin: 8px 0;
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
@@ -107,13 +109,13 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .asset-price-value-sidebar {
     color: #F59E0B;
     font-weight: 800;
-    font-size: 22px; /* Slightly smaller for compactness */
+    font-size: 22px; 
     display: inline-block;
     margin-right: 5px;
 }
 .change-percent-sidebar {
     font-weight: 700;
-    font-size: 16px; /* Smaller and colored */
+    font-size: 16px;
 }
 
 /* Analysis items with descriptions */
@@ -481,7 +483,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
         summary += (
             f"<strong>{trade_params['title']}</strong> is given. The analysis suggests {trade_params['action']} "
             f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: i>{trade_params['strategy']}</i>."
+            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
         )
     elif trade_params["type"] == "bearish":
         summary += (
@@ -681,20 +683,10 @@ def get_session_info(utc_now):
 session_name, volatility_html = get_session_info(utc_now)
 
 # --- SIDEBAR DISPLAY ---
-st.sidebar.markdown("<p class'sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# 💡 MVP FIX 1: Removed the BTC and SPY price fetching and display block.
-# The sidebar will now load instantly.
-
-# This block has been removed:
-# btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
-# btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
-# spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
-# spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
-# st.sidebar.markdown(f"""
-# <div class='sidebar-asset-price-item'> ... </div>
-# <div class='sidebar-asset-price-item'> ... </div>
-# """, unsafe_allow_html=True)
+# 💡 CHANGE: Removed the BTC and SPY price fetching and display block
+# This makes the app load instantly.
 
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
@@ -711,7 +703,9 @@ user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class'sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+
+# 💡 CHANGE 2: Fixed the typo (class='sidebar-item') to correctly wrap the Session Info in a box
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
 today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
@@ -773,7 +767,7 @@ if user_input:
             details=validation_error
         ), unsafe_allow_html=True)
     else:
-        # 💡 MVP FIX 2: Use a custom spinner to provide feedback during network latency
+        # 💡 CHANGE 2: Use a custom spinner to provide feedback during network latency
         with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}...") :
             price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
             st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
