@@ -207,6 +207,9 @@ ASSET_MAPPING = {
     # Stocks/Indices
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
+    # 💡 FIX: ADDED ROBINHOOD MAPPING 💡
+    "ROBINHOOD": "HOOD", 
+    "HOOD": "HOOD",
     "MICROSTRATEGY": "MSTR", "MSTR": "MSTR", "WALMART": "WMT", 
     "NASDAQ": "^IXIC", "NDX": "^IXIC", 
     "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY" 
@@ -214,7 +217,7 @@ ASSET_MAPPING = {
 
 # Define sets of known symbols for validation
 KNOWN_CRYPTO_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["BITCOIN", "ETH", "ETHEREUM", "CARDANO", "RIPPLE", "STELLAR", "DOGECOIN", "SOLANA", "PI", "CVX", "TRON", "TRX", "CFX"])
-KNOWN_STOCK_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["APPLE", "TESLA", "MICROSOFT", "AMAZON", "GOOGLE", "NVIDIA", "FACEBOOK", "MICROSTRATEGY", "MSTR", "WALMART", "NASDAQ", "NDX", "SPY", "S&P 500", "MARKET"])
+KNOWN_STOCK_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["APPLE", "TESLA", "MICROSOFT", "AMAZON", "GOOGLE", "NVIDIA", "FACEBOOK", "MICROSTRATEGY", "MSTR", "WALMART", "NASDAQ", "NDX", "SPY", "S&P 500", "MARKET", "ROBINHOOD", "HOOD"])
 
 def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
     """
@@ -541,7 +544,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 </div>
 """
 
-# === UNIVERSAL ERROR MESSAGE GENERATOR (UNCHANGED) ===
+# === UNIVERSAL ERROR MESSAGE GENERATOR (FIXED) ===
 def generate_error_message(title, message, details=""):
     return f"""
 <div class='big-text'>
@@ -550,6 +553,9 @@ def generate_error_message(title, message, details=""):
 {message}
 </p>
 {f"<p>{details}</p>" if details else ""}
+<p style='color: #FCA5A5;'>
+The primary and all backup data sources for this asset are currently unavailable. Please ensure the ticker symbol is correct and try again later.
+</p>
 <div class='analysis-motto-prominent' style='border-color: #DC2626; color: #DC2626;'>
 ⚠️ ACTION REQUIRED: PLEASE TRY AGAIN WITH CORRECT INPUTS ⚠️
 </div>
@@ -564,8 +570,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     if price_raw is None:
         return generate_error_message(
             title="❌ Data Retrieval Failed ❌",
-            message=f"Unable to fetch live price data for <strong>{symbol}</strong> as a <strong>{asset_type}</strong>.",
-            details="The primary and all backup data sources for this asset are currently unavailable. Please ensure the ticker symbol is correct and try again in a few minutes."
+            message=f"Unable to fetch live price data for <strong>{symbol}</strong> as a <strong>{asset_type}</strong>."
         )
     
     current_price = price_raw 
