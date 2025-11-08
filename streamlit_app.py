@@ -12,7 +12,7 @@ REWARD_MULTIPLE = 2.0
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. STYLE (Unchanged) ===
+# === 1. STYLE (Altered for Sidebar Scrolling) ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
@@ -39,7 +39,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827;
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.2rem 0.1rem 1.2rem;
+    /* Adjusted padding to reduce overall height and prevent scrolling */
+    padding: 0.1rem 1.0rem 0.1rem 1.0rem; 
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
@@ -86,7 +87,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 .sidebar-item {
-    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0;
+    background: #1F2937; border-radius: 8px; /* Adjusted padding and margin */
+    padding: 6px 10px; margin: 2px 0; 
     font-size: 16px; color: #9CA3AF; border: 1px solid #374151;
 }
 .local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; }
@@ -96,7 +98,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 
 /* Sidebar Asset Price block */
 .sidebar-asset-price-item {
-    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 10px 0;
+    background: #1F2937; border-radius: 8px; /* Adjusted padding and margin */
+    padding: 6px 10px; margin: 8px 0;
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
@@ -192,9 +195,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 # --- API KEYS from Streamlit secrets ---
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
-
-# === ASSET MAPPING (Removed to enforce Ticker Input) ===
-# This dictionary and associated name resolution logic is now removed.
 
 # Define simplified sets for basic type validation (not comprehensive)
 KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE"}
@@ -317,8 +317,8 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
         pass
     return None, None
 
-# === UNIVERSAL PRICE FETCHER (Handles Fallback - Unchanged) ===
-@st.cache_data(ttl=60)
+# === UNIVERSAL PRICE FETCHER (Loading Spinner Suppressed) ===
+@st.cache_data(ttl=60, show_spinner=False) # 💡 CHANGE 2: show_spinner=False hides the "Loading..." message
 def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
@@ -502,7 +502,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 </div>
 """
 
-# === UNIVERSAL ERROR MESSAGE GENERATOR (Fixed Text) ===
+# === UNIVERSAL ERROR MESSAGE GENERATOR (Unchanged) ===
 def generate_error_message(title, message, details=""):
     return f"""
 <div class='big-text'>
@@ -683,11 +683,12 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# Note: Sidebars must now use direct tickers
 btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
+# No spinner will be shown here
 btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
 
 spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
+# No spinner will be shown here
 spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
 
@@ -766,7 +767,6 @@ if user_input:
     # 2. PERFORM SIMPLIFIED ASSET TYPE VALIDATION
     validation_error = None
     
-    # Simple check for common mistakes (e.g. BTC entered as a Stock)
     is_common_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
     is_common_stock = base_symbol in KNOWN_STOCK_SYMBOLS
 
@@ -784,5 +784,6 @@ if user_input:
         ), unsafe_allow_html=True)
     else:
         # Proceed only if validation passes
+        # No spinner will be shown due to show_spinner=False in the decorator
         price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
         st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
