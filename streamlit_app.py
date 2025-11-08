@@ -6,14 +6,13 @@ import json
 import random 
 
 # --- CONFIGURATION & CONSTANTS ---
-# 1. CHANGE: Risk-to-Reward Ratio is now 1:2 (2.0)
 RISK_MULTIPLE = 1.0 
-REWARD_MULTIPLE = 2.0 # Updated from 2.5 to 2.0 (1:2 R:R)
+REWARD_MULTIPLE = 2.0 
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. STYLE (Restored Custom HTML/CSS) ===
+# === 1. STYLE (Unchanged) ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
@@ -191,46 +190,25 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 """, unsafe_allow_html=True)
 
 # --- API KEYS from Streamlit secrets ---
-# Fetching from st.secrets is safer and prevents key exposure
-# AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
-# TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# === ASSET MAPPING (Name-to-Symbol Resolution) ===
-ASSET_MAPPING = {
-    # Crypto
-    "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
-    "RIPPLE": "XRP", "STELLAR": "XLM", "DOGECOIN": "DOGE", "SOLANA": "SOL",
-    "PI": "PI", "CVX": "CVX", "TRON": "TRX", "TRX": "TRX",
-    "CFX": "CFX", 
-    # Stocks/Indices
-    "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
-    "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
-    # 💡 FIX: ADDED ROBINHOOD MAPPING 💡
-    "ROBINHOOD": "HOOD", 
-    "HOOD": "HOOD",
-    "MICROSTRATEGY": "MSTR", "MSTR": "MSTR", "WALMART": "WMT", 
-    "NASDAQ": "^IXIC", "NDX": "^IXIC", 
-    "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY" 
-}
+# === ASSET MAPPING (Removed to enforce Ticker Input) ===
+# This dictionary and associated name resolution logic is now removed.
 
-# Define sets of known symbols for validation
-KNOWN_CRYPTO_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["BITCOIN", "ETH", "ETHEREUM", "CARDANO", "RIPPLE", "STELLAR", "DOGECOIN", "SOLANA", "PI", "CVX", "TRON", "TRX", "CFX"])
-KNOWN_STOCK_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["APPLE", "TESLA", "MICROSOFT", "AMAZON", "GOOGLE", "NVIDIA", "FACEBOOK", "MICROSTRATEGY", "MSTR", "WALMART", "NASDAQ", "NDX", "SPY", "S&P 500", "MARKET", "ROBINHOOD", "HOOD"])
+# Define simplified sets for basic type validation (not comprehensive)
+KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE"}
+KNOWN_STOCK_SYMBOLS = {"AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "HOOD", "MSTR", "WMT", "^IXIC", "SPY"}
 
 def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
     """
-    Resolves the asset symbol based on the user's input and selected asset type.
+    Resolves the asset symbol based ONLY on the input ticker, 
+    and appends USD for Crypto type.
     Returns: (base_symbol, final_symbol)
     """
-    input_upper = input_text.strip().upper()
+    base_symbol = input_text.strip().upper()
     quote_currency_upper = quote_currency.upper()
     
-    # 1. Resolve to the base symbol (e.g., "BITCOIN" -> "BTC", or "TSLA" -> "TSLA")
-    base_symbol = ASSET_MAPPING.get(input_upper, input_upper) 
-
-    # 2. Determine final symbol based on the selected asset_type
     if asset_type == "Crypto":
         # Crypto symbols are always pairs (e.g., BTCUSD)
         final_symbol = base_symbol + quote_currency_upper
@@ -240,7 +218,7 @@ def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
         
     return base_symbol, final_symbol
 
-# === HELPERS FOR FORMATTING ===
+# === HELPERS FOR FORMATTING (Unchanged) ===
 def format_price(p):
     if p is None: return "N/A" 
     try: p = float(p)
@@ -273,7 +251,7 @@ def format_change_main(ch):
     
     return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
 
-# --- API HELPERS (Robust Fallback Logic) ---
+# --- API HELPERS (Unchanged) ---
 def fetch_stock_price_finnhub(ticker, api_key):
     if not api_key: return None, None
     url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={api_key}"
@@ -306,6 +284,7 @@ def fetch_stock_price_yahoo(ticker):
     return None, None
 
 def fetch_crypto_price_binance(symbol):
+    # This uses the full symbol, e.g., BTCUSD
     binance_symbol = symbol.replace("USD", "USDT")
     url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
     try:
@@ -320,6 +299,7 @@ def fetch_crypto_price_binance(symbol):
     return None, None
 
 def fetch_crypto_price_coingecko(symbol, api_key=""):
+    # This needs the base symbol (e.g., BTC, not BTCUSD)
     base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {'vs_currencies': 'usd', 'include_24hr_change': 'true', 'symbols': base_symbol}
@@ -337,7 +317,7 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
         pass
     return None, None
 
-# === UNIVERSAL PRICE FETCHER (Handles Fallback) ===
+# === UNIVERSAL PRICE FETCHER (Handles Fallback - Unchanged) ===
 @st.cache_data(ttl=60)
 def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
@@ -345,45 +325,38 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     
     # --- 1. STOCK/INDEX LOGIC (Finnhub -> Yahoo) ---
     if asset_type == "Stock/Index":
-        # Primary API: Finnhub
         price, change = fetch_stock_price_finnhub(base_symbol, FH_API_KEY)
         if price is not None:
             return price, change
         
-        # Secondary API: Yahoo Finance
         price, change = fetch_stock_price_yahoo(base_symbol)
         if price is not None:
             return price, change
         
-        # If both fail, proceed to end
         return None, None
             
     # --- 2. CRYPTO LOGIC (Binance -> CoinGecko) ---
     if asset_type == "Crypto":
-        # Primary API: Binance
         price, change = fetch_crypto_price_binance(symbol)
         if price is not None:
             return price, change
         
-        # Secondary API: CoinGecko
         price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
         if price is not None:
             return price, change
         
-        # If both fail, proceed to end
         return None, None
     
-    # Final failure if asset type is unrecognized or all attempts failed.
     return None, None
 
-# === HISTORICAL DATA & INDICATOR LOGIC (SIMULATED) ===
+# === INDICATOR LOGIC (Unchanged) ===
 def get_historical_data(symbol, interval="1h", outputsize=200):
     return None
 
 def synthesize_series(symbol, length=200, volatility_pct=0.008): 
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
-    base = 10.0 # Fixed low base price
+    base = 10.0 
     returns = np.random.normal(0, volatility_pct, size=length)
     series = base * np.exp(np.cumsum(returns))
     
@@ -397,36 +370,27 @@ def synthesize_series(symbol, length=200, volatility_pct=0.008):
     return df.iloc[-length:].set_index('datetime')
 
 def kde_rsi(df_placeholder, symbol):
-    """
-    Simulated KDE RSI: Generates a consistent, high-fidelity random value 
-    based on the asset symbol hash for predictable testing of user rules (15.00 to 85.00).
-    """
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val)
-    # Generate a value that is consistently derived but plausible for RSI (15 to 85)
     kde_val = np.random.randint(1500, 8500) / 100.0
     return float(kde_val)
 
 def supertrend_status(df, kde_val):
-    """SuperTrend Status: Follows KDE RSI trend for realistic confirmation."""
     if kde_val > 65: return "Bullish - Trend Confirmed"
     if kde_val < 35: return "Bearish - Trend Confirmed"
     return "Consolidation - Range Bound"
 
 def bollinger_status(df, kde_val):
-    """Bollinger Bands Status: Based on extreme KDE RSI readings."""
     if kde_val < 20: return "Outside Lower Band - Extreme Oversold"
     if kde_val > 80: return "Outside Upper Band - Extreme Overbought"
     return "Within Bands - Normal Volatility"
 
 def ema_crossover_status(kde_val): 
-    """EMA Crossover (5/20): Confirms short-term momentum."""
     if kde_val > 70: return "Bullish Cross (5>20) - Strong Momentum"
     if kde_val < 30: return "Bearish Cross (5<20) - Strong Momentum"
     return "Indecisive/Flat EMAs"
 
 def parabolic_sar_status(kde_val):
-    """Parabolic SAR: Provides dynamic stop/reversal signal."""
     if kde_val > 60: return "Bullish (Dots Below Price) - Uptrend Confirmed"
     if kde_val < 40: return "Bearish (Dots Above Price) - Downtrend Confirmed"
     return "Reversal Imminent - Avoid Entry"
@@ -458,28 +422,23 @@ def get_psar_explanation(status):
     else: return "SAR switching position - trend may be reversing, avoid new entries."
     
 def combined_bias(kde_val, st_text):
-    """Bias Logic: Strong Bullish/Bearish requires KDE and SuperTrend alignment."""
-    
     is_bullish_trend = ("Bullish" in st_text) and (kde_val > 55)
     is_bearish_trend = ("Bearish" in st_text) and (kde_val < 45)
     
     if is_bullish_trend and kde_val > 65: return "Strong Bullish"
     if is_bearish_trend and kde_val < 35: return "Strong Bearish"
     
-    # Neutral Scenarios (Consolidation)
     if 45 <= kde_val <= 55: return "Neutral (Consolidation/Wait for Entry Trigger)"
     
-    # Conflicting Scenarios (Extreme conditions in the direction of the trend)
     if ("Bullish" in st_text and kde_val > 80) or ("Bearish" in st_text and kde_val < 20):
         return "Neutral (Conflicting Signals/Extreme Condition)"
 
-    return "Neutral (Consolidation/Wait for Entry Trigger)" # Default fallback to neutral
+    return "Neutral (Consolidation/Wait for Entry Trigger)" 
 
 def get_trade_recommendation(bias, current_price, atr_val):
     
     if "Strong Bullish" in bias:
         entry = current_price
-        # 1. CHANGE: Using the 1:2 R:R ratio
         target = entry + (REWARD_MULTIPLE * atr_val) 
         stop = entry - (RISK_MULTIPLE * atr_val)
         return {
@@ -492,7 +451,6 @@ def get_trade_recommendation(bias, current_price, atr_val):
         }
     elif "Strong Bearish" in bias:
         entry = current_price
-        # 1. CHANGE: Using the 1:2 R:R ratio
         target = entry - (REWARD_MULTIPLE * atr_val)
         stop = entry + (RISK_MULTIPLE * atr_val)
         return {
@@ -515,7 +473,7 @@ def get_trade_recommendation(bias, current_price, atr_val):
             "type": "neutral"
         }
 
-# === NATURAL LANGUAGE SUMMARY (UNCHANGED) ===
+# === NATURAL LANGUAGE SUMMARY (Unchanged) ===
 def get_natural_language_summary(symbol, bias, trade_params):
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
     
@@ -544,7 +502,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
 </div>
 """
 
-# === UNIVERSAL ERROR MESSAGE GENERATOR (FIXED) ===
+# === UNIVERSAL ERROR MESSAGE GENERATOR (Fixed Text) ===
 def generate_error_message(title, message, details=""):
     return f"""
 <div class='big-text'>
@@ -554,7 +512,7 @@ def generate_error_message(title, message, details=""):
 </p>
 {f"<p>{details}</p>" if details else ""}
 <p style='color: #FCA5A5;'>
-The primary and all backup data sources for this asset are currently unavailable. Please ensure the ticker symbol is correct and try again later.
+The primary and all backup data sources for this asset are currently unavailable. **Please ensure the ticker symbol is correct and try again later.**
 </p>
 <div class='analysis-motto-prominent' style='border-color: #DC2626; color: #DC2626;'>
 ⚠️ ACTION REQUIRED: PLEASE TRY AGAIN WITH CORRECT INPUTS ⚠️
@@ -563,7 +521,7 @@ The primary and all backup data sources for this asset are currently unavailable
 """
 
 
-# === ANALYZE (Main Logic) ===
+# === ANALYZE (Main Logic - Unchanged) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
     # --- STEP 1: HANDLE API FAILURE ---
@@ -575,7 +533,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
     current_price = price_raw 
     price_display = format_price(current_price) 
-    price_change_24h = price_change_24h if price_change_24h is not None else 0.0 # Use 0.0 if change is None
+    price_change_24h = price_change_24h if price_change_24h is not None else 0.0 
     change_display = format_change_main(price_change_24h)
     
     # --- STEP 2: Indicator Calculation ---
@@ -584,10 +542,8 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     df_1h = get_historical_data(symbol, "1h") or df_synth_1h 
     df_15m = get_historical_data(symbol, "15min") or synthesize_series(symbol + "15M", length=80)
     
-    # KDE RSI is the driving force
     kde_val = kde_rsi(df_1h, symbol) 
     
-    # Other indicators confirm the KDE RSI bias
     st_status_4h = supertrend_status(df_4h, kde_val) 
     st_status_1h = supertrend_status(df_1h, kde_val) 
     bb_status = bollinger_status(df_15m, kde_val)
@@ -600,7 +556,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
     # --- STEP 3: ATR CALCULATION ---
     if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
-        # Use pandas_ta to calculate ATR on the simulated data
         df_1h.ta.atr(append=True, length=14) 
         atr_synth_val = df_1h.get('ATR_14', pd.Series()).iloc[-1] if 'ATR_14' in df_1h.columns else np.nan
     else:
@@ -611,13 +566,11 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
         atr_multiplier = 0.015
         atr_val = current_price * atr_multiplier
     else:
-        # Use the actual calculated ATR value from the simulated series
         volatility_percent = atr_synth_val / synth_base
         atr_val = current_price * volatility_percent
         
-    # --- STEP 4: OUTPUT GENERATION (DYNAMIC MOTIVATION) ---
+    # --- STEP 4: OUTPUT GENERATION (Dynamic Motivation - Unchanged) ---
     
-    # ⚠️ Dynamic Motivation Text Options
     motivation_options = {
         "Strong Bullish": [
             "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
@@ -641,17 +594,14 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
         ]
     }
     
-    # Select a random motivation based on the calculated bias
     default_motivation = "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion."
     motivation = random.choice(motivation_options.get(bias, [default_motivation]))
-    
-    # --- REST OF STEP 4 (UNCHANGED) ---
     
     current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
     analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # --- FINAL OUTPUT STRUCTURE (Using original custom HTML structure) ---
+    # --- FINAL OUTPUT STRUCTURE (Unchanged) ---
     full_output = f"""
 <div class='big-text'>
 <div class='analysis-item'>{current_price_line}</div>
@@ -687,7 +637,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
 """
     return full_output
 
-# === Session Logic (UNCHANGED) ---
+# === Session Logic (Unchanged) ---
 utc_now = datetime.datetime.now(timezone.utc)
 utc_hour = utc_now.hour
 
@@ -733,11 +683,10 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# Note: Sidebar defaults to known assets for demonstration
+# Note: Sidebars must now use direct tickers
 btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
 btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
 
-# 2. CHANGE: Fetch and display SPY price instead of NASDAQ index
 spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
 spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
@@ -799,39 +748,38 @@ with col1:
         "Select Asset Type",
         ("Stock/Index", "Crypto"),
         index=0,
-        help="Select 'Stock/Index' for TSLA, AAPL, NDX, etc. Select 'Crypto' for BTC, ETH, PI, etc."
+        help="Select 'Stock/Index' for stocks/indices. Select 'Crypto' for cryptocurrencies."
     )
 
 with col2:
     user_input = st.text_input(
-        "Enter Asset Symbol or Name",
-        placeholder="e.g., TSLA, NDX, BTC, PI"
+        "Enter Official Ticker Symbol",
+        placeholder="e.g., TSLA, HOOD, BTC, HYPE",
+        help="Please enter the official ticker symbol (e.g., AAPL, BTC, NDX)."
     )
 
 vs_currency = "usd"
 if user_input:
-    # 1. Resolve to the base symbol (e.g., "BITCOIN" -> "BTC")
+    # 1. Resolve to the base symbol (input is now assumed to be the ticker)
     base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
     
-    # 2. PERFORM STRICT ASSET TYPE VALIDATION
+    # 2. PERFORM SIMPLIFIED ASSET TYPE VALIDATION
     validation_error = None
     
-    # Check if the resolved symbol conflicts with the selected asset type
-    is_known_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
-    is_known_stock = base_symbol in KNOWN_STOCK_SYMBOLS
+    # Simple check for common mistakes (e.g. BTC entered as a Stock)
+    is_common_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
+    is_common_stock = base_symbol in KNOWN_STOCK_SYMBOLS
 
-    if asset_type == "Crypto" and is_known_stock:
-        # User selected Crypto but entered a known Stock symbol (e.g., entered "TSLA" but selected "Crypto")
+    if asset_type == "Crypto" and is_common_stock:
         validation_error = f"You selected <strong>Crypto</strong> but entered a known stock/index symbol (<strong>{base_symbol}</strong>). Please select 'Stock/Index' from the dropdown to proceed."
-    elif asset_type == "Stock/Index" and is_known_crypto:
-        # User selected Stock/Index but entered a known Crypto symbol (e.g., entered "BTC" but selected "Stock/Index")
+    elif asset_type == "Stock/Index" and is_common_crypto:
         validation_error = f"You selected <strong>Stock/Index</strong> but entered a known crypto symbol (<strong>{base_symbol}</strong>). Please select 'Crypto' from the dropdown to proceed."
 
     # 3. Handle Validation Error or Proceed to Fetch/Analyze
     if validation_error:
         st.markdown(generate_error_message(
             title="⚠️ Asset Type Mismatch ⚠️",
-            message="Please ensure the selected **Asset Type** matches the **Symbol/Name** you entered.",
+            message="Please ensure the selected **Asset Type** matches the **Ticker Symbol** you entered.",
             details=validation_error
         ), unsafe_allow_html=True)
     else:
