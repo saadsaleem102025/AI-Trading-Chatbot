@@ -93,16 +93,24 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; }
 .status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
+
+/* Sidebar Asset Price block */
 .sidebar-asset-price-item {
-    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0;
+    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 10px 0;
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
-/* Price figure prominence */
-.asset-price-value {
+/* Price figure prominence in sidebar */
+.asset-price-value-sidebar {
     color: #F59E0B;
     font-weight: 800;
-    font-size: 24px;
+    font-size: 22px; /* Slightly smaller for compactness */
+    display: inline-block;
+    margin-right: 5px;
+}
+.change-percent-sidebar {
+    font-weight: 700;
+    font-size: 16px; /* Smaller and colored */
 }
 
 /* Analysis items with descriptions */
@@ -199,8 +207,8 @@ ASSET_MAPPING = {
     "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
     "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
     "MICROSTRATEGY": "MSTR", "MSTR": "MSTR", "WALMART": "WMT", 
-    "NASDAQ": "^IXIC", "NDX": "^IXIC", # Kept the index ticker, but SPY is used for the reliable sidebar metric
-    "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY" # 2. CHANGE: Added SPY for reliable market overview
+    "NASDAQ": "^IXIC", "NDX": "^IXIC", 
+    "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY" 
 }
 
 # Define sets of known symbols for validation
@@ -228,7 +236,7 @@ def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
         
     return base_symbol, final_symbol
 
-# === HELPERS FOR FORMATTING (UNCHANGED) ===
+# === HELPERS FOR FORMATTING ===
 def format_price(p):
     if p is None: return "N/A" 
     try: p = float(p)
@@ -241,12 +249,13 @@ def format_price(p):
     return s.rstrip("0").rstrip(".")
 
 def format_change_sidebar(ch):
-    if ch is None: return "N/A"
+    """Formats the price change for the sidebar, including color."""
+    if ch is None: return "<span class='neutral'>N/A</span>"
     try: ch = float(ch)
-    except Exception: return "N/A"
+    except Exception: return "<span class='neutral'>N/A</span>"
     sign = "+" if ch > 0 else ""
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    return f"<div style='text-align: center; margin-top: 2px;'><span style='white-space: nowrap;'><span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span></div>"
+    return f"<span class='change-percent-sidebar {color_class}' style='font-size: 16px; font-weight: 700;'>{sign}{ch:.2f}%</span>"
 
 def format_change_main(ch):
     if ch is None:
@@ -703,13 +712,16 @@ spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
 spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
 
+# ⚠️ FIX: Updated the sidebar markdown block for a tidy, single-line display
 st.sidebar.markdown(f"""
 <div class='sidebar-asset-price-item'>
-    <b>BTC:</b> <span class='asset-price-value'>${format_price(btc)} USD</span>
+    <b>BTC:</b> 
+    <span class='asset-price-value-sidebar'>${format_price(btc)} USD</span>
     {format_change_sidebar(btc_ch)}
 </div>
 <div class='sidebar-asset-price-item'>
-    <b>S&P 500 (SPY):</b> <span class='asset-price-value'>${format_price(spy)} USD</span> 
+    <b>S&P 500 (SPY):</b> 
+    <span class='asset-price-value-sidebar'>${format_price(spy)} USD</span> 
     {format_change_sidebar(spy_ch)}
 </div>
 """, unsafe_allow_html=True)
