@@ -3,6 +3,7 @@ import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
 import pandas_ta as ta
 import json
+import random 
 
 # --- CONFIGURATION & CONSTANTS ---
 # 1. CHANGE: Risk-to-Reward Ratio is now 1:2 (2.0)
@@ -609,13 +610,37 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
         volatility_percent = atr_synth_val / synth_base
         atr_val = current_price * volatility_percent
         
-    # --- STEP 4: OUTPUT GENERATION (MOTIVATION UPDATED) ---
-    motivation = {
-        "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
-        "Strong Bearish": "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. **Keep risk management paramount.**",
-        "Neutral (Consolidation/Wait for Entry Trigger)": "MARKET RESTING: Patience now builds precision later. Preserve capital. **Successful trading is 80% waiting.**",
-        "Neutral (Conflicting Signals/Extreme Condition)": "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. **Avoid emotional trading; trade only what you see.**",
-    }.get(bias, "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion.")
+    # --- STEP 4: OUTPUT GENERATION (DYNAMIC MOTIVATION) ---
+    
+    # ⚠️ Dynamic Motivation Text Options
+    motivation_options = {
+        "Strong Bullish": [
+            "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
+            "STRONG BUY SIGNAL: The trend and momentum align. **Never fight the trend, but always respect your stops.**",
+            "BULLISH PRESSURE: Capitalize on the upward force. **Successful trading is 80% preparation, 20% execution.**"
+        ],
+        "Strong Bearish": [
+            "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. **Keep risk management paramount.**",
+            "STRONG SELL SIGNAL: Sentiment has turned decisively. **Manage the downside, and the upside will take care of itself.**",
+            "BEARISH PRESSURE: Do not hold against a strong downtrend. **The goal is not to trade often, but to trade well.**"
+        ],
+        "Neutral (Consolidation/Wait for Entry Trigger)": [
+            "MARKET RESTING: Patience now builds precision later. Preserve capital. **Successful trading is 80% waiting.**",
+            "CONSOLIDATION ZONE: Wait for the price to show its hand. **No position is a position.**",
+            "IDLE CAPITAL: Do not enter a trade without a clear edge. **The best opportunities are often the ones you wait for.**"
+        ],
+        "Neutral (Conflicting Signals/Extreme Condition)": [
+            "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. **Avoid emotional trading; trade only what you see.**",
+            "HIGH UNCERTAINTY: Indicators are mixed or at extremes. **Protect your capital; avoid the urge to guess.**",
+            "AVOID THE CHOP: This is a market for scalpers or observers. **Focus on the next clear setup, not this messy one.**"
+        ]
+    }
+    
+    # Select a random motivation based on the calculated bias
+    default_motivation = "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion."
+    motivation = random.choice(motivation_options.get(bias, [default_motivation]))
+    
+    # --- REST OF STEP 4 (UNCHANGED) ---
     
     current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
     trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
@@ -712,7 +737,7 @@ spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
 spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
 
-# ⚠️ FIX: Updated the sidebar markdown block for a tidy, single-line display
+# ⚠️ Sidebar display logic is tidy
 st.sidebar.markdown(f"""
 <div class='sidebar-asset-price-item'>
     <b>BTC:</b> 
