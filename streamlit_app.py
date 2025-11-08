@@ -96,14 +96,14 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 
-/* Sidebar Asset Price block */
+/* Sidebar Asset Price block (No longer used, but kept for future) */
 .sidebar-asset-price-item {
     background: #1F2937; border-radius: 8px; /* Adjusted padding and margin */
     padding: 6px 10px; margin: 8px 0;
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
-/* Price figure prominence in sidebar */
+/* Price figure prominence in sidebar (No longer used, but kept for future) */
 .asset-price-value-sidebar {
     color: #F59E0B;
     font-weight: 800;
@@ -268,7 +268,7 @@ def fetch_stock_price_finnhub(ticker, api_key):
     return None, None
 
 def fetch_stock_price_yahoo(ticker):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
+    url = f"https{""}://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
     try:
         r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}).json()
         if 'chart' in r and 'result' in r['chart'] and r['chart']['result']:
@@ -318,7 +318,7 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
     return None, None
 
 # === UNIVERSAL PRICE FETCHER (Loading Spinner Suppressed) ===
-@st.cache_data(ttl=60, show_spinner=False) 
+@st.cache_data(ttl=60, show_spinner=False) # Spinner is hidden here
 def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
@@ -481,7 +481,7 @@ def get_natural_language_summary(symbol, bias, trade_params):
         summary += (
             f"<strong>{trade_params['title']}</strong> is given. The analysis suggests {trade_params['action']} "
             f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
+            f"and {trade_params['stop']}. The strategy suggests: i>{trade_params['strategy']}</i>."
         )
     elif trade_params["type"] == "bearish":
         summary += (
@@ -681,28 +681,20 @@ def get_session_info(utc_now):
 session_name, volatility_html = get_session_info(utc_now)
 
 # --- SIDEBAR DISPLAY ---
-st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class'sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-# 💡 MVP FIX 1: Use dummy data for the sidebar to prevent the initial app load delay.
-# The `get_asset_price` calls are removed from here.
-btc = 70500.00  # Dummy Price
-btc_ch = 1.25    # Dummy Change
-spy = 540.00     # Dummy Price
-spy_ch = -0.15   # Dummy Change
+# 💡 MVP FIX 1: Removed the BTC and SPY price fetching and display block.
+# The sidebar will now load instantly.
 
-
-st.sidebar.markdown(f"""
-<div class='sidebar-asset-price-item'>
-    <b>BTC:</b> 
-    <span class='asset-price-value-sidebar'>${format_price(btc)} USD</span>
-    {format_change_sidebar(btc_ch)}
-</div>
-<div class='sidebar-asset-price-item'>
-    <b>S&P 500 (SPY):</b> 
-    <span class='asset-price-value-sidebar'>${format_price(spy)} USD</span> 
-    {format_change_sidebar(spy_ch)}
-</div>
-""", unsafe_allow_html=True)
+# This block has been removed:
+# btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
+# btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
+# spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
+# spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
+# st.sidebar.markdown(f"""
+# <div class='sidebar-asset-price-item'> ... </div>
+# <div class='sidebar-asset-price-item'> ... </div>
+# """, unsafe_allow_html=True)
 
 tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
 tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
@@ -719,7 +711,7 @@ user_tz = timezone(timedelta(minutes=total_minutes))
 user_local_time = datetime.datetime.now(user_tz)
 
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
-st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class'sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
 
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
 today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
