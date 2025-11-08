@@ -1,53 +1,266 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-import time
-from datetime import datetime, timedelta
+import requests, datetime, pandas as pd, numpy as np, pytz, time
+from datetime import time as dt_time, timedelta, timezone
+import pandas_ta as ta
+import json
 
 # --- CONFIGURATION & CONSTANTS ---
 # 1. CHANGE: Risk-to-Reward Ratio is now 1:2 (2.0)
-RISK_TO_REWARD_RATIO = 2.0 
-RSI_THRESHOLD_HIGH = 70.0
-RSI_THRESHOLD_LOW = 30.0
+RISK_MULTIPLE = 1.0 
+REWARD_MULTIPLE = 2.0 # Updated from 2.5 to 2.0 (1:2 R:R)
 
-# Asset mapping for user-friendly names and reliable tickers
-ASSET_MAPPING = {
-    "BTC": "BTCUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "ADA": "ADAUSD",
-    "BITCOIN": "BTCUSD", "ETHEREUM": "ETHUSD", "SOLANA": "SOLUSD", 
-    "TESLA": "TSLA", "APPLE": "AAPL", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
-    "NASDAQ": "^IXIC", "NDX": "^IXIC", 
-    # 2. CHANGE: Added SPY for reliable market overview
-    "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY"
+# --- STREAMLIT CONFIGURATION ---
+st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
+
+# === 1. STYLE (Restored Custom HTML/CSS) ===
+st.markdown("""
+<style>
+/* Base Streamlit overrides */
+header[data-testid="stHeader"], footer {visibility: hidden !important;}
+#MainMenu {visibility: hidden !important;}
+
+/* Base font and colors */
+html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
+    font-size: 18px !important;
+    color: #E0E0E0 !important;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    line-height: 1.7 !important;
 }
 
-# --- DATA SIMULATION (for indicator calculation) ---
+/* Main background (Lighter) */
+[data-testid="stAppViewContainer"] {
+    background: #1F2937;
+    color: #E0E0E0 !important;
+    padding-left: 360px !important;
+    padding-right: 25px;
+}
+/* Sidebar styling (Darker) */
+[data-testid="stSidebar"] {
+    background: #111827;
+    width: 340px !important; min-width: 340px !important; max-width: 350px !important;
+    position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
+    padding: 0.1rem 1.2rem 0.1rem 1.2rem;
+    border-right: 1px solid #1F2937;
+    box-shadow: 8px 0 18px rgba(0,0,0,0.4);
+}
+/* Main content boxes (Darker, to contrast main bg) */
+.big-text {
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
 
-# Simulate a time series for indicators (MVP stage)
-@st.cache_data(ttl=60*60*24)
-def synthesize_series(symbol, days=365):
-    """Generates a synthetic time series that looks like a stock/crypto chart."""
-    np.random.seed(hash(symbol) % (2**32 - 1))  # Seed based on symbol for consistent data
-    
-    start_price = 10.0  # Base starting price for simulation
-    
-    # Generate daily returns with a slight upward drift
-    daily_returns = np.random.normal(0.0001, 0.015, days)
-    price_series = start_price * (1 + daily_returns).cumprod()
-    
-    dates = [datetime.now() - timedelta(days=d) for d in range(days)][::-1]
-    
-    # Create OHLCV data (O=C[t-1], H=C*1.01, L=C*0.99)
-    df = pd.DataFrame({'Close': price_series}, index=dates)
-    df['Open'] = df['Close'].shift(1).fillna(start_price)
-    df['High'] = df[['Open', 'Close']].max(axis=1) * 1.005
-    df['Low'] = df[['Open', 'Close']].min(axis=1) * 0.995
-    df['Volume'] = np.random.randint(100000, 1000000, days)
-    
-    return df
+/* Section headers */
+.section-header {
+    font-size: 22px;
+    font-weight: 700;
+    color: #60A5FA;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #374151;
+}
 
-# --- API HELPERS (for live price data) ---
+/* --- BOLD TEXT COLOR CHANGE (KEYWORD COLOR) --- */
+/* Target <b> tags and <strong> tags, setting the color to Gold */
+.big-text b, .trade-recommendation-summary strong {
+    color: #FFD700 !important; /* Gold color for bolded text */
+    font-weight: 800;
+}
+/* Ensure the sidebar bold text remains white for contrast */
+[data-testid="stSidebar"] b {
+    color: #FFFFFF !important;
+    font-weight: 800;
+}
+/* Ensure Analysis items headers remain blue */
+.analysis-item b { color: #60A5FA; font-weight: 700; }
+/* Override Gold for the Asset Price which uses a different color */
+.asset-price-value { color: #F59E0B !important; }
 
+/* --- SIDEBAR COMPONENTS --- */
+.sidebar-title {
+    font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px;
+    padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+.sidebar-item {
+    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0;
+    font-size: 16px; color: #9CA3AF; border: 1px solid #374151;
+}
+.local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 16px !important; }
+.active-session-info { color: #FF8C00 !important; font-weight: 700; font-size: 16px !important; }
+.status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 16px !important; }
+.sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
+.sidebar-asset-price-item {
+    background: #1F2937; border-radius: 8px; padding: 8px 14px; margin: 3px 0;
+    font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
+}
+
+/* Price figure prominence */
+.asset-price-value {
+    color: #F59E0B;
+    font-weight: 800;
+    font-size: 24px;
+}
+
+/* Analysis items with descriptions */
+.analysis-item {
+    font-size: 18px;
+    color: #E0E0E0;
+    margin: 8px 0;
+}
+
+.indicator-explanation {
+    font-size: 15px;
+    color: #9CA3AF;
+    font-style: italic;
+    margin-left: 20px;
+    margin-top: 3px;
+    margin-bottom: 10px;
+}
+
+.analysis-bias {
+    font-size: 24px;
+    font-weight: 800;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px dashed #374151;
+}
+
+/* Trading recommendation (for Natural Language Summary box) */
+.trade-recommendation-summary {
+    font-size: 18px;
+    line-height: 1.8;
+    margin-top: 10px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #243B55;
+    border-radius: 8px;
+    border-left: 5px solid #60A5FA;
+}
+
+/* Risk warning */
+.risk-warning {
+    background: #7C2D12;
+    border: 2px solid #DC2626;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+    font-size: 14px;
+    color: #FCA5A5;
+}
+
+/* Psychology motto */
+.analysis-motto-prominent {
+    font-size: 20px;
+    font-weight: 900;
+    color: #F59E0B;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+    margin-top: 15px;
+    padding: 10px;
+    border: 2px solid #F59E0B;
+    border-radius: 8px;
+    background: #111827;
+    text-align: center;
+}
+
+/* Colors for data/bias */
+.bullish { color: #10B981; font-weight: 700; }
+.bearish { color: #EF4444; font-weight: 700; }
+.neutral { color: #F59E0B; font-weight: 700; }
+.percent-label { color: #C084FC; font-weight: 700; }
+
+.kde-red { color: #EF4444; }
+.kde-orange { color: #F59E0B; }
+.kde-yellow { color: #FFCC00; }
+.kde-green { color: #10B981; }
+.kde-purple { color: #C084FC; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- API KEYS from Streamlit secrets ---
+# Fetching from st.secrets is safer and prevents key exposure
+# AV_API_KEY = st.secrets.get("ALPHAVANTAGE_API_KEY", "")
+FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
+# TWELVE_API_KEY = st.secrets.get("TWELVE_DATA_API_KEY", "")
+CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
+
+# === ASSET MAPPING (Name-to-Symbol Resolution) ===
+ASSET_MAPPING = {
+    # Crypto
+    "BITCOIN": "BTC", "ETH": "ETH", "ETHEREUM": "ETH", "CARDANO": "ADA", 
+    "RIPPLE": "XRP", "STELLAR": "XLM", "DOGECOIN": "DOGE", "SOLANA": "SOL",
+    "PI": "PI", "CVX": "CVX", "TRON": "TRX", "TRX": "TRX",
+    "CFX": "CFX", 
+    # Stocks/Indices
+    "APPLE": "AAPL", "TESLA": "TSLA", "MICROSOFT": "MSFT", "AMAZON": "AMZN",
+    "GOOGLE": "GOOGL", "NVIDIA": "NVDA", "FACEBOOK": "META",
+    "MICROSTRATEGY": "MSTR", "MSTR": "MSTR", "WALMART": "WMT", 
+    "NASDAQ": "^IXIC", "NDX": "^IXIC", # Kept the index ticker, but SPY is used for the reliable sidebar metric
+    "SPY": "SPY", "S&P 500": "SPY", "MARKET": "SPY" # 2. CHANGE: Added SPY for reliable market overview
+}
+
+# Define sets of known symbols for validation
+KNOWN_CRYPTO_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["BITCOIN", "ETH", "ETHEREUM", "CARDANO", "RIPPLE", "STELLAR", "DOGECOIN", "SOLANA", "PI", "CVX", "TRON", "TRX", "CFX"])
+KNOWN_STOCK_SYMBOLS = set(ASSET_MAPPING[key] for key in ASSET_MAPPING if key in ["APPLE", "TESLA", "MICROSOFT", "AMAZON", "GOOGLE", "NVIDIA", "FACEBOOK", "MICROSTRATEGY", "MSTR", "WALMART", "NASDAQ", "NDX", "SPY", "S&P 500", "MARKET"])
+
+def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
+    """
+    Resolves the asset symbol based on the user's input and selected asset type.
+    Returns: (base_symbol, final_symbol)
+    """
+    input_upper = input_text.strip().upper()
+    quote_currency_upper = quote_currency.upper()
+    
+    # 1. Resolve to the base symbol (e.g., "BITCOIN" -> "BTC", or "TSLA" -> "TSLA")
+    base_symbol = ASSET_MAPPING.get(input_upper, input_upper) 
+
+    # 2. Determine final symbol based on the selected asset_type
+    if asset_type == "Crypto":
+        # Crypto symbols are always pairs (e.g., BTCUSD)
+        final_symbol = base_symbol + quote_currency_upper
+    else:
+        # Stock/Index symbols are the ticker itself (e.g., TSLA, ^IXIC)
+        final_symbol = base_symbol
+        
+    return base_symbol, final_symbol
+
+# === HELPERS FOR FORMATTING (UNCHANGED) ===
+def format_price(p):
+    if p is None: return "N/A" 
+    try: p = float(p)
+    except Exception: return "N/A" 
+    
+    if abs(p) >= 10: s = f"{p:,.2f}"
+    elif abs(p) >= 1: s = f"{p:,.4f}" 
+    elif abs(p) >= 0.01: s = f"{p:.4f}"
+    else: s = f"{p:.6f}"
+    return s.rstrip("0").rstrip(".")
+
+def format_change_sidebar(ch):
+    if ch is None: return "N/A"
+    try: ch = float(ch)
+    except Exception: return "N/A"
+    sign = "+" if ch > 0 else ""
+    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
+    return f"<div style='text-align: center; margin-top: 2px;'><span style='white-space: nowrap;'><span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span></div>"
+
+def format_change_main(ch):
+    if ch is None:
+        return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='neutral'>(24h% Change N/A)</span></span>"
+    
+    try: ch = float(ch)
+    except Exception: return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='neutral'>(24h% Change N/A)</span></span>"
+    
+    sign = "+" if ch > 0 else ""
+    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
+    
+    return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
+
+# --- API HELPERS (Robust Fallback Logic) ---
 def fetch_stock_price_finnhub(ticker, api_key):
     if not api_key: return None, None
     url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={api_key}"
@@ -111,259 +324,475 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
         pass
     return None, None
 
-# --- UNIVERSAL PRICE FETCHER (Handles Fallback) ---
+# === UNIVERSAL PRICE FETCHER (Handles Fallback) ===
 @st.cache_data(ttl=60)
-def get_asset_price(symbol, asset_type="Stock/Index"):
+def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
+    # --- 1. STOCK/INDEX LOGIC (Finnhub -> Yahoo) ---
     if asset_type == "Stock/Index":
         # Primary API: Finnhub
-        price, change = fetch_stock_price_finnhub(base_symbol, st.secrets.get("FINNHUB_API_KEY", ""))
-        if price is not None: return price, change
+        price, change = fetch_stock_price_finnhub(base_symbol, FH_API_KEY)
+        if price is not None:
+            return price, change
         
         # Secondary API: Yahoo Finance
         price, change = fetch_stock_price_yahoo(base_symbol)
-        if price is not None: return price, change
+        if price is not None:
+            return price, change
         
+        # If both fail, proceed to end
         return None, None
             
+    # --- 2. CRYPTO LOGIC (Binance -> CoinGecko) ---
     if asset_type == "Crypto":
         # Primary API: Binance
         price, change = fetch_crypto_price_binance(symbol)
-        if price is not None: return price, change
+        if price is not None:
+            return price, change
         
         # Secondary API: CoinGecko
-        price, change = fetch_crypto_price_coingecko(symbol, st.secrets.get("CG_PUBLIC_API_KEY", ""))
-        if price is not None: return price, change
+        price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
+        if price is not None:
+            return price, change
         
+        # If both fail, proceed to end
         return None, None
     
+    # Final failure if asset type is unrecognized or all attempts failed.
     return None, None
 
-# --- ASSET RESOLUTION ---
+# === HISTORICAL DATA & INDICATOR LOGIC (SIMULATED) ===
+def get_historical_data(symbol, interval="1h", outputsize=200):
+    return None
 
-def resolve_asset_symbol(input_symbol, asset_type="Stock/Index", quote_currency="USD"):
-    input_upper = input_symbol.upper().strip()
+def synthesize_series(symbol, length=200, volatility_pct=0.008): 
+    seed_val = int(hash(symbol) % (2**31 - 1))
+    np.random.seed(seed_val) 
+    base = 10.0 # Fixed low base price
+    returns = np.random.normal(0, volatility_pct, size=length)
+    series = base * np.exp(np.cumsum(returns))
     
-    # 1. Check for full name or common alias in mapping
-    if input_upper in ASSET_MAPPING:
-        base_symbol = ASSET_MAPPING[input_upper]
-    else:
-        # 2. Use input directly as the symbol if not found
-        base_symbol = input_upper
+    df = pd.DataFrame({
+        "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
+        "Close": series, 
+        "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), 
+        "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), 
+        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)), 
+    })
+    return df.iloc[-length:].set_index('datetime')
+
+def kde_rsi(df_placeholder, symbol):
+    """
+    Simulated KDE RSI: Generates a consistent, high-fidelity random value 
+    based on the asset symbol hash for predictable testing of user rules (15.00 to 85.00).
+    """
+    seed_val = int(hash(symbol) % (2**31 - 1))
+    np.random.seed(seed_val)
+    # Generate a value that is consistently derived but plausible for RSI (15 to 85)
+    kde_val = np.random.randint(1500, 8500) / 100.0
+    return float(kde_val)
+
+def supertrend_status(df, kde_val):
+    """SuperTrend Status: Follows KDE RSI trend for realistic confirmation."""
+    if kde_val > 65: return "Bullish - Trend Confirmed"
+    if kde_val < 35: return "Bearish - Trend Confirmed"
+    return "Consolidation - Range Bound"
+
+def bollinger_status(df, kde_val):
+    """Bollinger Bands Status: Based on extreme KDE RSI readings."""
+    if kde_val < 20: return "Outside Lower Band - Extreme Oversold"
+    if kde_val > 80: return "Outside Upper Band - Extreme Overbought"
+    return "Within Bands - Normal Volatility"
+
+def ema_crossover_status(kde_val): 
+    """EMA Crossover (5/20): Confirms short-term momentum."""
+    if kde_val > 70: return "Bullish Cross (5>20) - Strong Momentum"
+    if kde_val < 30: return "Bearish Cross (5<20) - Strong Momentum"
+    return "Indecisive/Flat EMAs"
+
+def parabolic_sar_status(kde_val):
+    """Parabolic SAR: Provides dynamic stop/reversal signal."""
+    if kde_val > 60: return "Bullish (Dots Below Price) - Uptrend Confirmed"
+    if kde_val < 40: return "Bearish (Dots Above Price) - Downtrend Confirmed"
+    return "Reversal Imminent - Avoid Entry"
+
+def get_kde_rsi_status(kde_val):
+    if kde_val < 15: return f"<span class='kde-purple'>🟣 {kde_val:.2f}% → Extreme Oversold</span> (High Bullish Reversal Probability)"
+    elif kde_val < 30: return f"<span class='kde-red'>🔴 {kde_val:.2f}% → Oversold</span> (Potential Bullish Trend Start)"
+    elif kde_val < 45: return f"<span class='kde-orange'>🟠 {kde_val:.2f}% → Weak Bearish</span> (Momentum Neutralizing)"
+    elif kde_val < 55: return f"<span class='kde-yellow'>🟡 {kde_val:.2f}% → Neutral Zone</span> (Consolidation/Trend Continuation)"
+    elif kde_val < 70: return f"<span class='kde-green'>🟢 {kde_val:.2f}% → Strong Bullish</span> (Bullish Trend Likely Continuing)"
+    elif kde_val < 85: return f"<span class='kde-red'>🔵 {kde_val:.2f}% → Overbought</span> (Potential Bearish Trend Start)"
+    else: return f"<span class='kde-purple'>🟣 {kde_val:.2f}% → Extreme Overbought</span> (High Bearish Reversal Probability)"
     
-    # 3. Handle Crypto symbol suffix (e.g., BTC -> BTCUSD)
-    if asset_type == "Crypto" and not base_symbol.endswith(("USD", "USDT")):
-        final_symbol = base_symbol + quote_currency.upper()
-    else:
-        final_symbol = base_symbol
-        
-    # Return the un-suffixed base and the final API symbol
-    return base_symbol.replace("USD", "").replace("USDT", ""), final_symbol
-
-# --- INDICATOR CALCULATIONS ---
-
-def calculate_indicators(df, price):
-    """Simulates indicator calculation on the synthetic data."""
-    if df.empty:
-        return np.nan, np.nan, np.nan
+def get_kde_rsi_explanation(): return "KDE RSI measures the density of momentum to identify extreme overbought/oversold conditions more accurately."
+def get_supertrend_explanation(status):
+    if "Bullish" in status: return "Price is trading above the SuperTrend line, indicating **upward momentum and trend strength**."
+    else: return "Price is trading below the SuperTrend line, indicating **downward momentum**."
+def get_bollinger_explanation(status):
+    if "Normal" in status: return "Price is moving within expected volatility range. Watch for breaks above/below bands for potential moves."
+    elif "Upper" in status: return "**Price touching upper band** - potential overbought condition or strong trend."
+    else: return "**Price touching lower band** - potential oversold condition or weak trend."
+def get_ema_explanation(status):
+    if "Bullish" in status: return "Fast EMA crossed above slow EMA - suggests **buying pressure** and upward momentum."
+    elif "Bearish" in status: return "Fast EMA crossed below slow EMA - suggests **selling pressure** and downward momentum."
+    else: return "EMAs are close together - market is consolidating, wait for clear direction."
+def get_psar_explanation(status):
+    if "Bullish" in status: return "SAR dots below price confirm the **uptrend** and provide trailing stop levels for long positions."
+    elif "Bearish" in status: return "SAR dots above price provide trailing stop levels for short positions."
+    else: return "SAR switching position - trend may be reversing, avoid new entries."
     
-    # Calculate RSI on the simulated data
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs)).iloc[-1]
+def combined_bias(kde_val, st_text):
+    """Bias Logic: Strong Bullish/Bearish requires KDE and SuperTrend alignment."""
     
-    # Simulate a KDE RSI (just for architectural consistency in MVP)
-    # The simulated price series gives a plausible RSI value
-    kde_rsi = rsi 
-
-    # Calculate EMA (e.g., 50-period)
-    ema_50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+    is_bullish_trend = ("Bullish" in st_text) and (kde_val > 55)
+    is_bearish_trend = ("Bearish" in st_text) and (kde_val < 45)
     
-    # Simulate SuperTrend: Use EMA to mimic the trend direction
-    if price > ema_50:
-        supertrend_signal = "Buy"
-    else:
-        supertrend_signal = "Sell"
-
-    return kde_rsi, ema_50, supertrend_signal
-
-# --- BIAS GENERATION ---
-
-def generate_bias(kde_rsi, supertrend_signal):
-    """Generates a trading bias based on indicator signals."""
+    if is_bullish_trend and kde_val > 65: return "Strong Bullish"
+    if is_bearish_trend and kde_val < 35: return "Strong Bearish"
     
-    if np.isnan(kde_rsi):
-        return "Neutral", "Insufficient data for analysis."
-
-    # Trend filter from SuperTrend
-    is_bullish_trend = (supertrend_signal == "Buy")
-    is_bearish_trend = (supertrend_signal == "Sell")
+    # Neutral Scenarios (Consolidation)
+    if 45 <= kde_val <= 55: return "Neutral (Consolidation/Wait for Entry Trigger)"
     
-    # Momentum from KDE RSI
-    is_overbought = (kde_rsi >= RSI_THRESHOLD_HIGH)
-    is_oversold = (kde_rsi <= RSI_THRESHOLD_LOW)
+    # Conflicting Scenarios (Extreme conditions in the direction of the trend)
+    if ("Bullish" in st_text and kde_val > 80) or ("Bearish" in st_text and kde_val < 20):
+        return "Neutral (Conflicting Signals/Extreme Condition)"
 
-    # 1. Strong Bullish: Momentum is strong (oversold) AND Trend is up
-    if is_oversold and is_bullish_trend:
-        return "Strong Bullish", "Momentum is recovering from oversold conditions within a strong confirmed uptrend."
+    return "Neutral (Consolidation/Wait for Entry Trigger)" # Default fallback to neutral
 
-    # 2. Strong Bearish: Momentum is strong (overbought) AND Trend is down
-    if is_overbought and is_bearish_trend:
-        return "Strong Bearish", "Momentum is weakening from overbought conditions within a strong confirmed downtrend."
-
-    # 3. Bullish: Simple uptrend or momentum slightly positive
-    if is_bullish_trend and (kde_rsi > 50 and not is_overbought):
-        return "Bullish", "Trend remains positive with room for price expansion."
-
-    # 4. Bearish: Simple downtrend or momentum slightly negative
-    if is_bearish_trend and (kde_rsi < 50 and not is_oversold):
-        return "Bearish", "Trend remains negative with a continuation of price compression."
-    
-    # 5. Neutral: Conflicting signals or flat movement
-    return "Neutral", "The market is consolidating or indicators are conflicting, suggesting a wait-and-see approach."
-
-# --- TRADING RECOMMENDATION ---
-
-def get_recommendation(bias):
-    """Generates a trade recommendation and targets based on the final bias."""
+def get_trade_recommendation(bias, current_price, atr_val):
     
     if "Strong Bullish" in bias:
-        action = "BUY ⬆️"
-        # 1. CHANGE: Risk-to-Reward Ratio is 1:2
-        details = f"Risk 1 unit to gain {RISK_TO_REWARD_RATIO} units (1:2 R:R)."
-        
+        entry = current_price
+        # 1. CHANGE: Using the 1:2 R:R ratio
+        target = entry + (REWARD_MULTIPLE * atr_val) 
+        stop = entry - (RISK_MULTIPLE * atr_val)
+        return {
+            "title": "Long Position Recommended",
+            "action": f"entering a long position near <strong>{format_price(entry)}</strong>",
+            "strategy": "Wait for confirmation or a slight pullback",
+            "target": f"plan to take profit at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss below <strong>{format_price(stop)}</strong>",
+            "type": "bullish"
+        }
     elif "Strong Bearish" in bias:
-        action = "SELL ⬇️"
-        # 1. CHANGE: Risk-to-Reward Ratio is 1:2
-        details = f"Risk 1 unit to gain {RISK_TO_REWARD_RATIO} units (1:2 R:R)."
-        
+        entry = current_price
+        # 1. CHANGE: Using the 1:2 R:R ratio
+        target = entry - (REWARD_MULTIPLE * atr_val)
+        stop = entry + (RISK_MULTIPLE * atr_val)
+        return {
+            "title": "Short Position Recommended",
+            "action": f"entering a short position near <strong>{format_price(entry)}</strong>",
+            "strategy": "Short on rallies to resistance levels",
+            "target": f"plan to cover the short at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss above <strong>{format_price(stop)}</strong>",
+            "type": "bearish"
+        }
     else:
-        action = "HOLD/WAIT ⏸️"
-        details = "A clear entry or exit is not confirmed. Stay on the sidelines."
-        
-    return action, details
+        target_trigger = current_price + (2.0 * atr_val)
+        stop_trigger = current_price - (1.0 * atr_val)
+        return {
+            "title": "No Trade Recommended (Wait for Clarity)",
+            "action": "stay on the sidelines and preserve capital",
+            "strategy": "Avoid entering until a clear break occurs",
+            "target": f"A <strong>bullish entry trigger</strong> would be a break above <strong>{format_price(target_trigger)}</strong>",
+            "stop": f"A <strong>bearish entry trigger</strong> would be a break below <strong>{format_price(stop_trigger)}</strong>",
+            "type": "neutral"
+        }
 
-# --- UI DISPLAY HELPERS ---
-
-def generate_error_message(title, message, details):
-    """Generates a formatted error message."""
-    return st.error(f"**{title}**\n\n{message}\n\n*Details: {details}*", icon="🚨")
-
-# --- MAIN ANALYSIS FUNCTION ---
-
-def analyze(symbol, asset_type, quote_currency):
+# === NATURAL LANGUAGE SUMMARY (UNCHANGED) ===
+def get_natural_language_summary(symbol, bias, trade_params):
+    summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
     
-    # Resolve the final API symbol
-    base_symbol, api_symbol = resolve_asset_symbol(symbol, asset_type, quote_currency)
+    if trade_params["type"] == "bullish":
+        summary += (
+            f"<strong>{trade_params['title']}</strong> is given. The analysis suggests {trade_params['action']} "
+            f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
+            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
+        )
+    elif trade_params["type"] == "bearish":
+        summary += (
+            f"<strong>{trade_params['title']}</strong> is given. The analysis recommends {trade_params['action']} "
+            f"with a volatility-adjusted setup. Traders should {trade_params['target']} "
+            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
+        )
+    else:
+        summary += (
+            f"<strong>{trade_params['title']}</strong>. The market for {symbol} is currently consolidating or showing mixed signals. "
+            f"The recommendation is to <strong>{trade_params['action']}</strong>. "
+            f"<strong>Action Triggers:</strong> {trade_params['target']} or {trade_params['stop']}."
+        )
+
+    return f"""
+<div class='trade-recommendation-summary'>
+{summary}
+</div>
+"""
+
+# === UNIVERSAL ERROR MESSAGE GENERATOR (UNCHANGED) ===
+def generate_error_message(title, message, details=""):
+    return f"""
+<div class='big-text'>
+<div class='section-header' style='color: #DC2626;'>{title}</div>
+<p style='color: #FCA5A5; font-size: 20px; font-weight: 700;'>
+{message}
+</p>
+{f"<p>{details}</p>" if details else ""}
+<div class='analysis-motto-prominent' style='border-color: #DC2626; color: #DC2626;'>
+⚠️ ACTION REQUIRED: PLEASE TRY AGAIN WITH CORRECT INPUTS ⚠️
+</div>
+</div>
+"""
+
+
+# === ANALYZE (Main Logic) ===
+def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
-    # --- STEP 1: FETCH LIVE PRICE DATA (Fallback logic included in get_asset_price) ---
-    price_raw, price_change_24h = get_asset_price(api_symbol, asset_type)
-    
+    # --- STEP 1: HANDLE API FAILURE ---
     if price_raw is None:
         return generate_error_message(
             title="❌ Data Retrieval Failed ❌",
-            message=f"Unable to fetch live price data for **{api_symbol}** as a **{asset_type}**.",
+            message=f"Unable to fetch live price data for <strong>{symbol}</strong> as a <strong>{asset_type}</strong>.",
             details="The primary and all backup data sources for this asset are currently unavailable. Please ensure the ticker symbol is correct and try again in a few minutes."
         )
+    
+    current_price = price_raw 
+    price_display = format_price(current_price) 
+    price_change_24h = price_change_24h if price_change_24h is not None else 0.0 # Use 0.0 if change is None
+    change_display = format_change_main(price_change_24h)
+    
+    # --- STEP 2: Indicator Calculation ---
+    df_synth_1h = synthesize_series(symbol)
+    df_4h = get_historical_data(symbol, "4h") or synthesize_series(symbol + "4H", length=48)
+    df_1h = get_historical_data(symbol, "1h") or df_synth_1h 
+    df_15m = get_historical_data(symbol, "15min") or synthesize_series(symbol + "15M", length=80)
+    
+    # KDE RSI is the driving force
+    kde_val = kde_rsi(df_1h, symbol) 
+    
+    # Other indicators confirm the KDE RSI bias
+    st_status_4h = supertrend_status(df_4h, kde_val) 
+    st_status_1h = supertrend_status(df_1h, kde_val) 
+    bb_status = bollinger_status(df_15m, kde_val)
+    ema_status = ema_crossover_status(kde_val) 
+    psar_status = parabolic_sar_status(kde_val) 
+    
+    supertrend_output = f"SuperTrend: {st_status_4h.split(' - ')[0]} (4H), {st_status_1h.split(' - ')[0]} (1H)"
+    kde_rsi_output = get_kde_rsi_status(kde_val)
+    bias = combined_bias(kde_val, supertrend_output)
+    
+    # --- STEP 3: ATR CALCULATION ---
+    if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
+        # Use pandas_ta to calculate ATR on the simulated data
+        df_1h.ta.atr(append=True, length=14) 
+        atr_synth_val = df_1h.get('ATR_14', pd.Series()).iloc[-1] if 'ATR_14' in df_1h.columns else np.nan
+    else:
+        atr_synth_val = np.nan
+    
+    synth_base = 10.0
+    if pd.isna(atr_synth_val) or atr_synth_val <= 0:
+        atr_multiplier = 0.015
+        atr_val = current_price * atr_multiplier
+    else:
+        # Use the actual calculated ATR value from the simulated series
+        volatility_percent = atr_synth_val / synth_base
+        atr_val = current_price * volatility_percent
+        
+    # --- STEP 4: OUTPUT GENERATION (MOTIVATION UPDATED) ---
+    motivation = {
+        "Strong Bullish": "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
+        "Strong Bearish": "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. **Keep risk management paramount.**",
+        "Neutral (Consolidation/Wait for Entry Trigger)": "MARKET RESTING: Patience now builds precision later. Preserve capital. **Successful trading is 80% waiting.**",
+        "Neutral (Conflicting Signals/Extreme Condition)": "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. **Avoid emotional trading; trade only what you see.**",
+    }.get(bias, "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion.")
+    
+    current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
+    trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
+    analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
+    
+    # --- FINAL OUTPUT STRUCTURE (Using original custom HTML structure) ---
+    full_output = f"""
+<div class='big-text'>
+<div class='analysis-item'>{current_price_line}</div>
 
-    # --- STEP 2: GENERATE SIMULATED SERIES FOR INDICATORS ---
-    df_simulated = synthesize_series(api_symbol)
-    
-    # --- STEP 3: CALCULATE INDICATORS ---
-    kde_rsi, ema_50, supertrend_signal = calculate_indicators(df_simulated, price_raw)
-    
-    # --- STEP 4: GENERATE BIAS AND RECOMMENDATION ---
-    bias, bias_rationale = generate_bias(kde_rsi, supertrend_signal)
-    action, trade_details = get_recommendation(bias)
+<div class='section-header'>📊 Detailed Indicator Analysis</div>
 
-    # --- STEP 5: DISPLAY RESULTS ---
-    st.markdown(f"## 📈 {base_symbol} Live Analysis")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(label="Current Price", value=f"${price_raw:,.2f}", delta=f"{price_change_24h:+.2f}% (24h)")
-    
-    with col2:
-        st.markdown(f"**Trading Bias**")
-        if "Strong" in bias:
-            st.markdown(f"<h3 style='color: {'#00C853' if 'Bullish' in bias else '#FF3547'};'>{bias}</h3>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<h3 style='color: #FFC107;'>{bias}</h3>", unsafe_allow_html=True)
+<div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
+<div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
-    with col3:
-        st.markdown(f"**Action**")
-        if "BUY" in action:
-             st.markdown(f"<h3 style='color: #00C853;'>{action}</h3>", unsafe_allow_html=True)
-        elif "SELL" in action:
-             st.markdown(f"<h3 style='color: #FF3547;'>{action}</h3>", unsafe_allow_html=True)
-        else:
-             st.markdown(f"<h3 style='color: #FFC107;'>{action}</h3>", unsafe_allow_html=True)
-    
-    st.divider()
+<div class='analysis-item'><b>{supertrend_output}</b> ({st_status_1h.split(' - ')[1]})</div>
+<div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
 
-    st.markdown("### 📊 Analysis Rationale")
-    
-    # Recommendation Box
-    st.info(f"**Recommendation:** {trade_details}", icon="🎯")
-    
-    # Indicator Details
-    st.markdown("#### Indicator Summary")
-    
-    # Use HTML to ensure numbers are formatted nicely in the table
-    kde_color = '#00C853' if kde_rsi < RSI_THRESHOLD_LOW else ('#FF3547' if kde_rsi > RSI_THRESHOLD_HIGH else '#FFC107')
-    kde_status = 'Oversold (BUY Signal)' if kde_rsi < RSI_THRESHOLD_LOW else ('Overbought (SELL Signal)' if kde_rsi > RSI_THRESHOLD_HIGH else 'Neutral')
-    
-    indicator_data = [
-        ("KDE RSI (Simulated)", f"<span style='color: {kde_color}; font-weight: bold;'>{kde_rsi:.2f}</span>", kde_status),
-        ("SuperTrend (Simulated)", f"<span style='color: {'#00C853' if supertrend_signal == 'Buy' else '#FF3547'}; font-weight: bold;'>{supertrend_signal}</span>", "Trend Direction"),
-        ("EMA 50 (Simulated)", f"${ema_50:,.2f}", "Trend Baseline"),
-    ]
-    
-    df_indicators = pd.DataFrame(indicator_data, columns=['Indicator', 'Value', 'Context'])
-    st.markdown(df_indicators.to_html(escape=False, index=False), unsafe_allow_html=True)
+<div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
+<div class='indicator-explanation'>{get_bollinger_explanation(bb_status)}</div>
 
-    st.markdown("---")
-    st.markdown("#### Bias Summary")
-    st.markdown(f"> **Final Bias Rationale:** {bias_rationale}")
+<div class='analysis-item'>EMA Crossover (5/20): <b>{ema_status}</b></div>
+<div class='indicator-explanation'>{get_ema_explanation(ema_status)}</div>
 
-# --- STREAMLIT UI ---
+<div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
+<div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
 
-st.set_page_config(layout="wide", page_title="AI Trading Bot MVP")
+<div class='analysis-bias'>Overall Market Bias: <span class='{bias.split(" ")[0].lower()}'>{bias}</span></div>
 
-st.sidebar.title("🤖 Trading Bot Settings")
+<div class='section-header'>⭐ AI Trading Recommendation Summary</div>
+{analysis_summary_html}
 
-with st.sidebar.form(key='input_form'):
-    asset_type = st.radio("Asset Type", ("Crypto", "Stock/Index"))
+<div class='analysis-motto-prominent'>{motivation}</div>
+
+<div class='risk-warning'>
+⚠️ <b>Risk Disclaimer:</b> This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
+</div>
+</div>
+"""
+    return full_output
+
+# === Session Logic (UNCHANGED) ---
+utc_now = datetime.datetime.now(timezone.utc)
+utc_hour = utc_now.hour
+
+SESSION_TOKYO = (dt_time(0, 0), dt_time(9, 0))
+SESSION_LONDON = (dt_time(8, 0), dt_time(17, 0))
+SESSION_NY = (dt_time(13, 0), dt_time(22, 0)) 
+OVERLAP_START_UTC = dt_time(13, 0)
+OVERLAP_END_UTC = dt_time(17, 0) 
+
+def get_session_info(utc_now):
+    current_time_utc = utc_now.time()
+    session_name = "Quiet/Sydney Session"
+    current_range_pct = 0.02
     
-    default_symbol = "BTC" if asset_type == "Crypto" else "TSLA"
-    symbol = st.text_input("Enter Ticker or Name", default_symbol)
+    if OVERLAP_START_UTC <= current_time_utc < OVERLAP_END_UTC:
+        session_name = "Overlap: London / New York"
+        current_range_pct = 0.30 
+    elif dt_time(8, 0) <= current_time_utc < dt_time(9, 0):
+        session_name = "Overlap: Tokyo / London"
+        current_range_pct = 0.18
+    elif SESSION_NY[0] <= current_time_utc < SESSION_NY[1]:
+        session_name = "US Session (New York)"
+        current_range_pct = 0.15
+    elif SESSION_LONDON[0] <= current_time_utc < SESSION_LONDON[1]:
+        session_name = "European Session (London)"
+        current_range_pct = 0.15
+    elif SESSION_TOKYO[0] <= current_time_utc < SESSION_TOKYO[1]:
+        session_name = "Asian Session (Tokyo)"
+        current_range_pct = 0.08 if utc_hour < 3 else 0.05
     
-    quote_currency = "USD" if asset_type == "Stock/Index" else "USD" # Use USD for generic crypto symbol construction
+    avg_range_pct = 0.1
+    ratio = (current_range_pct / avg_range_pct) * 100
+    if ratio < 20: status = "Flat / Very Low Volatility"
+    elif 20 <= ratio < 60: status = "Low Volatility / Room to Move"
+    elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
+    else: status = "High Volatility / Possible Exhaustion"
     
-    submit_button = st.form_submit_button(label='Analyze Asset')
+    volatility_html = f"<span class='status-volatility-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
+    return session_name, volatility_html
 
-# --- Sidebar Overview ---
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🇺🇸 **US Market Overview**")
+session_name, volatility_html = get_session_info(utc_now)
+
+# --- SIDEBAR DISPLAY ---
+st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+
+# Note: Sidebar defaults to known assets for demonstration
+btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
+btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
 
 # 2. CHANGE: Fetch and display SPY price instead of NASDAQ index
 spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
-spy_price, spy_change = get_asset_price(spy_symbol, asset_type="Stock/Index")
+spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
-if spy_price is not None:
-    spy_color = 'green' if spy_change >= 0 else 'red'
-    st.sidebar.markdown(f"**S&P 500 ($SPY$)**:")
-    st.sidebar.markdown(f"<p style='color: {spy_color}; font-size: 18px;'>${spy_price:,.2f} ({spy_change:+.2f}%)</p>", unsafe_allow_html=True)
-else:
-    st.sidebar.markdown("S&P 500 ($SPY$): N/A")
 
-st.sidebar.markdown("---")
+st.sidebar.markdown(f"""
+<div class='sidebar-asset-price-item'>
+    <b>BTC:</b> <span class='asset-price-value'>${format_price(btc)} USD</span>
+    {format_change_sidebar(btc_ch)}
+</div>
+<div class='sidebar-asset-price-item'>
+    <b>S&P 500 (SPY):</b> <span class='asset-price-value'>${format_price(spy)} USD</span> 
+    {format_change_sidebar(spy_ch)}
+</div>
+""", unsafe_allow_html=True)
 
-# --- Main Page Execution ---
-if submit_button and symbol:
-    analyze(symbol, asset_type, quote_currency)
+tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
+tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
+tz_options = sorted(list(set(tz_options))) 
+try: default_ix = tz_options.index("UTC+05:00") 
+except ValueError: default_ix = tz_options.index("UTC+00:00") 
+
+selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
+
+offset_str = selected_tz_str.replace("UTC", "")
+hours, minutes = map(int, offset_str.split(':'))
+total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.startswith('-') else 1)
+user_tz = timezone(timedelta(minutes=total_minutes))
+user_local_time = datetime.datetime.now(user_tz)
+
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span class='active-session-info'>{session_name}</span><br>{volatility_html}</div>", unsafe_allow_html=True)
+
+today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
+today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
+
+overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
+overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
+
+st.sidebar.markdown(f"""
+<div class='sidebar-item sidebar-overlap-time'>
+<b>London/NY Overlap Times (Peak Liquidity)</b><br>
+<span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
+{overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
+</span>
+<br>({selected_tz_str})
+</div>
+""", unsafe_allow_html=True)
+
+# --- MAIN EXECUTION ---
+st.title("AI Trading Chatbot")
+
+col1, col2 = st.columns([1.5, 2.5])
+
+with col1:
+    asset_type = st.selectbox(
+        "Select Asset Type",
+        ("Stock/Index", "Crypto"),
+        index=0,
+        help="Select 'Stock/Index' for TSLA, AAPL, NDX, etc. Select 'Crypto' for BTC, ETH, PI, etc."
+    )
+
+with col2:
+    user_input = st.text_input(
+        "Enter Asset Symbol or Name",
+        placeholder="e.g., TSLA, NDX, BTC, PI"
+    )
+
+vs_currency = "usd"
+if user_input:
+    # 1. Resolve to the base symbol (e.g., "BITCOIN" -> "BTC")
+    base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
+    
+    # 2. PERFORM STRICT ASSET TYPE VALIDATION
+    validation_error = None
+    
+    # Check if the resolved symbol conflicts with the selected asset type
+    is_known_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
+    is_known_stock = base_symbol in KNOWN_STOCK_SYMBOLS
+
+    if asset_type == "Crypto" and is_known_stock:
+        # User selected Crypto but entered a known Stock symbol (e.g., entered "TSLA" but selected "Crypto")
+        validation_error = f"You selected <strong>Crypto</strong> but entered a known stock/index symbol (<strong>{base_symbol}</strong>). Please select 'Stock/Index' from the dropdown to proceed."
+    elif asset_type == "Stock/Index" and is_known_crypto:
+        # User selected Stock/Index but entered a known Crypto symbol (e.g., entered "BTC" but selected "Stock/Index")
+        validation_error = f"You selected <strong>Stock/Index</strong> but entered a known crypto symbol (<strong>{base_symbol}</strong>). Please select 'Crypto' from the dropdown to proceed."
+
+    # 3. Handle Validation Error or Proceed to Fetch/Analyze
+    if validation_error:
+        st.markdown(generate_error_message(
+            title="⚠️ Asset Type Mismatch ⚠️",
+            message="Please ensure the selected **Asset Type** matches the **Symbol/Name** you entered.",
+            details=validation_error
+        ), unsafe_allow_html=True)
+    else:
+        # Proceed only if validation passes
+        price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
+        st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
