@@ -631,7 +631,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
 <div class='analysis-motto-prominent'>{motivation}</div>
 
 <div class='risk-warning'>
-⚠️ <b>Risk Disclaimer:</b> This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
+⚠️ <b>Risk Disclaimer:</b> The ChatBot uses Risk-Reward Ratio as 1:2. This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
 </div>
 </div>
 """
