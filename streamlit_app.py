@@ -318,7 +318,7 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
     return None, None
 
 # === UNIVERSAL PRICE FETCHER (Loading Spinner Suppressed) ===
-@st.cache_data(ttl=60, show_spinner=False) # 💡 CHANGE 2: show_spinner=False hides the "Loading..." message
+@st.cache_data(ttl=60, show_spinner=False) 
 def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
@@ -631,7 +631,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
 <div class='analysis-motto-prominent'>{motivation}</div>
 
 <div class='risk-warning'>
-⚠️ <b>Risk Disclaimer:</b> The ChatBot uses Risk-Reward Ratio as 1:2. This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
+⚠️ <b>Risk Disclaimer:</b> This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
 </div>
 </div>
 """
@@ -683,16 +683,14 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-btc_base_symbol, btc_symbol = resolve_asset_symbol("BTC", "Crypto", "USD")
-# No spinner will be shown here
-btc, btc_ch = get_asset_price(btc_symbol, asset_type="Crypto")
+# 💡 MVP FIX 1: Use dummy data for the sidebar to prevent the initial app load delay.
+# The `get_asset_price` calls are removed from here.
+btc = 70500.00  # Dummy Price
+btc_ch = 1.25    # Dummy Change
+spy = 540.00     # Dummy Price
+spy_ch = -0.15   # Dummy Change
 
-spy_base_symbol, spy_symbol = resolve_asset_symbol("SPY", "Stock/Index", "USD")
-# No spinner will be shown here
-spy, spy_ch = get_asset_price(spy_symbol, asset_type="Stock/Index")
 
-
-# ⚠️ Sidebar display logic is tidy
 st.sidebar.markdown(f"""
 <div class='sidebar-asset-price-item'>
     <b>BTC:</b> 
@@ -783,7 +781,7 @@ if user_input:
             details=validation_error
         ), unsafe_allow_html=True)
     else:
-        # Proceed only if validation passes
-        # No spinner will be shown due to show_spinner=False in the decorator
-        price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
-        st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
+        # 💡 MVP FIX 2: Use a custom spinner to provide feedback during network latency
+        with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}...") :
+            price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
+            st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
