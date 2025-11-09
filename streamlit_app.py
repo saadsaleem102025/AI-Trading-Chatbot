@@ -1,7 +1,11 @@
+
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
-import pandas_ta as ta
+import ta
+from ta.volatility import AverageTrueRange
+import json
+import random
 import json
 import random 
 
@@ -524,7 +528,7 @@ The primary and all backup data sources for this asset are currently unavailable
 """
 
 
-# === ANALYZE (Main Logic - Unchanged) ===
+# === ANALYZE (Main Logic - Updated ATR Calculation) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     
     # --- STEP 1: HANDLE API FAILURE ---
@@ -557,10 +561,14 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     kde_rsi_output = get_kde_rsi_status(kde_val)
     bias = combined_bias(kde_val, supertrend_output)
     
-    # --- STEP 3: ATR CALCULATION ---
+    # --- STEP 3: ATR CALCULATION (Updated to use ta library) ---
     if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
-        df_1h.ta.atr(append=True, length=14) 
-        atr_synth_val = df_1h.get('ATR_14', pd.Series()).iloc[-1] if 'ATR_14' in df_1h.columns else np.nan
+        try:
+            atr_indicator = AverageTrueRange(high=df_1h['High'], low=df_1h['Low'], close=df_1h['Close'], window=14)
+            atr_series = atr_indicator.average_true_range()
+            atr_synth_val = atr_series.iloc[-1] if not atr_series.empty else np.nan
+        except Exception:
+            atr_synth_val = np.nan
     else:
         atr_synth_val = np.nan
     
