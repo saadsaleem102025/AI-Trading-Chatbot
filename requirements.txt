@@ -1,12 +1,7 @@
-# Core packages
-streamlit==1.26.0
-pandas==2.1.1
-numpy==1.26.0
-pandas_ta==0.3.24b0
-requests==2.31.0
-
-# Optional utilities (if used in your app)
-rich==14.2.0
-markdown-it-py==4.0.0
-mdurl==0.1.2
-pygments==2.19.2
+import streamlit as st
+import requests, datetime, pandas as pd, numpy as np, pytz, time
+from datetime import time as dt_time, timedelta, timezone
+import ta
+from ta.volatility import AverageTrueRange
+import json
+import random
