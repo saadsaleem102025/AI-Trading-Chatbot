@@ -652,6 +652,7 @@ OVERLAP_END_UTC = dt_time(17, 0)
 
 def get_session_info(utc_now):
     current_time_utc = utc_now.time()
+    utc_hour = utc_now.hour  # <-- add this line
     session_name = "Quiet/Sydney Session"
     current_range_pct = 0.02
     
@@ -673,13 +674,20 @@ def get_session_info(utc_now):
     
     avg_range_pct = 0.1
     ratio = (current_range_pct / avg_range_pct) * 100
-    if ratio < 20: status = "Flat / Very Low Volatility"
-    elif 20 <= ratio < 60: status = "Low Volatility / Room to Move"
-    elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
-    else: status = "High Volatility / Possible Exhaustion"
+    if ratio < 20:
+        status = "Flat / Very Low Volatility"
+    elif 20 <= ratio < 60:
+        status = "Low Volatility / Room to Move"
+    elif 60 <= ratio < 100:
+        status = "Moderate Volatility / Near Average"
+    else:
+        status = "High Volatility / Possible Exhaustion"
     
     volatility_html = f"<span class='status-volatility-info'><b>Status:</b> {status} ({ratio:.0f}% of Avg)</span>"
     return session_name, volatility_html
+
+session_name, volatility_html = get_session_info(utc_now)
+
 
 session_name, volatility_html = get_session_info(utc_now)
 
