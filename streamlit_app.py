@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
@@ -6,8 +5,6 @@ import ta
 from ta.volatility import AverageTrueRange
 import json
 import random
-import json
-import random 
 
 # --- CONFIGURATION & CONSTANTS ---
 RISK_MULTIPLE = 1.0 
