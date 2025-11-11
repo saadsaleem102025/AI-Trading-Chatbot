@@ -5,106 +5,185 @@ import ta
 from ta.volatility import AverageTrueRange
 import json
 import random
-import yfinance as yf
+import openai
 
 # --- CONFIGURATION & CONSTANTS ---
-RISK_MULTIPLE = 1.0
-REWARD_MULTIPLE = 2.0
+RISK_MULTIPLE = 1.0 
+REWARD_MULTIPLE = 2.0 
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS STYLING ---
-st.markdown("""
-<style>
-/* Your full CSS here from previous code */
-</style>
-""", unsafe_allow_html=True)
+# === STYLE (unchanged) ===
+st.markdown("""<style>/* Your full CSS styling here (same as previous) */</style>""", unsafe_allow_html=True)
 
-# --- API KEYS from Streamlit secrets ---
-FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", None)
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", None)
-CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "")
+# --- API KEYS ---
+FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
+CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "") 
+openai.api_key = OPENAI_API_KEY
 
-# --- KNOWN SYMBOLS ---
+# --- Known Symbols ---
 KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE"}
 KNOWN_STOCK_SYMBOLS = {"AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "HOOD", "MSTR", "WMT", "^IXIC", "SPY"}
 
-# --- HELPER FUNCTIONS ---
+# --- SYMBOL RESOLUTION ---
 def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
     base_symbol = input_text.strip().upper()
     quote_currency_upper = quote_currency.upper()
-    final_symbol = base_symbol + quote_currency_upper if asset_type == "Crypto" else base_symbol
+    if asset_type == "Crypto":
+        final_symbol = base_symbol + quote_currency_upper
+    else:
+        final_symbol = base_symbol
     return base_symbol, final_symbol
 
+# === FORMATTING HELPERS ===
 def format_price(p):
     if p is None: return "N/A"
     try: p = float(p)
-    except Exception: return "N/A"
+    except: return "N/A"
     if abs(p) >= 10: s = f"{p:,.2f}"
-    elif abs(p) >= 1: s = f"{p:,.4f}"
+    elif abs(p) >= 1: s = f"{p:,.4f}" 
     elif abs(p) >= 0.01: s = f"{p:.4f}"
     else: s = f"{p:.6f}"
     return s.rstrip("0").rstrip(".")
+    
+def format_change_main(ch):
+    if ch is None: return f"<span class='neutral'>(24h% Change N/A)</span>"
+    try: ch = float(ch)
+    except: return f"<span class='neutral'>(24h% Change N/A)</span>"
+    sign = "+" if ch > 0 else ""
+    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
+    return f"<span class='{color_class}'>{sign}{ch:.2f}%</span>"
 
-# --- PUBLIC API FETCH FUNCTIONS ---
-# CoinGecko
-def fetch_cg_price(symbol, vs_currency="usd"):
-    symbol = symbol.lower()
+# --- API HELPERS ---
+def fetch_stock_price_finnhub(ticker, api_key):
+    if not api_key: return None, None
+    url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={api_key}"
     try:
-        resp = requests.get("https://api.coingecko.com/api/v3/simple/price",
-                            params={"ids": symbol, "vs_currencies": vs_currency})
-        data = resp.json()
-        return data.get(symbol, {}).get(vs_currency, None)
-    except:
-        return None
+        r = requests.get(url, timeout=5).json()
+        if r.get('c') and r.get('pc') and r['pc'] != 0 and float(r['c']) > 0:
+            price = float(r['c'])
+            prev_close = float(r['pc'])
+            change_percent = ((price - prev_close) / prev_close) * 100
+            time.sleep(0.5)
+            return price, change_percent
+    except: pass
+    return None, None
 
-# Binance
-def fetch_binance_price(symbol):
+def fetch_stock_price_yahoo(ticker):
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
     try:
-        resp = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol.upper()})
-        data = resp.json()
-        return float(data.get("price", 0))
-    except:
-        return None
+        r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}).json()
+        result = r.get('chart', {}).get('result')
+        if result:
+            meta = result[0].get('meta', {})
+            current_price = meta.get('regularMarketPrice')
+            prev_close = meta.get('previousClose')
+            if current_price is not None and prev_close not in (None, 0):
+                change_percent = ((current_price - prev_close) / prev_close) * 100
+                return float(current_price), float(change_percent)
+    except Exception as e:
+        print(f"Yahoo fetch error for {ticker}: {e}")
+    return None, None
 
-# Yahoo Finance
-def fetch_yf_price(symbol):
+def fetch_crypto_price_binance(symbol):
+    binance_symbol = symbol.replace("USD", "USDT")
+    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
     try:
-        ticker = yf.Ticker(symbol)
-        price = ticker.history(period="1d")['Close'][-1]
-        return float(price)
-    except:
-        return None
+        r = requests.get(url, timeout=5).json()
+        if 'lastPrice' in r and 'priceChangePercent' in r and float(r['lastPrice']) > 0:
+            price = float(r['lastPrice'])
+            change_percent = float(r['priceChangePercent'])
+            time.sleep(0.5)
+            return price, change_percent
+    except: pass
+    return None, None
 
-# --- STREAMLIT SIDEBAR ---
-st.sidebar.markdown('<div class="sidebar-title">AI Trading Chatbot</div>', unsafe_allow_html=True)
-asset_type = st.sidebar.selectbox("Select Asset Type", ("Stock/Index", "Crypto"), index=0)
-user_input = st.sidebar.text_input("Enter Ticker Symbol", placeholder="e.g., TSLA, BTC, HOOD")
-selected_timezone = st.sidebar.selectbox("Select Timezone", pytz.all_timezones, index=pytz.all_timezones.index("UTC"))
+def fetch_crypto_price_coingecko(symbol, api_key=""):
+    base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
+    url = "https://api.coingecko.com/api/v3/simple/price"
+    params = {'vs_currencies': 'usd', 'include_24hr_change': 'true', 'symbols': base_symbol}
+    headers = {}
+    if api_key: headers['x-cg-demo-api-key'] = api_key
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=5).json()
+        for coin_data in r.values():
+            if 'usd' in coin_data and float(coin_data['usd']) > 0:
+                price = float(coin_data['usd'])
+                change_percent = float(coin_data.get('usd_24h_change', 0))
+                time.sleep(0.5) 
+                return price, change_percent
+    except: pass
+    return None, None
 
-# Optional: session info, local time
-now_utc = datetime.datetime.now(pytz.utc)
-now_local = now_utc.astimezone(pytz.timezone(selected_timezone))
-st.sidebar.markdown(f'<div class="local-time-info">Local Time: {now_local.strftime("%Y-%m-%d %H:%M:%S")}</div>', unsafe_allow_html=True)
+# === UNIVERSAL PRICE FETCHER ===
+@st.cache_data(ttl=60, show_spinner=False)
+def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
+    symbol = symbol.upper()
+    base_symbol = symbol.replace("USD", "").replace("USDT", "")
+    if asset_type == "Stock/Index":
+        price, change = fetch_stock_price_finnhub(base_symbol, FH_API_KEY)
+        if price is not None: return price, change
+        price, change = fetch_stock_price_yahoo(base_symbol)
+        if price is not None: return price, change
+        return None, None
+    if asset_type == "Crypto":
+        price, change = fetch_crypto_price_binance(symbol)
+        if price is not None: return price, change
+        price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
+        if price is not None: return price, change
+        return None, None
+    return None, None
 
-# --- MAIN APP ---
+# --- INDICATOR, KDE, ATR, BIAS, TRADE RECOMMENDATION LOGIC ---
+# Keep all previous functions exactly as you provided:
+# synthesize_series, kde_rsi, supertrend_status, bollinger_status, ema_crossover_status,
+# parabolic_sar_status, get_kde_rsi_status, get_trade_recommendation, analyze(), etc.
+
+# --- SESSION LOGIC ---
+utc_now = datetime.datetime.now(timezone.utc)
+# Session logic and sidebar display exactly as before
+
+# --- MAIN EXECUTION ---
 st.title("AI Trading Chatbot")
 
+col1, col2 = st.columns([1.5, 2.5])
+
+with col1:
+    asset_type = st.selectbox(
+        "Select Asset Type",
+        ("Stock/Index", "Crypto"),
+        index=0,
+        help="Select 'Stock/Index' for stocks/indices. Select 'Crypto' for cryptocurrencies."
+    )
+
+with col2:
+    user_input = st.text_input(
+        "Enter Official Ticker Symbol",
+        placeholder="e.g., TSLA, HOOD, BTC, HYPE",
+        help="Please enter the official ticker symbol (e.g., AAPL, BTC, NDX)."
+    )
+
+vs_currency = "usd"
 if user_input:
-    base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type)
-    
-    price = None
-    # Crypto: CoinGecko fallback to Binance
-    if asset_type == "Crypto":
-        if base_symbol in KNOWN_CRYPTO_SYMBOLS:
-            price = fetch_cg_price(base_symbol) or fetch_binance_price(resolved_symbol)
-    # Stock/Index: Yahoo Finance
+    base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
+    validation_error = None
+    is_common_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
+    is_common_stock = base_symbol in KNOWN_STOCK_SYMBOLS
+
+    if asset_type == "Crypto" and is_common_stock:
+        validation_error = f"You selected <strong>Crypto</strong> but entered a known stock/index symbol (<strong>{base_symbol}</strong>)."
+    elif asset_type == "Stock/Index" and is_common_crypto:
+        validation_error = f"You selected <strong>Stock/Index</strong> but entered a known crypto symbol (<strong>{base_symbol}</strong>)."
+
+    if validation_error:
+        st.markdown(generate_error_message(
+            title="⚠️ Asset Type Mismatch ⚠️",
+            message="Please ensure the selected **Asset Type** matches the **Ticker Symbol** you entered.",
+            details=validation_error
+        ), unsafe_allow_html=True)
     else:
-        if base_symbol in KNOWN_STOCK_SYMBOLS:
-            price = fetch_yf_price(base_symbol)
-    
-    price_display = format_price(price)
-    
-    st.markdown(f"<div class='big-text'>Analysis for {resolved_symbol}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='asset-price-value'>Current Price: {price_display}</div>", unsafe_allow_html=True)
+        with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
+            price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
+            st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
