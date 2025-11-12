@@ -271,7 +271,7 @@ def fetch_stock_price_finnhub(ticker, api_key):
 
 def fetch_stock_price_yahoo(ticker):
    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-    try:
+   try:
         r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}).json()
         if 'chart' in r and 'result' in r['chart'] and r['chart']['result']:
             result = r['chart']['result'][0]
