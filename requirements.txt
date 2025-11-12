@@ -4,4 +4,4 @@ requests
 pandas
 numpy
 pytz
-pandas-ta
+pandas-ta  
