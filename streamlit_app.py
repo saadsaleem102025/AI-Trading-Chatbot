@@ -268,10 +268,9 @@ def fetch_stock_price_finnhub(ticker, api_key):
     except Exception:
         pass
     return None, None
-
 def fetch_stock_price_yahoo(ticker):
-   url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-   try:
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
+    try:
         r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}).json()
         if 'chart' in r and 'result' in r['chart'] and r['chart']['result']:
             result = r['chart']['result'][0]
@@ -281,7 +280,7 @@ def fetch_stock_price_yahoo(ticker):
             if current_price and prev_close and prev_close > 0:
                 change_percent = ((current_price - prev_close) / prev_close) * 100
                 return float(current_price), float(change_percent)
-    except Exception:
+    except Exception:  # <-- This line must match the 'try:' indentation exactly
         pass
     return None, None
 
