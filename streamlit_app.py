@@ -1,158 +1,163 @@
 import streamlit as st
-import requests, datetime, pandas as pd, numpy as np, pytz, time, json, random
-from datetime import timedelta
-import pandas_ta as ta
-import yfinance as yf
-import openai
+import pandas as pd
+import numpy as np
+import ta
+from ta.volatility import AverageTrueRange, BollingerBands
+from ta.momentum import RSI
+from ta.trend import SMAIndicator, PSARIndicator
+import random # Used here only for initial dummy data creation
 
-# --- CONFIGURATION & CONSTANTS ---
-st.set_page_config(page_title="AI Trading Chatbot", layout="wide")
+# --- Dummy Data Generator (Essential for TA calculations) ---
+def generate_dummy_data(rows=200):
+    """Generates a DataFrame with Open, High, Low, Close (OHLC) data."""
+    np.random.seed(42) # for reproducibility
+    # Ensure all required libraries are imported for this function
+    
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=rows, freq='D')
+    
+    # Start price around 100
+    close_prices = 100 + np.cumsum(np.random.normal(0, 1, rows))
+    
+    # Generate OHLC data
+    df = pd.DataFrame({
+        'Close': close_prices
+    }, index=dates)
+    
+    df['High'] = df['Close'] + np.random.uniform(0.1, 0.5, rows)
+    df['Low'] = df['Close'] - np.random.uniform(0.1, 0.5, rows)
+    df['Open'] = df['Close'].shift(1).fillna(100)
+    
+    # Ensure High is always highest, Low is always lowest
+    df['High'] = np.maximum(df['High'], df[['Open', 'Close']].max(axis=1))
+    df['Low'] = np.minimum(df['Low'], df[['Open', 'Close']].min(axis=1))
+    
+    return df.iloc[1:] # Drop first row
 
-# Private API keys (add in .streamlit/secrets.toml)
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-FINNHUB_API_KEY = st.secrets["FINNHUB_API_KEY"]
+# --- Indicator Calculation Functions ---
 
-# --- HELPER FUNCTIONS ---
-def get_finnhub_data(symbol, resolution='D', count=100):
-    """Fetch stock candles from Finnhub"""
-    try:
-        url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol}&resolution={resolution}&count={count}&token={FINNHUB_API_KEY}"
-        r = requests.get(url)
-        data = r.json()
-        if 'c' not in data:
-            return None
-        df = pd.DataFrame({
-            'time': pd.to_datetime(data['t'], unit='s'),
-            'open': data['o'],
-            'high': data['h'],
-            'low': data['l'],
-            'close': data['c'],
-            'volume': data['v']
-        })
-        return df
-    except Exception as e:
-        st.error(f"Finnhub error: {e}")
-        return None
+def calculate_all_indicators(df: pd.DataFrame):
+    # 1. Volatility: Average True Range (ATR)
+    atr_indicator = AverageTrueRange(df['High'], df['Low'], df['Close'], window=14)
+    df['ATR'] = atr_indicator.average_true_range()
 
-def get_yfinance_data(symbol, period="1mo", interval="1d"):
-    """Backup stock data from Yahoo Finance"""
-    try:
-        df = yf.download(symbol, period=period, interval=interval)
-        df.reset_index(inplace=True)
-        df.rename(columns={'Date': 'time'}, inplace=True)
-        return df
-    except Exception as e:
-        st.error(f"Yahoo Finance error: {e}")
-        return None
+    # 2. Momentum: Relative Strength Index (RSI)
+    rsi_indicator = RSI(df['Close'], window=14)
+    df['RSI'] = rsi_indicator.rsi()
 
-def get_crypto_data(symbol="BTCUSDT"):
-    """Fetch crypto candles from Binance"""
-    try:
-        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1d&limit=100"
-        r = requests.get(url)
-        data = r.json()
-        df = pd.DataFrame(data, columns=[
-            'time','open','high','low','close','volume',
-            'close_time','qav','num_trades','taker_base_vol','taker_quote_vol','ignore'
-        ])
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
-        df[['open','high','low','close','volume']] = df[['open','high','low','close','volume']].astype(float)
-        return df
-    except Exception as e:
-        st.error(f"Binance data error: {e}")
-        return None
+    # 3. Trend: Simple Moving Averages (SMA) - Used for Crossover
+    df['SMA_5'] = SMAIndicator(df['Close'], window=5).sma_indicator()
+    df['SMA_20'] = SMAIndicator(df['Close'], window=20).sma_indicator()
+    
+    # 4. Volatility: Bollinger Bands (BBands)
+    bb_indicator = BollingerBands(df['Close'], window=20, window_dev=2)
+    df['BBL'] = bb_indicator.bollinger_lband()
+    df['BBH'] = bb_indicator.bollinger_hband()
+    
+    # 5. Trend: Parabolic SAR (PSAR)
+    psar_indicator = PSARIndicator(df['High'], df['Low'], df['Close'])
+    # PSAR_BULL/BEAR returns 1.0 if the trend is active, 0.0 otherwise
+    df['PSAR_BULL'] = psar_indicator.psar_up_indicator()
+    df['PSAR_BEAR'] = psar_indicator.psar_down_indicator()
 
-def get_coingecko_price(symbol="bitcoin"):
-    """Get current price from CoinGecko as fallback"""
-    try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol}&vs_currencies=usd"
-        r = requests.get(url)
-        return r.json().get(symbol, {}).get("usd", None)
-    except Exception as e:
-        st.warning(f"CoinGecko error: {e}")
-        return None
-
-def calculate_indicators(df):
-    """Calculate basic technical indicators"""
-    df['RSI'] = ta.rsi(df['close'], length=14)
-    df['ATR'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-    df['EMA_20'] = ta.ema(df['close'], length=20)
-    df['EMA_50'] = ta.ema(df['close'], length=50)
     return df
 
-# --- OPENAI SUMMARIZATION FUNCTION ---
-def generate_openai_analysis(df, symbol):
-    """Generate natural language analysis using OpenAI"""
-    try:
-        latest = df.iloc[-1]
-        prompt = f"""
-        You are an expert trading analyst. Analyze the following data for {symbol}:
+# --- Status Interpretation Functions (Using Last Row of Data) ---
 
-        RSI: {latest['RSI']:.2f}
-        ATR: {latest['ATR']:.2f}
-        EMA20: {latest['EMA_20']:.2f}
-        EMA50: {latest['EMA_50']:.2f}
-        Current Price: {latest['close']:.2f}
+def supertrend_status(last_row):
+    # Simulating SuperTrend status based on ATR (volatility) and SMA crossover (trend)
+    atr_val = last_row['ATR']
+    
+    if last_row['SMA_5'] > last_row['SMA_20'] and atr_val > 0.5:
+        return f"Bullish (High Volatility: {atr_val:.2f}) - Trend Confirmed"
+    if last_row['SMA_5'] < last_row['SMA_20'] and atr_val > 0.5:
+        return f"Bearish (High Volatility: {atr_val:.2f}) - Trend Confirmed"
+    return f"Consolidation (Low Volatility: {atr_val:.2f}) - Range Bound"
 
-        Based on these indicators, give a concise summary with trading insight.
-        """
+def bollinger_status(last_row):
+    close_val = last_row['Close']
+    if close_val < last_row['BBL']:
+        return "Outside Lower Band - Extreme Oversold"
+    if close_val > last_row['BBH']:
+        return "Outside Upper Band - Extreme Overbought"
+    return "Within Bands - Normal Volatility"
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
-            messages=[
-                {"role": "system", "content": "You are a trading analyst."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=200
-        )
-        return response.choices[0].message["content"].strip()
-    except Exception as e:
-        return f"Error generating AI analysis: {e}"
+def ema_crossover_status(last_row):
+    # Using SMA 5 (Fast) and SMA 20 (Slow) as an EMA crossover proxy
+    if last_row['SMA_5'] > last_row['SMA_20']:
+        return "Bullish Cross (5 > 20) - Strong Momentum"
+    if last_row['SMA_5'] < last_row['SMA_20']:
+        return "Bearish Cross (5 < 20) - Strong Momentum"
+    return "Indecisive/Flat EMAs"
 
-# --- UI SECTION ---
-st.sidebar.title("Market Selection")
-market_type = st.sidebar.selectbox("Choose Market", ["Stocks", "Crypto"])
-symbol = st.sidebar.text_input("Enter Symbol (e.g. AAPL, TSLA, BTCUSDT)", "AAPL")
-risk_ratio = st.sidebar.number_input("Risk-Reward Ratio", value=2.0, step=0.5)
-trade_style = st.sidebar.radio("Trading Style", ["Scalp", "Swing", "Long-Term"])
+def parabolic_sar_status(last_row):
+    if last_row['PSAR_BULL'] == 1.0:
+        return "Bullish (Dots Below Price) - Uptrend Confirmed"
+    if last_row['PSAR_BEAR'] == 1.0:
+        return "Bearish (Dots Above Price) - Downtrend Confirmed"
+    return "Reversal Imminent - Avoid Entry"
 
-st.title("📊 AI Trading Chatbot")
-st.write("Get AI-powered market summaries, indicators, and insights.")
+def rsi_status(last_row):
+    rsi_val = last_row['RSI']
+    if rsi_val > 70:
+        return f"Overbought ({rsi_val:.2f}) - Potential Reversal Down"
+    if rsi_val < 30:
+        return f"Oversold ({rsi_val:.2f}) - Potential Reversal Up"
+    return f"Neutral ({rsi_val:.2f}) - Normal Market Conditions"
 
-# --- DATA FETCHING ---
-if market_type == "Stocks":
-    df = get_finnhub_data(symbol)
-    if df is None or df.empty:
-        df = get_yfinance_data(symbol)
-    if df is None or df.empty:
-        st.error("No data fetched for this stock.")
-        st.stop()
-elif market_type == "Crypto":
-    df = get_crypto_data(symbol)
-    if df is None or df.empty:
-        st.error("No data fetched for this crypto.")
-        st.stop()
-else:
-    st.error("Unsupported market type.")
+# --- Streamlit App Layout ---
+
+st.title("📊 Multi-Indicator Technical Analysis Dashboard")
+st.markdown("---")
+
+# **API Key Handling**
+try:
+    # This line assumes you are using this key to fetch real data
+    FH_API_KEY = st.secrets["FINNHUB_API_KEY"]
+except KeyError:
+    # If the secret is missing, display an error and halt the script.
+    st.error("🚨 Missing API Key: Please create a `.streamlit/secrets.toml` file and add the FINNHUB_API_KEY.")
     st.stop()
+    # Note: If you want to use the dummy data without the API key, 
+    # you can remove st.stop() and use a placeholder for FH_API_KEY.
 
-df = calculate_indicators(df)
+# 1. Setup Data
+symbol = st.selectbox("Select Symbol", ["AAPL", "MSFT", "GOOGL"])
+timeframe = st.selectbox("Select Timeframe", ["1D", "1H"])
 
-# --- DISPLAY CHART ---
-st.line_chart(df[['close', 'EMA_20', 'EMA_50']].set_index(df['time']))
+# Replace this with your actual API call using FH_API_KEY
+# df_data = fetch_data(symbol, timeframe, FH_API_KEY)
+df_data = generate_dummy_data() 
 
-# --- SHOW SUMMARY ---
-ai_summary = generate_openai_analysis(df, symbol)
-st.subheader("AI Trading Summary")
-st.write(ai_summary)
+# 2. Calculate All Indicators
+df_indicators = calculate_all_indicators(df_data)
+last_row = df_indicators.iloc[-1]
 
-# --- RISK MANAGEMENT ---
-latest = df.iloc[-1]
-atr = latest['ATR']
-entry = latest['close']
-stop_loss = entry - (atr * risk_ratio)
-take_profit = entry + (atr * risk_ratio)
+st.header(f"Results for **{symbol}** ({timeframe})")
 
-st.metric("Entry", f"{entry:.2f}")
-st.metric("Stop Loss", f"{stop_loss:.2f}")
-st.metric("Take Profit", f"{take_profit:.2f}")
+# 3. Display Statuses
+st.subheader("Market Summary")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.info(f"**Close Price:** {last_row['Close']:.2f}")
+    st.info(f"**ATR (Volatility):** {last_row['ATR']:.4f}")
+    
+with col2:
+    st.success(f"**RSI (Momentum):** {rsi_status(last_row)}")
+    st.success(f"**SuperTrend:** {supertrend_status(last_row)}")
+
+with col3:
+    st.warning(f"**EMA Crossover:** {ema_crossover_status(last_row)}")
+    st.warning(f"**Parabolic SAR:** {parabolic_sar_status(last_row)}")
+
+st.markdown("---")
+st.subheader("Volatility and Band Status")
+st.code(f"Bollinger Bands: {bollinger_status(last_row)}")
+
+# Optional: Display the latest data row for debugging
+st.subheader("Latest Calculated Data (Last Day)")
+st.dataframe(pd.DataFrame(last_row).transpose(), use_container_width=True)
+
+# Safety Disclaimer (Good practice for financial apps)
+st.caption("Disclaimer: This information is for educational purposes only and does not constitute financial advice.")
