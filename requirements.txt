@@ -1,8 +1,7 @@
 streamlit==1.39.0
+requests
 pandas==2.1.4
 numpy==1.26.4
-requests==2.31.0
-git+https://github.com/twopirllc/pandas-ta.git
 pytz
-yfinance
-openai
+tzlocal
+ta
