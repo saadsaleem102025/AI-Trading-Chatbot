@@ -1,8 +1,8 @@
-streamlit
-requests
-pandas
-numpy
+streamlit==1.39.0
+pandas==2.1.4
+numpy==1.26.4
+requests==2.31.0
+pandas-ta==0.3.14b0
+yfinance==0.2.38
+openai==1.12.0
 pytz
-tzlocal
-ta
-openai>=0.27.0
