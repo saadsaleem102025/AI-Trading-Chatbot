@@ -3,6 +3,6 @@ pandas==2.1.4
 numpy==1.26.4
 requests==2.31.0
 git+https://github.com/twopirllc/pandas-ta.git
-yfinance==0.2.38
-openai==1.12.0
 pytz
+yfinance
+openai
