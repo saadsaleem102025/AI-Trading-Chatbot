@@ -7,8 +7,15 @@ import json
 import random 
 
 # --- CONFIGURATION & CONSTANTS ---
-RISK_MULTIPLE = 1.0 
-REWARD_MULTIPLE = 2.0 
+# Risk-Reward Ratios with descriptions
+RISK_REWARD_OPTIONS = {
+    "1:1 (Conservative/Scalper)": (1.0, 1.0),
+    "1:1.5 (Conservative/Swing Trader)": (1.0, 1.5),
+    "1:2 (Moderate/Default)": (1.0, 2.0),
+    "1:3 (Aggressive/Trend Trader)": (1.0, 3.0),
+    "1:4 (Highly Aggressive/Position Trader)": (1.0, 4.0),
+    "Custom": None  # Will be handled separately
+} 
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -197,11 +204,70 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 
 # --- API KEYS from Streamlit secrets ---
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
+FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
 # Define simplified sets for basic type validation (not comprehensive)
 KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE"}
 KNOWN_STOCK_SYMBOLS = {"AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "HOOD", "MSTR", "WMT", "^IXIC", "SPY"}
+
+# Timezone mapping dictionary
+TIMEZONE_MAP = {
+    "United States - New York (EST/EDT)": "America/New_York",
+    "United States - Los Angeles (PST/PDT)": "America/Los_Angeles",
+    "United States - Chicago (CST/CDT)": "America/Chicago",
+    "United Kingdom (GMT/BST)": "Europe/London",
+    "France (CET/CEST)": "Europe/Paris",
+    "Germany (CET/CEST)": "Europe/Berlin",
+    "Japan (JST)": "Asia/Tokyo",
+    "China - Hong Kong (HKT)": "Asia/Hong_Kong",
+    "Singapore (SGT)": "Asia/Singapore",
+    "Australia (AEST/AEDT)": "Australia/Sydney",
+    "United Arab Emirates (GST)": "Asia/Dubai",
+    "India (IST)": "Asia/Kolkata",
+    "Pakistan (PKT)": "Asia/Karachi",
+    "China (CST)": "Asia/Shanghai",
+    "Russia (MSK)": "Europe/Moscow",
+    "Canada - Toronto (EST/EDT)": "America/Toronto",
+    "Brazil (BRT)": "America/Sao_Paulo",
+    "Mexico (CST/CDT)": "America/Mexico_City",
+    "Turkey (TRT)": "Europe/Istanbul",
+    "South Korea (KST)": "Asia/Seoul",
+    "Thailand (ICT)": "Asia/Bangkok",
+    "Indonesia (WIB)": "Asia/Jakarta",
+    "Philippines (PHT)": "Asia/Manila",
+    "Bangladesh (BST)": "Asia/Dhaka",
+    "Egypt (EET)": "Africa/Cairo",
+    "South Africa (SAST)": "Africa/Johannesburg",
+    "Saudi Arabia (AST)": "Asia/Riyadh",
+    "Israel (IST)": "Asia/Tel_Aviv",
+    "Greece (EET)": "Europe/Athens",
+    "Switzerland (CET/CEST)": "Europe/Zurich",
+    "Netherlands (CET/CEST)": "Europe/Amsterdam",
+    "Spain (CET/CEST)": "Europe/Madrid",
+    "Italy (CET/CEST)": "Europe/Rome",
+    "Sweden (CET/CEST)": "Europe/Stockholm",
+    "Poland (CET/CEST)": "Europe/Warsaw",
+    "Austria (CET/CEST)": "Europe/Vienna",
+    "Nigeria (WAT)": "Africa/Lagos",
+    "Kenya (EAT)": "Africa/Nairobi",
+    "Argentina (ART)": "America/Argentina/Buenos_Aires",
+    "Chile (CLT)": "America/Santiago",
+    "Colombia (COT)": "America/Bogota",
+    "Peru (PET)": "America/Lima",
+    "Venezuela (VET)": "America/Caracas",
+    "Canada - Vancouver (PST/PDT)": "America/Vancouver",
+    "United States - Denver (MST/MDT)": "America/Denver",
+    "United States - Phoenix (MST)": "America/Phoenix",
+    "United States - Honolulu (HST)": "Pacific/Honolulu",
+    "United States - Anchorage (AKST/AKDT)": "America/Anchorage",
+    "New Zealand (NZST/NZDT)": "Pacific/Auckland",
+    "Fiji (FJT)": "Pacific/Fiji",
+    "Taiwan (CST)": "Asia/Taipei",
+    "Malaysia (MYT)": "Asia/Kuala_Lumpur",
+    "Sri Lanka (IST)": "Asia/Colombo",
+    "Nepal (NPT)": "Asia/Kathmandu",
+}
 
 def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
     """
@@ -327,12 +393,20 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
-    # --- 1. STOCK/INDEX LOGIC (Finnhub -> Yahoo) ---
+    # --- 1. STOCK/INDEX LOGIC (Private Finnhub -> Public Finnhub -> Yahoo) ---
     if asset_type == "Stock/Index":
+        # Try private API key first
+        if FH_PRIVATE_API_KEY:
+            price, change = fetch_stock_price_finnhub(base_symbol, FH_PRIVATE_API_KEY)
+            if price is not None:
+                return price, change
+        
+        # Fall back to public API key
         price, change = fetch_stock_price_finnhub(base_symbol, FH_API_KEY)
         if price is not None:
             return price, change
         
+        # Finally try Yahoo
         price, change = fetch_stock_price_yahoo(base_symbol)
         if price is not None:
             return price, change
@@ -439,12 +513,12 @@ def combined_bias(kde_val, st_text):
 
     return "Neutral (Consolidation/Wait for Entry Trigger)" 
 
-def get_trade_recommendation(bias, current_price, atr_val):
+def get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple):
     
     if "Strong Bullish" in bias:
         entry = current_price
-        target = entry + (REWARD_MULTIPLE * atr_val) 
-        stop = entry - (RISK_MULTIPLE * atr_val)
+        target = entry + (reward_multiple * atr_val) 
+        stop = entry - (risk_multiple * atr_val)
         return {
             "title": "Long Position Recommended",
             "action": f"entering a long position near <strong>{format_price(entry)}</strong>",
@@ -455,8 +529,8 @@ def get_trade_recommendation(bias, current_price, atr_val):
         }
     elif "Strong Bearish" in bias:
         entry = current_price
-        target = entry - (REWARD_MULTIPLE * atr_val)
-        stop = entry + (RISK_MULTIPLE * atr_val)
+        target = entry - (reward_multiple * atr_val)
+        stop = entry + (risk_multiple * atr_val)
         return {
             "title": "Short Position Recommended",
             "action": f"entering a short position near <strong>{format_price(entry)}</strong>",
@@ -526,7 +600,7 @@ The primary and all backup data sources for this asset are currently unavailable
 
 
 # === ANALYZE (Main Logic) ===
-def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
+def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_details, risk_multiple, reward_multiple):
     
     # --- STEP 1: HANDLE API FAILURE ---
     if price_raw is None:
@@ -606,17 +680,23 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
     motivation = random.choice(motivation_options.get(bias, [default_motivation]))
     
     current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
-    trade_parameters = get_trade_recommendation(bias, current_price, atr_val)
+    trade_parameters = get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple)
     analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
     
-    # --- FINAL OUTPUT STRUCTURE ---
-    full_output = f"""
-<div class='big-text'>
-<div class='analysis-item'>{current_price_line}</div>
+    # --- BUILD INDICATOR DETAILS (conditionally shown) ---
+    indicator_details_basic = f"""
+<div class='analysis-item'><b>{supertrend_output}</b> ({st_status_1h.split(' - ')[1]})</div>
 
-<div class='section-header'>📊 Detailed Indicator Analysis</div>
+<div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
 
-<div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
+<div class='analysis-item'>EMA Crossover (5/20): <b>{ema_status}</b></div>
+
+<div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
+"""
+    
+    indicator_details_expanded = ""
+    if show_details:
+        indicator_details_expanded = f"""
 <div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
 
 <div class='analysis-item'><b>{supertrend_output}</b> ({st_status_1h.split(' - ')[1]})</div>
@@ -630,6 +710,17 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
 
 <div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
 <div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
+"""
+    
+    # --- FINAL OUTPUT STRUCTURE ---
+    full_output = f"""
+<div class='big-text'>
+<div class='analysis-item'>{current_price_line}</div>
+
+<div class='section-header'>📊 Detailed Indicator Analysis</div>
+
+<div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
+{indicator_details_expanded if show_details else indicator_details_basic}
 
 <div class='analysis-bias'>Overall Market Bias: <span class='{bias.split(" ")[0].lower()}'>{bias}</span></div>
 
@@ -639,7 +730,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type):
 <div class='analysis-motto-prominent'>{motivation}</div>
 
 <div class='risk-warning'>
-⚠️ <b>Risk Disclaimer:</b> The ChatBot uses Risk-Reward Ratio as 1:2. This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses .
+⚠️ <b>Risk Disclaimer:</b> The ChatBot uses Risk-Reward Ratio of <b>{risk_multiple}:{reward_multiple}</b>. This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses.
 </div>
 </div>
 """
@@ -696,19 +787,19 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
-tz_options = [f"UTC{h:+03d}:{m:02d}" for h in range(-12, 15) for m in (0, 30) if not (h == 14 and m == 30) or (h == 13 and m==30) or (h == -12 and m == 30) or (h==-11 and m==30)]
-tz_options.extend(["UTC+05:45", "UTC+08:45", "UTC+12:45"])
-tz_options = sorted(list(set(tz_options))) 
-try: default_ix = tz_options.index("UTC+05:00") 
-except ValueError: default_ix = tz_options.index("UTC+00:00") 
+# Updated timezone selection with city names
+tz_city_names = sorted(TIMEZONE_MAP.keys())
+try: 
+    default_ix = tz_city_names.index("Pakistan (PKT)")
+except ValueError: 
+    try:
+        default_ix = tz_city_names.index("India (IST)")
+    except ValueError:
+        default_ix = tz_city_names.index("United Kingdom (GMT/BST)")
 
-selected_tz_str = st.sidebar.selectbox("Select Your Timezone", tz_options, index=default_ix)
-
-offset_str = selected_tz_str.replace("UTC", "")
-hours, minutes = map(int, offset_str.split(':'))
-total_minutes = (abs(hours) * 60 + minutes) * (-1 if hours < 0 or offset_str.startswith('-') else 1)
-user_tz = timezone(timedelta(minutes=total_minutes))
-user_local_time = datetime.datetime.now(user_tz)
+selected_tz_name = st.sidebar.selectbox("Select Your Timezone", tz_city_names, index=default_ix)
+selected_tz_pytz = pytz.timezone(TIMEZONE_MAP[selected_tz_name])
+user_local_time = datetime.datetime.now(selected_tz_pytz)
 
 st.sidebar.markdown(f"<div class='sidebar-item'><b>Your Local Time:</b> <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span></div>", unsafe_allow_html=True)
 
@@ -717,8 +808,8 @@ st.sidebar.markdown(f"<div class='sidebar-item'><b>Active Session:</b> <span cla
 today_overlap_start_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_START_UTC, tzinfo=timezone.utc)
 today_overlap_end_utc = datetime.datetime.combine(utc_now.date(), OVERLAP_END_UTC, tzinfo=timezone.utc)
 
-overlap_start_local = today_overlap_start_utc.astimezone(user_tz)
-overlap_end_local = today_overlap_end_utc.astimezone(user_tz)
+overlap_start_local = today_overlap_start_utc.astimezone(selected_tz_pytz)
+overlap_end_local = today_overlap_end_utc.astimezone(selected_tz_pytz)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-item sidebar-overlap-time'>
@@ -726,14 +817,14 @@ st.sidebar.markdown(f"""
 <span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
 {overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
 </span>
-<br>({selected_tz_str})
+<br>({selected_tz_name})
 </div>
 """, unsafe_allow_html=True)
 
 # --- MAIN EXECUTION ---
 st.title("AI Trading Chatbot")
 
-col1, col2 = st.columns([1.5, 2.5])
+col1, col2, col3 = st.columns([1.5, 2.5, 1.5])
 
 with col1:
     asset_type = st.selectbox(
@@ -747,8 +838,43 @@ with col2:
     user_input = st.text_input(
         "Enter Official Ticker Symbol",
         placeholder="e.g., TSLA, HOOD, BTC, HYPE",
-        help="Please enter the official ticker symbol (e.g., AAPL, BTC, NDX)."
+        label_visibility="visible"
     )
+
+with col3:
+    show_indicator_details = st.checkbox("Show Indicator Details", value=False)
+
+# Risk-Reward Ratio Selection
+st.markdown("<div style='margin-top: 15px; margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+col_rr1, col_rr2, col_rr3 = st.columns([2, 2, 2])
+
+with col_rr1:
+    rr_selection = st.selectbox(
+        "Select Risk:Reward Ratio Profile",
+        list(RISK_REWARD_OPTIONS.keys()),
+        index=2  # Default to 1:2
+    )
+
+with col_rr2:
+    if rr_selection == "Custom":
+        custom_risk = st.number_input("Risk Multiple", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
+    else:
+        custom_risk = None
+        st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+
+with col_rr3:
+    if rr_selection == "Custom":
+        custom_reward = st.number_input("Reward Multiple", min_value=0.1, max_value=10.0, value=2.0, step=0.1)
+    else:
+        custom_reward = None
+        st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+
+# Determine actual risk and reward multiples
+if rr_selection == "Custom":
+    RISK_MULTIPLE = custom_risk if custom_risk else 1.0
+    REWARD_MULTIPLE = custom_reward if custom_reward else 2.0
+else:
+    RISK_MULTIPLE, REWARD_MULTIPLE = RISK_REWARD_OPTIONS[rr_selection]
 
 vs_currency = "usd"
 if user_input:
@@ -776,4 +902,4 @@ if user_input:
     else:
         with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
             price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
-            st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type), unsafe_allow_html=True)
+            st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type, show_indicator_details, RISK_MULTIPLE, REWARD_MULTIPLE), unsafe_allow_html=True)
