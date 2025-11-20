@@ -1,10 +1,24 @@
-import streamlit as st
 import requests, datetime, pandas as pd, numpy as np, pytz, time
 from datetime import time as dt_time, timedelta, timezone
 import ta
 from ta.volatility import AverageTrueRange
 import json
 import random 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import requests
+import datetime
+import pandas as pd
+import numpy as np
+import pytz
+import time
+from datetime import time as dt_time, timedelta, timezone
+import ta
+from ta.volatility import AverageTrueRange
+import json
+import random
+
 
 # --- CONFIGURATION & CONSTANTS ---
 # Risk-Reward Ratios with descriptions
