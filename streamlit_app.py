@@ -1,6 +1,4 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+import streamlit as st
 
 import requests
 import datetime
@@ -11,7 +9,6 @@ import time
 from datetime import time as dt_time, timedelta, timezone
 import ta
 from ta.volatility import AverageTrueRange
-import json
 import random
 
 
