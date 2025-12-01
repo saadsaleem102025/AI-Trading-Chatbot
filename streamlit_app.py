@@ -247,7 +247,6 @@ TIMEZONE_MAP = {
     "Egypt (EET)": "Africa/Cairo",
     "South Africa (SAST)": "Africa/Johannesburg",
     "Saudi Arabia (AST)": "Asia/Riyadh",
-    "Israel (IST)": "Asia/Tel_Aviv",
     "Greece (EET)": "Europe/Athens",
     "Switzerland (CET/CEST)": "Europe/Zurich",
     "Netherlands (CET/CEST)": "Europe/Amsterdam",
