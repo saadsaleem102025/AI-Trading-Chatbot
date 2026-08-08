@@ -19,14 +19,13 @@ from collections import defaultdict
 
 
 # --- CONFIGURATION & CONSTANTS ---
-# Risk-Reward Ratios with descriptions
 RISK_REWARD_OPTIONS = {
     "1:1 (Conservative/Scalper)": (1.0, 1.0),
     "1:1.5 (Conservative/Swing Trader)": (1.0, 1.5),
     "1:2 (Moderate/Default)": (1.0, 2.0),
     "1:3 (Aggressive/Trend Trader)": (1.0, 3.0),
     "1:4 (Highly Aggressive/Position Trader)": (1.0, 4.0),
-    "Custom": None  # Will be handled separately
+    "Custom": None
 } 
 
 # --- STREAMLIT CONFIGURATION ---
@@ -49,68 +48,76 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 /* Sidebar styling */
 [data-testid="stSidebar"] {
     background: #111827;
-    width: 340px !important; min-width: 340px !important;
-    position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    padding: 0.1rem 1.0rem 0.1rem 1.0rem; 
+    width: 340px !important;
+    min-width: 340px !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    padding: 0.1rem 1.0rem 0.1rem 1.0rem;
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
 
-/* Main content boxes */
-.big-text {
-    background: #111827;
-    border: 1px solid #374151;
-    border-radius: 16px;
-    padding: 28px;
-    margin-top: 15px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+/* Sidebar components */
+.sidebar-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #60A5FA;
+    margin-top: 0px;
+    margin-bottom: 5px;
+    padding-top: 5px;
+    text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
+.sidebar-item {
+    background: #1F2937;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    font-size: 17px;
+    color: #9CA3AF;
+    border: 1px solid #374151;
+}
+.local-time-info { color: #00FFFF !important; font-weight: 700; }
+.active-session-info { color: #FF8C00 !important; font-weight: 700; }
+.status-volatility-info { color: #32CD32 !important; font-weight: 700; }
 
-/* Price Header */
-.price-header {
+/* Price display */
+.price-display {
+    background: #1a2332;
+    border-radius: 12px;
+    padding: 16px 24px;
+    border: 1px solid #374151;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #1a2332;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-    border: 1px solid #374151;
     flex-wrap: wrap;
     gap: 12px;
+    margin-bottom: 20px;
 }
-.price-header .price-section .label {
-    font-size: 13px;
-    color: #9CA3AF;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.price-header .price-section .value {
-    font-size: 30px;
+.price-display .price {
+    font-size: 32px;
     font-weight: 700;
     color: #F59E0B;
 }
-.price-header .price-section .value .currency {
+.price-display .price .currency {
     font-size: 16px;
     color: #9CA3AF;
     font-weight: 400;
 }
-.price-header .change-section {
-    text-align: right;
-}
-.price-header .change-section .change {
+.price-display .change {
     font-size: 20px;
     font-weight: 700;
 }
-.price-header .change-section .label {
+.price-display .label {
     font-size: 13px;
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.bias-badge {
+.price-display .bias-badge {
     display: inline-block;
     padding: 8px 24px;
     border-radius: 50px;
@@ -120,24 +127,24 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     letter-spacing: 1px;
 }
 
-/* Indicator Cards */
+/* Indicator Cards - FIXED */
+.indicator-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0;
+}
 .indicator-card {
     background: #1a2332;
     border-radius: 10px;
     padding: 16px 18px;
     border-left: 4px solid #374151;
-    transition: all 0.2s ease;
-    margin-bottom: 12px;
-}
-.indicator-card:hover {
-    background: #1f2a3a;
-    transform: translateX(3px);
 }
 .indicator-card .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 .indicator-card .name {
     font-size: 13px;
@@ -156,9 +163,49 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     font-size: 18px;
     font-weight: 700;
     color: #E5E7EB;
-    margin: 2px 0;
+    margin: 4px 0;
 }
 .indicator-card .explanation {
+    font-size: 13px;
+    color: #9CA3AF;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+/* Full width card */
+.indicator-card-full {
+    background: #1a2332;
+    border-radius: 10px;
+    padding: 16px 18px;
+    border-left: 4px solid #C084FC;
+    margin-top: 12px;
+}
+.indicator-card-full .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.indicator-card-full .name {
+    font-size: 13px;
+    color: #9CA3AF;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.indicator-card-full .signal-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 2px 12px;
+    border-radius: 20px;
+}
+.indicator-card-full .value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E5E7EB;
+    margin: 4px 0;
+}
+.indicator-card-full .explanation {
     font-size: 13px;
     color: #9CA3AF;
     margin-top: 6px;
@@ -185,9 +232,12 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.8;
     color: #E5E7EB;
 }
+.recommendation-box .content strong {
+    color: #FFD700 !important;
+}
 
 /* Trade Summary */
-.trade-recommendation-summary {
+.trade-summary {
     font-size: 18px;
     line-height: 1.8;
     margin-top: 10px;
@@ -222,21 +272,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.6;
 }
 
-/* Sidebar components */
-.sidebar-title {
-    font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px;
-    padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
-}
-.sidebar-item {
-    background: #1F2937; border-radius: 8px;
-    padding: 8px 12px; margin: 4px 0; 
-    font-size: 17px;
-    color: #9CA3AF; border: 1px solid #374151;
-}
-.local-time-info { color: #00FFFF !important; font-weight: 700; }
-.active-session-info { color: #FF8C00 !important; font-weight: 700; }
-.status-volatility-info { color: #32CD32 !important; font-weight: 700; }
-
 /* Colors */
 .bullish { color: #10B981 !important; font-weight: 700; }
 .bearish { color: #EF4444 !important; font-weight: 700; }
@@ -251,19 +286,24 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
         width: 280px !important;
         min-width: 280px !important;
     }
+    .indicator-grid {
+        grid-template-columns: 1fr;
+    }
+    .price-display {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# --- API KEYS from Streamlit secrets ---
+# --- API KEYS ---
 FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
 FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# Define crypto symbols
 KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE", "AVAX", "DOT", "LINK", "MATIC", "UNI", "ATOM", "LTC", "BCH", "NEAR", "ALGO", "VET", "ICP", "FIL", "EGLD", "XTZ", "AAVE", "MKR", "COMP", "YFI", "ZEC", "XLM", "HBAR", "ETC", "QNT", "GRT", "SNX", "STORJ", "ANKR", "CRV", "1INCH", "SUSHI", "UMA", "OCEAN", "REN", "ZRX", "BAT", "KNC", "ENJ", "CHR", "MANA", "SAND", "GALA", "AXS", "SLP", "ILV", "RNDR", "FET", "AGIX"}
 
-# Timezone mapping
 TIMEZONE_MAP = {
     "Pakistan (PKT)": "Asia/Karachi",
     "United States - New York (EST/EDT)": "America/New_York",
@@ -286,7 +326,7 @@ def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
         final_symbol = base_symbol
     return base_symbol, final_symbol
 
-# === HELPERS FOR FORMATTING ===
+# === HELPERS ===
 def format_price(p):
     if p is None: return "N/A" 
     try: p = float(p)
@@ -654,113 +694,121 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     }
     motivation = random.choice(motivation_options.get(bias, ["MAINTAIN EMOTIONAL DISTANCE"]))
     
-    # --- DISPLAY USING STREAMLIT NATIVE COMPONENTS ---
+    # --- DISPLAY ---
     
-    # Price Header
-    col1, col2, col3 = st.columns([2, 1.5, 1.5])
-    with col1:
-        st.markdown("**Current Price**")
-        st.markdown(f"<span style='font-size: 30px; font-weight: 700; color: #F59E0B;'>${format_price(price)}</span> <span style='color: #9CA3AF;'>{vs_currency.upper()}</span>", unsafe_allow_html=True)
-    with col2:
-        st.markdown("**24h Change**")
-        change_class = "bullish" if price_change > 0 else "bearish"
-        st.markdown(f"<span style='font-size: 20px; font-weight: 700;' class='{change_class}'>{'+' if price_change > 0 else ''}{price_change:.2f}%</span>", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<span class='bias-badge' style='background: {bias_bg}; color: {bias_color}; border: 2px solid {bias_color};'>{bias_text}</span>", unsafe_allow_html=True)
+    # Price Display
+    change_class = "bullish" if price_change > 0 else "bearish"
+    change_sign = "+" if price_change > 0 else ""
+    
+    st.markdown(f"""
+    <div class="price-display">
+        <div>
+            <div class="label">Current Price</div>
+            <div class="price">${format_price(price)} <span class="currency">{vs_currency.upper()}</span></div>
+        </div>
+        <div>
+            <div class="label">24h Change</div>
+            <div class="change {change_class}">{change_sign}{price_change:.2f}%</div>
+        </div>
+        <div>
+            <span class="bias-badge" style="background: {bias_bg}; color: {bias_color}; border: 2px solid {bias_color};">{bias_text}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.divider()
     
-    # Indicator Grid - 2x2
+    # Indicator Grid
     st.markdown("**Technical Indicators**")
     
+    # Row 1: Trend + Momentum
     col1, col2 = st.columns(2)
     
     with col1:
         # Trend
-        with st.container():
-            st.markdown(f"""
-            <div class='indicator-card' style='border-left-color: {trend_color};'>
-                <div class='card-header'>
-                    <span class='name'>Trend — SuperTrend</span>
-                    <span class='signal-badge' style='background: {trend_color}22; color: {trend_color};'>{indicator_data['trend']['status']}</span>
-                </div>
-                <div class='value'>{indicator_data['trend']['status']}</div>
-                <div class='explanation'>{indicator_data['trend']['detail']}</div>
+        st.markdown(f"""
+        <div class="indicator-card" style="border-left-color: {trend_color};">
+            <div class="card-header">
+                <span class="name">Trend — SuperTrend</span>
+                <span class="signal-badge" style="background: {trend_color}22; color: {trend_color};">{indicator_data['trend']['status']}</span>
             </div>
-            """, unsafe_allow_html=True)
-        
-        # Volatility
-        with st.container():
-            squeeze_text = "🔥 SQUEEZE" if indicator_data['volatility']['is_squeeze'] else "NORMAL"
-            squeeze_color = "#F59E0B" if indicator_data['volatility']['is_squeeze'] else "#60A5FA"
-            st.markdown(f"""
-            <div class='indicator-card' style='border-left-color: {volatility_color};'>
-                <div class='card-header'>
-                    <span class='name'>Volatility — Bollinger Bands</span>
-                    <span class='signal-badge' style='background: {squeeze_color}22; color: {squeeze_color};'>{squeeze_text}</span>
-                </div>
-                <div class='value'>{'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'}</div>
-                <div class='explanation'>{indicator_data['volatility']['detail']}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            <div class="value">{indicator_data['trend']['status']}</div>
+            <div class="explanation">{indicator_data['trend']['detail']}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
         # Momentum
-        with st.container():
-            st.markdown(f"""
-            <div class='indicator-card' style='border-left-color: {momentum_color};'>
-                <div class='card-header'>
-                    <span class='name'>Momentum — RSI</span>
-                    <span class='signal-badge' style='background: {momentum_color}22; color: {momentum_color};'>{indicator_data['momentum']['status']}</span>
-                </div>
-                <div class='value'>RSI: {indicator_data['momentum']['value']:.2f}</div>
-                <div class='explanation'>{indicator_data['momentum']['detail']}</div>
+        st.markdown(f"""
+        <div class="indicator-card" style="border-left-color: {momentum_color};">
+            <div class="card-header">
+                <span class="name">Momentum — RSI</span>
+                <span class="signal-badge" style="background: {momentum_color}22; color: {momentum_color};">{indicator_data['momentum']['status']}</span>
             </div>
-            """, unsafe_allow_html=True)
-        
+            <div class="value">RSI: {indicator_data['momentum']['value']:.2f}</div>
+            <div class="explanation">{indicator_data['momentum']['detail']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Row 2: Volatility + Reversal
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        # Volatility
+        squeeze_text = "🔥 SQUEEZE" if indicator_data['volatility']['is_squeeze'] else "NORMAL"
+        st.markdown(f"""
+        <div class="indicator-card" style="border-left-color: {volatility_color};">
+            <div class="card-header">
+                <span class="name">Volatility — Bollinger Bands</span>
+                <span class="signal-badge" style="background: {volatility_color}22; color: {volatility_color};">{squeeze_text}</span>
+            </div>
+            <div class="value">{'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'}</div>
+            <div class="explanation">{indicator_data['volatility']['detail']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
         # Reversal
-        with st.container():
-            reversal_label = "⚠️ REVERSAL" if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']
-            reversal_color_display = "#EF4444" if indicator_data['reversal']['is_reversal'] else reversal_color
-            st.markdown(f"""
-            <div class='indicator-card' style='border-left-color: {reversal_color_display};'>
-                <div class='card-header'>
-                    <span class='name'>Reversal — Parabolic SAR</span>
-                    <span class='signal-badge' style='background: {reversal_color_display}22; color: {reversal_color_display};'>{reversal_label}</span>
-                </div>
-                <div class='value'>{'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
-                <div class='explanation'>{indicator_data['reversal']['detail']}</div>
+        reversal_label = "⚠️ REVERSAL" if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']
+        reversal_color_display = "#EF4444" if indicator_data['reversal']['is_reversal'] else reversal_color
+        st.markdown(f"""
+        <div class="indicator-card" style="border-left-color: {reversal_color_display};">
+            <div class="card-header">
+                <span class="name">Reversal — Parabolic SAR</span>
+                <span class="signal-badge" style="background: {reversal_color_display}22; color: {reversal_color_display};">{reversal_label}</span>
             </div>
-            """, unsafe_allow_html=True)
+            <div class="value">{'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
+            <div class="explanation">{indicator_data['reversal']['detail']}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Liquidity - Full width
     st.markdown(f"""
-    <div class='indicator-card' style='border-left-color: #C084FC; margin-top: 12px;'>
-        <div class='card-header'>
-            <span class='name'>Liquidity — Volume Profile</span>
-            <span class='signal-badge' style='background: #C084FC22; color: #C084FC;'>POC</span>
+    <div class="indicator-card-full">
+        <div class="card-header">
+            <span class="name">Liquidity — Volume Profile</span>
+            <span class="signal-badge" style="background: #C084FC22; color: #C084FC;">POC</span>
         </div>
-        <div class='value'>POC: ${format_price(indicator_data['liquidity']['value'])}</div>
-        <div class='explanation'>{indicator_data['liquidity']['detail']}</div>
+        <div class="value">POC: ${format_price(indicator_data['liquidity']['value'])}</div>
+        <div class="explanation">{indicator_data['liquidity']['detail']}</div>
     </div>
     """, unsafe_allow_html=True)
     
     st.divider()
     
     # AI Recommendation
-    with st.container():
-        st.markdown(f"""
-        <div class='recommendation-box'>
-            <div class='title'>⭐ AI Trading Recommendation</div>
-            <div class='content'>
-                <strong>{trade_params['title']}</strong><br>
-                {trade_params['action']}<br>
-                <strong>Target:</strong> {trade_params['target']}<br>
-                <strong>Stop Loss:</strong> {trade_params['stop']}<br>
-                <strong>Strategy:</strong> {trade_params['strategy']}
-            </div>
+    st.markdown(f"""
+    <div class="recommendation-box">
+        <div class="title">⭐ AI Trading Recommendation</div>
+        <div class="content">
+            <strong>{trade_params['title']}</strong><br>
+            {trade_params['action']}<br>
+            <strong>Target:</strong> {trade_params['target']}<br>
+            <strong>Stop Loss:</strong> {trade_params['stop']}<br>
+            <strong>Strategy:</strong> {trade_params['strategy']}
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
     
     # Natural Language Summary
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
@@ -772,7 +820,7 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     summary += f"• <strong>Liquidity (Volume Profile):</strong> {indicator_data['liquidity']['detail']}"
     
     st.markdown(f"""
-    <div class='trade-recommendation-summary'>
+    <div class="trade-summary">
     {summary}
     </div>
     """, unsafe_allow_html=True)
@@ -782,7 +830,7 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     
     # Disclaimer
     st.markdown("""
-    <div class='disclaimer'>
+    <div class="disclaimer">
         <strong>⚠️ Risk Disclaimer:</strong> This is not financial advice. All trading involves risk. 
         Past performance doesn't guarantee future results. Only trade with money you can afford to lose. 
         Always use stop losses.
