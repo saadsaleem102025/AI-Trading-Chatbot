@@ -9,7 +9,12 @@ import time
 from datetime import time as dt_time, timedelta, timezone
 import ta
 from ta.volatility import AverageTrueRange
+from ta.trend import MACD, EMAIndicator, SMAIndicator, PSARIndicator
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
 import random
+import json
+from collections import defaultdict
 
 
 
@@ -27,7 +32,7 @@ RISK_REWARD_OPTIONS = {
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Crypto Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. STYLE (Altered for Sidebar Scrolling) ===
+# === 1. STYLE ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
@@ -58,7 +63,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
-/* Main content boxes (Darker, to contrast main bg) */
+/* Main content boxes */
 .big-text {
     background: #111827;
     border: 1px solid #374151;
@@ -79,7 +84,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-bottom: 2px solid #374151;
 }
 
-/* --- BOLD TEXT COLOR CHANGE (KEYWORD COLOR) --- */
+/* BOLD TEXT COLOR CHANGE */
 .big-text b, .trade-recommendation-summary strong {
     color: #FFD700 !important;
     font-weight: 800;
@@ -188,11 +193,9 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .neutral { color: #F59E0B; font-weight: 700; }
 .percent-label { color: #C084FC; font-weight: 700; }
 
-.kde-red { color: #EF4444; }
-.kde-orange { color: #F59E0B; }
-.kde-yellow { color: #FFCC00; }
-.kde-green { color: #10B981; }
-.kde-purple { color: #C084FC; }
+.indicator-bullish { color: #10B981; font-weight: 700; }
+.indicator-bearish { color: #EF4444; font-weight: 700; }
+.indicator-neutral { color: #F59E0B; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -404,153 +407,431 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     
     return None, None
 
-# === INDICATOR LOGIC ===
-def get_historical_data(symbol, interval="1h", outputsize=200):
-    return None
+# === HISTORICAL DATA FETCHER ===
+def get_historical_data(symbol, interval="1h", limit=200):
+    """Fetch historical OHLCV data for indicator calculations"""
+    # For now, use synthetic data since real data requires paid API
+    # This maintains compatibility with existing code
+    return synthesize_series(symbol, length=limit)
 
 def synthesize_series(symbol, length=200, volatility_pct=0.008): 
+    """Generate synthetic OHLCV data for indicator calculations"""
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
-    base = 10.0 
+    base = 100.0  # Base price for synthetic data
     returns = np.random.normal(0, volatility_pct, size=length)
     series = base * np.exp(np.cumsum(returns))
     
+    # Generate volume data (random with some pattern)
+    volume = np.random.lognormal(mean=10, sigma=1, size=length) * 1000
+    
     df = pd.DataFrame({
-        "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="T"),
+        "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="h"),
         "Close": series, 
         "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), 
         "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), 
-        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)), 
+        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)),
+        "Volume": volume
     })
     return df.iloc[-length:].set_index('datetime')
 
-def kde_rsi(df_placeholder, symbol):
-    seed_val = int(hash(symbol) % (2**31 - 1))
-    np.random.seed(seed_val)
-    kde_val = np.random.randint(1500, 8500) / 100.0
-    return float(kde_val)
+# === NEW INDICATOR FUNCTIONS ===
 
-def supertrend_status(df, kde_val):
-    if kde_val > 65: return "Bullish - Trend Confirmed"
-    if kde_val < 35: return "Bearish - Trend Confirmed"
-    return "Consolidation - Range Bound"
-
-def bollinger_status(df, kde_val):
-    if kde_val < 20: return "Outside Lower Band - Extreme Oversold"
-    if kde_val > 80: return "Outside Upper Band - Extreme Overbought"
-    return "Within Bands - Normal Volatility"
-
-def ema_crossover_status(kde_val): 
-    if kde_val > 70: return "Bullish Cross (5>20) - Strong Momentum"
-    if kde_val < 30: return "Bearish Cross (5<20) - Strong Momentum"
-    return "Indecisive/Flat EMAs"
-
-def parabolic_sar_status(kde_val):
-    if kde_val > 60: return "Bullish (Dots Below Price) - Uptrend Confirmed"
-    if kde_val < 40: return "Bearish (Dots Above Price) - Downtrend Confirmed"
-    return "Reversal Imminent - Avoid Entry"
-
-def get_kde_rsi_status(kde_val):
-    if kde_val < 15: return f"<span class='kde-purple'>🟣 {kde_val:.2f}% → Extreme Oversold</span> (High Bullish Reversal Probability)"
-    elif kde_val < 30: return f"<span class='kde-red'>🔴 {kde_val:.2f}% → Oversold</span> (Potential Bullish Trend Start)"
-    elif kde_val < 45: return f"<span class='kde-orange'>🟠 {kde_val:.2f}% → Weak Bearish</span> (Momentum Neutralizing)"
-    elif kde_val < 55: return f"<span class='kde-yellow'>🟡 {kde_val:.2f}% → Neutral Zone</span> (Consolidation/Trend Continuation)"
-    elif kde_val < 70: return f"<span class='kde-green'>🟢 {kde_val:.2f}% → Strong Bullish</span> (Bullish Trend Likely Continuing)"
-    elif kde_val < 85: return f"<span class='kde-red'>🔵 {kde_val:.2f}% → Overbought</span> (Potential Bearish Trend Start)"
-    else: return f"<span class='kde-purple'>🟣 {kde_val:.2f}% → Extreme Overbought</span> (High Bearish Reversal Probability)"
+def calculate_supertrend(df, period=10, multiplier=3):
+    """
+    Calculate SuperTrend indicator
+    Returns: trend direction and SuperTrend line value
+    """
+    high = df['High']
+    low = df['Low']
+    close = df['Close']
     
-def get_kde_rsi_explanation(): return "KDE RSI measures the density of momentum to identify extreme overbought/oversold conditions more accurately."
-def get_supertrend_explanation(status):
-    if "Bullish" in status: return "Price is trading above the SuperTrend line, indicating **upward momentum and trend strength**."
-    else: return "Price is trading below the SuperTrend line, indicating **downward momentum**."
-def get_bollinger_explanation(status):
-    if "Normal" in status: return "Price is moving within expected volatility range. Watch for breaks above/below bands for potential moves."
-    elif "Upper" in status: return "**Price touching upper band** - potential overbought condition or strong trend."
-    else: return "**Price touching lower band** - potential oversold condition or weak trend."
-def get_ema_explanation(status):
-    if "Bullish" in status: return "Fast EMA crossed above slow EMA - suggests **buying pressure** and upward momentum."
-    elif "Bearish" in status: return "Fast EMA crossed below slow EMA - suggests **selling pressure** and downward momentum."
-    else: return "EMAs are close together - market is consolidating, wait for clear direction."
-def get_psar_explanation(status):
-    if "Bullish" in status: return "SAR dots below price confirm the **uptrend** and provide trailing stop levels for long positions."
-    elif "Bearish" in status: return "SAR dots above price provide trailing stop levels for short positions."
-    else: return "SAR switching position - trend may be reversing, avoid new entries."
+    # Calculate ATR
+    atr_indicator = AverageTrueRange(high=high, low=low, close=close, window=period)
+    atr = atr_indicator.average_true_range()
     
-def combined_bias(kde_val, st_text):
-    is_bullish_trend = ("Bullish" in st_text) and (kde_val > 55)
-    is_bearish_trend = ("Bearish" in st_text) and (kde_val < 45)
+    # Calculate upper and lower bands
+    hl2 = (high + low) / 2
+    upper_band = hl2 + (multiplier * atr)
+    lower_band = hl2 - (multiplier * atr)
     
-    if is_bullish_trend and kde_val > 65: return "Strong Bullish"
-    if is_bearish_trend and kde_val < 35: return "Strong Bearish"
+    # Initialize SuperTrend
+    supertrend = pd.Series(index=df.index, dtype=float)
+    trend = pd.Series(index=df.index, dtype=int)  # 1 for uptrend, -1 for downtrend
     
-    if 45 <= kde_val <= 55: return "Neutral (Consolidation/Wait for Entry Trigger)"
+    for i in range(period, len(df)):
+        if i == period:
+            if close.iloc[i] > upper_band.iloc[i]:
+                trend.iloc[i] = 1
+                supertrend.iloc[i] = lower_band.iloc[i]
+            else:
+                trend.iloc[i] = -1
+                supertrend.iloc[i] = upper_band.iloc[i]
+        else:
+            if trend.iloc[i-1] == 1:
+                if close.iloc[i] < lower_band.iloc[i]:
+                    trend.iloc[i] = -1
+                    supertrend.iloc[i] = upper_band.iloc[i]
+                else:
+                    trend.iloc[i] = 1
+                    supertrend.iloc[i] = max(lower_band.iloc[i], supertrend.iloc[i-1])
+            else:
+                if close.iloc[i] > upper_band.iloc[i]:
+                    trend.iloc[i] = 1
+                    supertrend.iloc[i] = lower_band.iloc[i]
+                else:
+                    trend.iloc[i] = -1
+                    supertrend.iloc[i] = min(upper_band.iloc[i], supertrend.iloc[i-1])
     
-    if ("Bullish" in st_text and kde_val > 80) or ("Bearish" in st_text and kde_val < 20):
-        return "Neutral (Conflicting Signals/Extreme Condition)"
+    current_trend = "Bullish" if trend.iloc[-1] == 1 else "Bearish"
+    current_value = supertrend.iloc[-1]
+    
+    return {
+        "status": current_trend,
+        "value": current_value,
+        "detail": f"SuperTrend line at ${format_price(current_value)} — {current_trend} trend confirmed"
+    }
 
-    return "Neutral (Consolidation/Wait for Entry Trigger)" 
-
-def get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple):
+def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
+    """
+    Calculate RSI with moving average and divergence detection
+    Returns: RSI value, MA of RSI, and divergence signal
+    """
+    close = df['Close']
     
-    if "Strong Bullish" in bias:
-        entry = current_price
-        target = entry + (reward_multiple * atr_val) 
-        stop = entry - (risk_multiple * atr_val)
-        return {
-            "title": "Long Position Recommended",
-            "action": f"entering a long position near <strong>{format_price(entry)}</strong>",
-            "strategy": "Wait for confirmation or a slight pullback",
-            "target": f"plan to take profit at <strong>{format_price(target)}</strong>",
-            "stop": f"strictly set the stop loss below <strong>{format_price(stop)}</strong>",
-            "type": "bullish"
-        }
-    elif "Strong Bearish" in bias:
-        entry = current_price
-        target = entry - (reward_multiple * atr_val)
-        stop = entry + (risk_multiple * atr_val)
-        return {
-            "title": "Short Position Recommended",
-            "action": f"entering a short position near <strong>{format_price(entry)}</strong>",
-            "strategy": "Short on rallies to resistance levels",
-            "target": f"plan to cover the short at <strong>{format_price(target)}</strong>",
-            "stop": f"strictly set the stop loss above <strong>{format_price(stop)}</strong>",
-            "type": "bearish"
-        }
+    # Calculate RSI
+    rsi_indicator = RSIIndicator(close=close, window=rsi_period)
+    rsi = rsi_indicator.rsi()
+    
+    # Calculate moving average of RSI
+    rsi_ma = rsi.rolling(window=ma_period).mean()
+    
+    current_rsi = rsi.iloc[-1]
+    current_rsi_ma = rsi_ma.iloc[-1]
+    
+    # Detect divergences
+    # Look back 20 periods for swing points
+    lookback = 20
+    if len(rsi) > lookback:
+        rsi_array = rsi.iloc[-lookback:].values
+        price_array = close.iloc[-lookback:].values
+        
+        # Find swing highs and lows in price
+        price_highs = []
+        price_lows = []
+        rsi_highs = []
+        rsi_lows = []
+        
+        for i in range(2, len(price_array) - 2):
+            # Price swing high
+            if price_array[i] > price_array[i-1] and price_array[i] > price_array[i-2] and \
+               price_array[i] > price_array[i+1] and price_array[i] > price_array[i+2]:
+                price_highs.append((i, price_array[i]))
+                rsi_highs.append((i, rsi_array[i]))
+            # Price swing low
+            if price_array[i] < price_array[i-1] and price_array[i] < price_array[i-2] and \
+               price_array[i] < price_array[i+1] and price_array[i] < price_array[i+2]:
+                price_lows.append((i, price_array[i]))
+                rsi_lows.append((i, rsi_array[i]))
+        
+        # Check for divergences using last 2 swing points
+        divergence = "No Divergence Detected"
+        
+        if len(price_highs) >= 2:
+            # Bearish divergence: price makes higher high, RSI makes lower high
+            if price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
+                divergence = "Bearish Divergence Detected"
+        
+        if len(price_lows) >= 2:
+            # Bullish divergence: price makes lower low, RSI makes higher low
+            if price_lows[-1][1] < price_lows[-2][1] and rsi_lows[-1][1] > rsi_lows[-2][1]:
+                divergence = "Bullish Divergence Detected"
     else:
-        target_trigger = current_price + (2.0 * atr_val)
-        stop_trigger = current_price - (1.0 * atr_val)
+        divergence = "Insufficient Data for Divergence Detection"
+    
+    # Determine RSI status
+    if current_rsi > 70:
+        status = "Overbought"
+        detail = f"RSI at {current_rsi:.2f} — Overbought, potential reversal"
+    elif current_rsi < 30:
+        status = "Oversold"
+        detail = f"RSI at {current_rsi:.2f} — Oversold, potential bounce"
+    else:
+        status = "Neutral"
+        detail = f"RSI at {current_rsi:.2f} — Neutral momentum"
+    
+    return {
+        "status": status,
+        "value": current_rsi,
+        "detail": f"{detail} | RSI MA: {current_rsi_ma:.2f} | {divergence}"
+    }
+
+def calculate_bollinger_bands(df, period=20, std_dev=2):
+    """
+    Calculate Bollinger Bands with squeeze detection
+    Returns: band status and squeeze flag
+    """
+    close = df['Close']
+    
+    # Calculate Bollinger Bands
+    bb_indicator = BollingerBands(close=close, window=period, window_dev=std_dev)
+    upper = bb_indicator.bollinger_hband()
+    middle = bb_indicator.bollinger_mavg()
+    lower = bb_indicator.bollinger_lband()
+    
+    current_upper = upper.iloc[-1]
+    current_middle = middle.iloc[-1]
+    current_lower = lower.iloc[-1]
+    current_close = close.iloc[-1]
+    
+    # Calculate band width
+    band_width = (current_upper - current_lower) / current_middle
+    
+    # Calculate historical band widths for squeeze detection
+    historical_widths = []
+    for i in range(period, len(close)):
+        if not pd.isna(upper.iloc[i]) and not pd.isna(lower.iloc[i]) and not pd.isna(middle.iloc[i]):
+            width = (upper.iloc[i] - lower.iloc[i]) / middle.iloc[i]
+            historical_widths.append(width)
+    
+    # Check for squeeze (bottom 20th percentile)
+    is_squeeze = False
+    if len(historical_widths) >= 100:
+        percentile_20 = np.percentile(historical_widths, 20)
+        if band_width <= percentile_20:
+            is_squeeze = True
+    
+    # Determine position relative to bands
+    if current_close > current_upper:
+        position = "Above Upper Band"
+        status = "Overbought"
+    elif current_close < current_lower:
+        position = "Below Lower Band"
+        status = "Oversold"
+    else:
+        position = "Within Bands"
+        status = "Normal"
+    
+    detail = f"Price at {format_price(current_close)} | Upper: ${format_price(current_upper)} | Middle: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
+    
+    if is_squeeze:
+        detail += " | 🔥 BOLLINGER SQUEEZE — Breakout Likely!"
+    else:
+        detail += f" | Band Width: {band_width:.3f} — Normal Volatility"
+    
+    return {
+        "status": status,
+        "value": band_width,
+        "detail": detail,
+        "is_squeeze": is_squeeze,
+        "upper": current_upper,
+        "middle": current_middle,
+        "lower": current_lower
+    }
+
+def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
+    """
+    Calculate Parabolic SAR with reversal detection
+    Returns: SAR position and reversal flag
+    """
+    high = df['High']
+    low = df['Low']
+    close = df['Close']
+    
+    # Calculate PSAR
+    psar_indicator = PSARIndicator(high=high, low=low, close=close, step=step, max_step=max_step)
+    psar = psar_indicator.psar()
+    
+    current_psar = psar.iloc[-1]
+    current_close = close.iloc[-1]
+    previous_psar = psar.iloc[-2] if len(psar) > 1 else current_psar
+    
+    # Determine position
+    if current_close > current_psar:
+        position = "Below Price"
+        status = "Bullish"
+        detail = f"SAR at ${format_price(current_psar)} — Below price, uptrend confirmed"
+    else:
+        position = "Above Price"
+        status = "Bearish"
+        detail = f"SAR at ${format_price(current_psar)} — Above price, downtrend confirmed"
+    
+    # Check for reversal (SAR just flipped)
+    is_reversal = False
+    if len(psar) > 2:
+        # Check if SAR flipped in last 1-2 candles
+        for i in range(1, min(3, len(psar))):
+            if (psar.iloc[-i] > close.iloc[-i] and psar.iloc[-i-1] < close.iloc[-i-1]) or \
+               (psar.iloc[-i] < close.iloc[-i] and psar.iloc[-i-1] > close.iloc[-i-1]):
+                is_reversal = True
+                break
+    
+    if is_reversal:
+        detail += " | ⚠️ REVERSAL IMMINENT — SAR just flipped sides!"
+    
+    return {
+        "status": status,
+        "value": current_psar,
+        "detail": detail,
+        "is_reversal": is_reversal
+    }
+
+def calculate_volume_profile(df, num_bins=25):
+    """
+    Calculate Volume Profile approximation
+    Returns: Point of Control (POC) and key support/resistance levels
+    """
+    # Check if volume data exists
+    if 'Volume' not in df.columns or df['Volume'].sum() == 0:
+        # Fallback to pivot points
+        high = df['High'].iloc[-100:] if len(df) > 100 else df['High']
+        low = df['Low'].iloc[-100:] if len(df) > 100 else df['Low']
+        
+        swing_high = high.max()
+        swing_low = low.min()
+        
         return {
-            "title": "No Trade Recommended (Wait for Clarity)",
-            "action": "stay on the sidelines and preserve capital",
-            "strategy": "Avoid entering until a clear break occurs",
-            "target": f"A <strong>bullish entry trigger</strong> would be a break above <strong>{format_price(target_trigger)}</strong>",
-            "stop": f"A <strong>bearish entry trigger</strong> would be a break below <strong>{format_price(stop_trigger)}</strong>",
-            "type": "neutral"
+            "status": "Fallback Mode",
+            "value": (swing_high + swing_low) / 2,
+            "detail": f"⚠️ FALLBACK: Volume data unavailable. Using pivot points — Resistance: ${format_price(swing_high)} | Support: ${format_price(swing_low)} | Mid: ${format_price((swing_high + swing_low) / 2)}"
         }
+    
+    # Use last 200 candles or available data
+    lookback = min(200, len(df))
+    price = df['Close'].iloc[-lookback:]
+    volume = df['Volume'].iloc[-lookback:]
+    
+    # Create price bins
+    price_min = price.min()
+    price_max = price.max()
+    bin_width = (price_max - price_min) / num_bins
+    
+    # Bin the data
+    bins = np.linspace(price_min, price_max, num_bins + 1)
+    bin_indices = np.digitize(price, bins) - 1
+    
+    # Sum volume per bin
+    volume_by_bin = defaultdict(float)
+    for idx, vol in zip(bin_indices, volume):
+        if 0 <= idx < num_bins:
+            volume_by_bin[idx] += vol
+    
+    # Find POC (bin with highest volume)
+    poc_bin = max(volume_by_bin, key=volume_by_bin.get)
+    poc_price = (bins[poc_bin] + bins[poc_bin + 1]) / 2
+    
+    # Find top 3 volume bins
+    sorted_bins = sorted(volume_by_bin.items(), key=lambda x: x[1], reverse=True)
+    top_bins = sorted_bins[:3]
+    top_prices = [(bins[bin_idx] + bins[bin_idx + 1]) / 2 for bin_idx, _ in top_bins]
+    
+    detail = f"POC (Point of Control): ${format_price(poc_price)}"
+    if len(top_prices) > 1:
+        detail += f" | Secondary Zones: ${format_price(top_prices[1])}"
+    if len(top_prices) > 2:
+        detail += f", ${format_price(top_prices[2])}"
+    
+    return {
+        "status": "Volume Profile",
+        "value": poc_price,
+        "detail": detail
+    }
+
+# === OVERALL INDICATOR CALCULATION ===
+def calculate_all_indicators(symbol, df):
+    """
+    Calculate all 5 indicators and return as structured dictionary
+    """
+    try:
+        # 1. Trend Direction - SuperTrend
+        supertrend = calculate_supertrend(df)
+        
+        # 2. Momentum - RSI with MA and Divergence
+        rsi_data = calculate_rsi_with_divergence(df)
+        
+        # 3. Volatility - Bollinger Bands with Squeeze
+        bollinger = calculate_bollinger_bands(df)
+        
+        # 4. Reversal Timing - Parabolic SAR
+        psar = calculate_parabolic_sar(df)
+        
+        # 5. Liquidity - Volume Profile
+        volume_profile = calculate_volume_profile(df)
+        
+        return {
+            "trend": supertrend,
+            "momentum": rsi_data,
+            "volatility": bollinger,
+            "reversal": psar,
+            "liquidity": volume_profile
+        }
+    except Exception as e:
+        # Return error state for all indicators
+        return {
+            "trend": {"status": "Error", "value": None, "detail": f"Calculation error: {str(e)}"},
+            "momentum": {"status": "Error", "value": None, "detail": "Unable to calculate RSI"},
+            "volatility": {"status": "Error", "value": None, "detail": "Unable to calculate Bollinger Bands"},
+            "reversal": {"status": "Error", "value": None, "detail": "Unable to calculate Parabolic SAR"},
+            "liquidity": {"status": "Error", "value": None, "detail": "Unable to calculate Volume Profile"}
+        }
+
+# === OVERALL BIAS DETERMINATION ===
+def determine_overall_bias(indicator_data):
+    """
+    Determine overall market bias based on all indicators
+    """
+    bullish_count = 0
+    bearish_count = 0
+    
+    # Check each indicator
+    if indicator_data["trend"]["status"] == "Bullish":
+        bullish_count += 2  # Trend is weighted higher
+    elif indicator_data["trend"]["status"] == "Bearish":
+        bearish_count += 2
+    
+    if indicator_data["momentum"]["status"] in ["Overbought"]:
+        bearish_count += 1
+    elif indicator_data["momentum"]["status"] in ["Oversold"]:
+        bullish_count += 1
+    
+    if indicator_data["volatility"]["status"] == "Overbought":
+        bearish_count += 1
+    elif indicator_data["volatility"]["status"] == "Oversold":
+        bullish_count += 1
+    
+    if indicator_data["reversal"]["status"] == "Bullish":
+        bullish_count += 1
+    elif indicator_data["reversal"]["status"] == "Bearish":
+        bearish_count += 1
+    
+    if bullish_count > bearish_count:
+        return "Strong Bullish" if bullish_count - bearish_count >= 2 else "Bullish"
+    elif bearish_count > bullish_count:
+        return "Strong Bearish" if bearish_count - bullish_count >= 2 else "Bearish"
+    else:
+        return "Neutral"
 
 # === NATURAL LANGUAGE SUMMARY ===
-def get_natural_language_summary(symbol, bias, trade_params):
+def get_natural_language_summary(symbol, bias, indicator_data):
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
     
-    if trade_params["type"] == "bullish":
-        summary += (
-            f"<strong>{trade_params['title']}</strong> is given. The analysis suggests {trade_params['action']} "
-            f"with a clear volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
-        )
-    elif trade_params["type"] == "bearish":
-        summary += (
-            f"<strong>{trade_params['title']}</strong> is given. The analysis recommends {trade_params['action']} "
-            f"with a volatility-adjusted setup. Traders should {trade_params['target']} "
-            f"and {trade_params['stop']}. The strategy suggests: <i>{trade_params['strategy']}</i>."
-        )
+    # Add indicator summaries
+    summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
+    summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
+    summary += f"• <strong>Momentum (RSI):</strong> {indicator_data['momentum']['status']} — {indicator_data['momentum']['detail']}<br>"
+    
+    if indicator_data['volatility']['is_squeeze']:
+        summary += f"• <strong>Volatility (Bollinger):</strong> 🔥 SQUEEZE DETECTED — {indicator_data['volatility']['detail']}<br>"
     else:
-        summary += (
-            f"<strong>{trade_params['title']}</strong>. The market for {symbol} is currently consolidating or showing mixed signals. "
-            f"The recommendation is to <strong>{trade_params['action']}</strong>. "
-            f"<strong>Action Triggers:</strong> {trade_params['target']} or {trade_params['stop']}."
-        )
-
+        summary += f"• <strong>Volatility (Bollinger):</strong> {indicator_data['volatility']['detail']}<br>"
+    
+    if indicator_data['reversal']['is_reversal']:
+        summary += f"• <strong>Reversal (Parabolic SAR):</strong> ⚠️ REVERSAL IMMINENT — {indicator_data['reversal']['detail']}<br>"
+    else:
+        summary += f"• <strong>Reversal (Parabolic SAR):</strong> {indicator_data['reversal']['detail']}<br>"
+    
+    summary += f"• <strong>Liquidity (Volume Profile):</strong> {indicator_data['liquidity']['detail']}"
+    
     return f"""
 <div class='trade-recommendation-summary'>
 {summary}
@@ -575,7 +856,7 @@ The primary and all backup data sources for this asset are currently unavailable
 </div>
 """
 
-# === ANALYZE (Main Logic) ===
+# === ANALYZE (Main Logic - UPDATED) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_details, risk_multiple, reward_multiple):
     
     # --- STEP 1: HANDLE API FAILURE ---
@@ -590,52 +871,63 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     price_change_24h = price_change_24h if price_change_24h is not None else 0.0 
     change_display = format_change_main(price_change_24h)
     
-    # --- STEP 2: Indicator Calculation ---
-    df_synth_1h = synthesize_series(symbol)
-    df_4h = get_historical_data(symbol, "4h") or synthesize_series(symbol + "4H", length=48)
-    df_1h = get_historical_data(symbol, "1h") or df_synth_1h 
-    df_15m = get_historical_data(symbol, "15min") or synthesize_series(symbol + "15M", length=80)
+    # --- STEP 2: Get Historical Data ---
+    df = get_historical_data(symbol, interval="1h", limit=200)
     
-    kde_val = kde_rsi(df_1h, symbol) 
+    # --- STEP 3: Calculate All Indicators ---
+    indicator_data = calculate_all_indicators(symbol, df)
     
-    st_status_4h = supertrend_status(df_4h, kde_val) 
-    st_status_1h = supertrend_status(df_1h, kde_val) 
-    bb_status = bollinger_status(df_15m, kde_val)
-    ema_status = ema_crossover_status(kde_val) 
-    psar_status = parabolic_sar_status(kde_val) 
+    # --- STEP 4: Determine Overall Bias ---
+    bias = determine_overall_bias(indicator_data)
     
-    supertrend_output = f"SuperTrend: {st_status_4h.split(' - ')[0]} (4H), {st_status_1h.split(' - ')[0]} (1H)"
-    kde_rsi_output = get_kde_rsi_status(kde_val)
-    bias = combined_bias(kde_val, supertrend_output)
+    # --- STEP 5: Generate Recommendation ---
+    # Simple ATR calculation for stop loss
+    atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+    atr_val = atr_indicator.average_true_range().iloc[-1] * current_price / 100  # Scale to price
     
-    # --- STEP 3: ATR CALCULATION ---
-    if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
-        try:
-            atr_indicator = AverageTrueRange(high=df_1h['High'], low=df_1h['Low'], close=df_1h['Close'], window=14)
-            atr_series = atr_indicator.average_true_range()
-            atr_synth_val = atr_series.iloc[-1] if not atr_series.empty else np.nan
-        except Exception:
-            atr_synth_val = np.nan
+    if "Bullish" in bias:
+        entry = current_price
+        target = entry + (reward_multiple * atr_val) 
+        stop = entry - (risk_multiple * atr_val)
+        trade_params = {
+            "title": "Long Position Recommended",
+            "action": f"entering a long position near <strong>{format_price(entry)}</strong>",
+            "strategy": "Wait for confirmation or a slight pullback",
+            "target": f"plan to take profit at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss below <strong>{format_price(stop)}</strong>",
+            "type": "bullish"
+        }
+    elif "Bearish" in bias:
+        entry = current_price
+        target = entry - (reward_multiple * atr_val)
+        stop = entry + (risk_multiple * atr_val)
+        trade_params = {
+            "title": "Short Position Recommended",
+            "action": f"entering a short position near <strong>{format_price(entry)}</strong>",
+            "strategy": "Short on rallies to resistance levels",
+            "target": f"plan to cover the short at <strong>{format_price(target)}</strong>",
+            "stop": f"strictly set the stop loss above <strong>{format_price(stop)}</strong>",
+            "type": "bearish"
+        }
     else:
-        atr_synth_val = np.nan
+        target_trigger = current_price + (2.0 * atr_val)
+        stop_trigger = current_price - (1.0 * atr_val)
+        trade_params = {
+            "title": "No Trade Recommended (Wait for Clarity)",
+            "action": "stay on the sidelines and preserve capital",
+            "strategy": "Avoid entering until a clear break occurs",
+            "target": f"A <strong>bullish entry trigger</strong> would be a break above <strong>{format_price(target_trigger)}</strong>",
+            "stop": f"A <strong>bearish entry trigger</strong> would be a break below <strong>{format_price(stop_trigger)}</strong>",
+            "type": "neutral"
+        }
     
-    synth_base = 10.0
-    if pd.isna(atr_synth_val) or atr_synth_val <= 0:
-        atr_multiplier = 0.015
-        atr_val = current_price * atr_multiplier
-    else:
-        volatility_percent = atr_synth_val / synth_base
-        atr_val = current_price * volatility_percent
-        
-    # --- STEP 4: Get trade recommendation ---
-    trade_parameters = get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple)
-    
-    # --- STEP 5: Determine bias color ---
-    if "Strong Bullish" in bias or "Bullish" in bias:
+    # --- STEP 6: Build Output ---
+    # Determine bias color
+    if "Bullish" in bias:
         bias_color = "#10B981"
         bias_bg = "rgba(16, 185, 129, 0.15)"
         bias_text = "BULLISH 📈"
-    elif "Strong Bearish" in bias or "Bearish" in bias:
+    elif "Bearish" in bias:
         bias_color = "#EF4444"
         bias_bg = "rgba(239, 68, 68, 0.15)"
         bias_text = "BEARISH 📉"
@@ -644,91 +936,37 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         bias_bg = "rgba(245, 158, 11, 0.15)"
         bias_text = "NEUTRAL ➡️"
     
-    # --- STEP 6: Parse indicator signals for cards ---
-    # RSI
-    if "Extreme Oversold" in kde_rsi_output or "Oversold" in kde_rsi_output and "Extreme" not in kde_rsi_output:
-        rsi_signal = "Bullish"
-        rsi_color = "#10B981"
-        rsi_icon = "🟢"
-    elif "Extreme Overbought" in kde_rsi_output or "Overbought" in kde_rsi_output and "Extreme" not in kde_rsi_output:
-        rsi_signal = "Bearish"
-        rsi_color = "#EF4444"
-        rsi_icon = "🔴"
-    else:
-        rsi_signal = "Neutral"
-        rsi_color = "#F59E0B"
-        rsi_icon = "🟡"
-    rsi_value = f"{kde_val:.2f}%"
-    rsi_explanation = "KDE RSI measures momentum density to identify extreme conditions." if not show_details else get_kde_rsi_explanation()
+    # Get indicator colors for cards
+    trend_color = "#10B981" if indicator_data["trend"]["status"] == "Bullish" else "#EF4444" if indicator_data["trend"]["status"] == "Bearish" else "#F59E0B"
+    momentum_color = "#EF4444" if "Overbought" in indicator_data["momentum"]["status"] else "#10B981" if "Oversold" in indicator_data["momentum"]["status"] else "#F59E0B"
+    volatility_color = "#F59E0B" if indicator_data["volatility"]["is_squeeze"] else "#60A5FA"
+    reversal_color = "#EF4444" if indicator_data["reversal"]["is_reversal"] else "#10B981" if indicator_data["reversal"]["status"] == "Bullish" else "#F59E0B"
+    liquidity_color = "#C084FC"
     
-    # SuperTrend
-    if "Bullish" in st_status_1h:
-        st_signal = "Bullish"
-        st_color = "#10B981"
-        st_icon = "🟢"
-    elif "Bearish" in st_status_1h:
-        st_signal = "Bearish"
-        st_color = "#EF4444"
-        st_icon = "🔴"
-    else:
-        st_signal = "Neutral"
-        st_color = "#F59E0B"
-        st_icon = "🟡"
-    st_explanation = get_supertrend_explanation(st_status_1h)
-    
-    # Bollinger Bands
-    if "Upper" in bb_status:
-        bb_signal = "Bearish"
-        bb_color = "#EF4444"
-        bb_icon = "🔴"
-    elif "Lower" in bb_status:
-        bb_signal = "Bullish"
-        bb_color = "#10B981"
-        bb_icon = "🟢"
-    else:
-        bb_signal = "Neutral"
-        bb_color = "#F59E0B"
-        bb_icon = "🟡"
-    bb_explanation = get_bollinger_explanation(bb_status)
-    
-    # Parabolic SAR
-    if "Bullish" in psar_status:
-        psar_signal = "Bullish"
-        psar_color = "#10B981"
-        psar_icon = "🟢"
-    elif "Bearish" in psar_status:
-        psar_signal = "Bearish"
-        psar_color = "#EF4444"
-        psar_icon = "🔴"
-    else:
-        psar_signal = "Neutral"
-        psar_color = "#F59E0B"
-        psar_icon = "🟡"
-    psar_explanation = get_psar_explanation(psar_status)
-    
-    # --- STEP 7: Build the formatted output ---
+    # Build natural language summary
+    analysis_summary_html = get_natural_language_summary(symbol, bias, indicator_data)
     
     # Motivation
     motivation_options = {
         "Strong Bullish": [
             "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. The market rewards conviction.",
-            "STRONG BUY SIGNAL: The trend and momentum align. Never fight the trend, but always respect your stops.",
-            "BULLISH PRESSURE: Capitalize on the upward force. Successful trading is 80% preparation, 20% execution."
+            "STRONG BUY SIGNAL: The trend and momentum align. Never fight the trend, but always respect your stops."
+        ],
+        "Bullish": [
+            "BULLISH PRESSURE: Capitalize on the upward force. Successful trading is 80% preparation, 20% execution.",
+            "UPTREND DETECTED: Look for buying opportunities on pullbacks."
         ],
         "Strong Bearish": [
             "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. Keep risk management paramount.",
-            "STRONG SELL SIGNAL: Sentiment has turned decisively. Manage the downside, and the upside will take care of itself.",
-            "BEARISH PRESSURE: Do not hold against a strong downtrend. The goal is not to trade often, but to trade well."
+            "STRONG SELL SIGNAL: Sentiment has turned decisively. Manage the downside."
         ],
-        "Neutral (Consolidation/Wait for Entry Trigger)": [
+        "Bearish": [
+            "BEARISH PRESSURE: Do not hold against a strong downtrend. The goal is not to trade often, but to trade well.",
+            "DOWNTREND DETECTED: Look for selling opportunities on rallies."
+        ],
+        "Neutral": [
             "MARKET RESTING: Patience now builds precision later. Preserve capital. Successful trading is 80% waiting.",
-            "CONSOLIDATION ZONE: Wait for the price to show its hand. No position is a position.",
-            "IDLE CAPITAL: Do not enter a trade without a clear edge. The best opportunities are often the ones you wait for."
-        ],
-        "Neutral (Conflicting Signals/Extreme Condition)": [
-            "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. Avoid emotional trading.",
-            "HIGH UNCERTAINTY: Indicators are mixed or at extremes. Protect your capital.",
-            "AVOID THE CHOP: Focus on the next clear setup, not this messy one."
+            "CONSOLIDATION ZONE: Wait for the price to show its hand. No position is a position."
         ]
     }
     default_motivation = "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion."
@@ -832,7 +1070,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         border-radius: 20px;
     }}
     .indicator-card .value {{
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 700;
         color: #E5E7EB;
         margin: 2px 0;
@@ -928,60 +1166,73 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         <div style='font-size: 15px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;'>Technical Indicators</div>
         <div class='grid-2x2'>
             
-            <!-- RSI Card -->
-            <div class='indicator-card' style='border-left-color: {rsi_color};'>
+            <!-- 1. Trend - SuperTrend -->
+            <div class='indicator-card' style='border-left-color: {trend_color};'>
                 <div class='card-header'>
-                    <span class='name'>RSI</span>
-                    <span class='signal-badge' style='background: {rsi_color}22; color: {rsi_color};'>{rsi_icon} {rsi_signal}</span>
+                    <span class='name'>Trend — SuperTrend</span>
+                    <span class='signal-badge' style='background: {trend_color}22; color: {trend_color};'>{indicator_data['trend']['status']}</span>
                 </div>
-                <div class='value'>{rsi_value}</div>
-                <div class='explanation'>{rsi_explanation}</div>
+                <div class='value'>{indicator_data['trend']['status']}</div>
+                <div class='explanation'>{indicator_data['trend']['detail']}</div>
             </div>
             
-            <!-- SuperTrend Card -->
-            <div class='indicator-card' style='border-left-color: {st_color};'>
+            <!-- 2. Momentum - RSI -->
+            <div class='indicator-card' style='border-left-color: {momentum_color};'>
                 <div class='card-header'>
-                    <span class='name'>SuperTrend</span>
-                    <span class='signal-badge' style='background: {st_color}22; color: {st_color};'>{st_icon} {st_signal}</span>
+                    <span class='name'>Momentum — RSI</span>
+                    <span class='signal-badge' style='background: {momentum_color}22; color: {momentum_color};'>{indicator_data['momentum']['status']}</span>
                 </div>
-                <div class='value'>{st_status_1h.split(' - ')[0]}</div>
-                <div class='explanation'>{st_explanation}</div>
+                <div class='value'>RSI: {indicator_data['momentum']['value']:.2f}</div>
+                <div class='explanation'>{indicator_data['momentum']['detail']}</div>
             </div>
             
-            <!-- Bollinger Bands Card -->
-            <div class='indicator-card' style='border-left-color: {bb_color};'>
+            <!-- 3. Volatility - Bollinger Bands -->
+            <div class='indicator-card' style='border-left-color: {volatility_color};'>
                 <div class='card-header'>
-                    <span class='name'>Bollinger Bands</span>
-                    <span class='signal-badge' style='background: {bb_color}22; color: {bb_color};'>{bb_icon} {bb_signal}</span>
+                    <span class='name'>Volatility — Bollinger Bands</span>
+                    <span class='signal-badge' style='background: {volatility_color}22; color: {volatility_color};'>{'🔥 SQUEEZE' if indicator_data['volatility']['is_squeeze'] else 'NORMAL'}</span>
                 </div>
-                <div class='value'>{bb_status}</div>
-                <div class='explanation'>{bb_explanation}</div>
+                <div class='value'>{'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'}</div>
+                <div class='explanation'>{indicator_data['volatility']['detail']}</div>
             </div>
             
-            <!-- Parabolic SAR Card -->
-            <div class='indicator-card' style='border-left-color: {psar_color};'>
+            <!-- 4. Reversal - Parabolic SAR -->
+            <div class='indicator-card' style='border-left-color: {reversal_color};'>
                 <div class='card-header'>
-                    <span class='name'>Parabolic SAR</span>
-                    <span class='signal-badge' style='background: {psar_color}22; color: {psar_color};'>{psar_icon} {psar_signal}</span>
+                    <span class='name'>Reversal — Parabolic SAR</span>
+                    <span class='signal-badge' style='background: {reversal_color}22; color: {reversal_color};'>{'⚠️ REVERSAL' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</span>
                 </div>
-                <div class='value'>{psar_status}</div>
-                <div class='explanation'>{psar_explanation}</div>
+                <div class='value'>{'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
+                <div class='explanation'>{indicator_data['reversal']['detail']}</div>
             </div>
             
         </div>
+    </div>
+    
+    <!-- 5. Liquidity - Volume Profile (Full Width Card) -->
+    <div class='indicator-card' style='border-left-color: {liquidity_color}; margin-top: 12px;'>
+        <div class='card-header'>
+            <span class='name'>Liquidity — Volume Profile</span>
+            <span class='signal-badge' style='background: {liquidity_color}22; color: {liquidity_color};'>POC</span>
+        </div>
+        <div class='value'>Point of Control: ${format_price(indicator_data['liquidity']['value'])}</div>
+        <div class='explanation'>{indicator_data['liquidity']['detail']}</div>
     </div>
     
     <!-- AI RECOMMENDATION -->
     <div class='recommendation-box'>
         <div class='title'>⭐ AI Trading Recommendation</div>
         <div class='content'>
-            <strong>{trade_parameters['title']}</strong><br>
-            {trade_parameters['action']}<br>
-            <strong>Target:</strong> {trade_parameters['target']}<br>
-            <strong>Stop Loss:</strong> {trade_parameters['stop']}<br>
-            <strong>Strategy:</strong> {trade_parameters['strategy']}
+            <strong>{trade_params['title']}</strong><br>
+            {trade_params['action']}<br>
+            <strong>Target:</strong> {trade_params['target']}<br>
+            <strong>Stop Loss:</strong> {trade_params['stop']}<br>
+            <strong>Strategy:</strong> {trade_params['strategy']}
         </div>
     </div>
+    
+    <!-- NATURAL LANGUAGE SUMMARY -->
+    {analysis_summary_html}
     
     <!-- MOTIVATION -->
     <div class='motivation-text'>{motivation}</div>
