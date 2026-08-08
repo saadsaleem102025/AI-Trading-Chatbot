@@ -214,6 +214,11 @@ FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
+# Define simplified sets for basic type validation (not comprehensive)
+# UPDATED: Only crypto symbols
+KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE", "AVAX", "DOT", "LINK", "MATIC", "UNI", "ATOM", "LTC", "BCH", "NEAR", "ALGO", "VET", "ICP", "FIL", "EGLD", "XTZ", "AAVE", "MKR", "COMP", "YFI", "ZEC", "XLM", "HBAR", "ETC", "QNT", "GRT", "SNX", "STORJ", "ANKR", "CRV", "1INCH", "SUSHI", "UMA", "OCEAN", "REN", "ZRX", "BAT", "KNC", "ENJ", "CHR", "MANA", "SAND", "GALA", "AXS", "SLP", "ILV", "RNDR", "FET", "AGIX"}
+# KNOWN_STOCK_SYMBOLS has been removed
+
 # Timezone mapping dictionary
 TIMEZONE_MAP = {
     "United States - New York (EST/EDT)": "America/New_York",
@@ -396,7 +401,7 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
     # --- CRYPTO LOGIC (Finnhub -> Binance -> CoinGecko) ---
-    # Try Finnhub first (works for both stocks and crypto)
+    # Try Finnhub first (works for crypto too)
     if FH_PRIVATE_API_KEY:
         price, change = fetch_stock_price_finnhub(symbol, FH_PRIVATE_API_KEY)
         if price is not None:
