@@ -25,7 +25,7 @@ RISK_REWARD_OPTIONS = {
 } 
 
 # --- STREAMLIT CONFIGURATION ---
-st.set_page_config(page_title="AI Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="AI Crypto Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
 # === 1. STYLE (Altered for Sidebar Scrolling) ===
 st.markdown("""
@@ -214,10 +214,6 @@ FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# Define simplified sets for basic type validation (not comprehensive)
-KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE"}
-KNOWN_STOCK_SYMBOLS = {"AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "HOOD", "MSTR", "WMT", "^IXIC", "SPY"}
-
 # Timezone mapping dictionary
 TIMEZONE_MAP = {
     "United States - New York (EST/EDT)": "America/New_York",
@@ -395,41 +391,32 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
 
 # === UNIVERSAL PRICE FETCHER ===
 @st.cache_data(ttl=60, show_spinner=False)
-def get_asset_price(symbol, vs_currency="usd", asset_type="Stock/Index"):
+def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
-    # --- 1. STOCK/INDEX LOGIC (Private Finnhub -> Public Finnhub -> Yahoo) ---
-    if asset_type == "Stock/Index":
-        # Try private API key first
-        if FH_PRIVATE_API_KEY:
-            price, change = fetch_stock_price_finnhub(base_symbol, FH_PRIVATE_API_KEY)
-            if price is not None:
-                return price, change
-        
-        # Fall back to public API key
-        price, change = fetch_stock_price_finnhub(base_symbol, FH_API_KEY)
+    # --- CRYPTO LOGIC (Finnhub -> Binance -> CoinGecko) ---
+    # Try Finnhub first (works for both stocks and crypto)
+    if FH_PRIVATE_API_KEY:
+        price, change = fetch_stock_price_finnhub(symbol, FH_PRIVATE_API_KEY)
         if price is not None:
             return price, change
-        
-        # Finally try Yahoo
-        price, change = fetch_stock_price_yahoo(base_symbol)
+    
+    # Fall back to public API key
+    if FH_API_KEY:
+        price, change = fetch_stock_price_finnhub(symbol, FH_API_KEY)
         if price is not None:
             return price, change
-        
-        return None, None
-            
-    # --- 2. CRYPTO LOGIC (Binance -> CoinGecko) ---
-    if asset_type == "Crypto":
-        price, change = fetch_crypto_price_binance(symbol)
-        if price is not None:
-            return price, change
-        
-        price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
-        if price is not None:
-            return price, change
-        
-        return None, None
+    
+    # Try Binance
+    price, change = fetch_crypto_price_binance(symbol)
+    if price is not None:
+        return price, change
+    
+    # Finally try CoinGecko
+    price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
+    if price is not None:
+        return price, change
     
     return None, None
 
@@ -791,7 +778,7 @@ def get_session_info(utc_now):
 session_name, volatility_html = get_session_info(utc_now)
 
 # --- SIDEBAR DISPLAY ---
-st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class='sidebar-title'>📊 Crypto Market Context</p>", unsafe_allow_html=True)
 
 # Updated timezone selection with city names
 tz_city_names = sorted(TIMEZONE_MAP.keys())
@@ -828,23 +815,20 @@ st.sidebar.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- MAIN EXECUTION ---
-st.title("AI Trading Chatbot")
+st.title("🤖 AI Crypto Trading Chatbot")
 
 col1, col2, col3 = st.columns([1.5, 2.5, 1.5])
 
 with col1:
-    asset_type = st.selectbox(
-        "Select Asset Type",
-        ("Stock/Index", "Crypto"),
-        index=0,
-        help="Select 'Stock/Index' for stocks/indices. Select 'Crypto' for cryptocurrencies."
-    )
+    st.markdown("**Select Asset Type**")
+    st.markdown("💰 Crypto")
 
 with col2:
     user_input = st.text_input(
-        "Enter Official Ticker Symbol",
-        placeholder="e.g., TSLA, HOOD, BTC, HYPE",
-        label_visibility="visible"
+        "Enter Cryptocurrency Ticker",
+        placeholder="e.g., BTC, ETH, SOL, ADA, DOGE",
+        label_visibility="visible",
+        help="Enter any crypto ticker symbol (e.g., BTC, ETH, SOL)"
     )
 
 with col3:
@@ -884,28 +868,13 @@ else:
 
 vs_currency = "usd"
 if user_input:
-    # 1. Resolve to the base symbol
+    # Always use Crypto as asset type
+    asset_type = "Crypto"
+    
+    # Resolve to the base symbol
     base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
     
-    # 2. PERFORM SIMPLIFIED ASSET TYPE VALIDATION
-    validation_error = None
-    
-    is_common_crypto = base_symbol in KNOWN_CRYPTO_SYMBOLS
-    is_common_stock = base_symbol in KNOWN_STOCK_SYMBOLS
-
-    if asset_type == "Crypto" and is_common_stock:
-        validation_error = f"You selected <strong>Crypto</strong> but entered a known stock/index symbol (<strong>{base_symbol}</strong>). Please select 'Stock/Index' from the dropdown to proceed."
-    elif asset_type == "Stock/Index" and is_common_crypto:
-        validation_error = f"You selected <strong>Stock/Index</strong> but entered a known crypto symbol (<strong>{base_symbol}</strong>). Please select 'Crypto' from the dropdown to proceed."
-
-    # 3. Handle Validation Error or Proceed to Fetch/Analyze
-    if validation_error:
-        st.markdown(generate_error_message(
-            title="⚠️ Asset Type Mismatch ⚠️",
-            message="Please ensure the selected **Asset Type** matches the **Ticker Symbol** you entered.",
-            details=validation_error
-        ), unsafe_allow_html=True)
-    else:
-        with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
-            price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
-            st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type, show_indicator_details, RISK_MULTIPLE, REWARD_MULTIPLE), unsafe_allow_html=True)
+    # No validation needed since we only support crypto
+    with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
+        price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
+        st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type, show_indicator_details, RISK_MULTIPLE, REWARD_MULTIPLE), unsafe_allow_html=True)
