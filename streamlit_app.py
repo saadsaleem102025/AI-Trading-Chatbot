@@ -54,7 +54,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     background: #111827;
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
     position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 100;
-    /* Adjusted padding to reduce overall height and prevent scrolling */
     padding: 0.1rem 1.0rem 0.1rem 1.0rem; 
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
@@ -81,19 +80,15 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 }
 
 /* --- BOLD TEXT COLOR CHANGE (KEYWORD COLOR) --- */
-/* Target <b> tags and <strong> tags, setting the color to Gold */
 .big-text b, .trade-recommendation-summary strong {
-    color: #FFD700 !important; /* Gold color for bolded text */
+    color: #FFD700 !important;
     font-weight: 800;
 }
-/* Ensure the sidebar bold text remains white for contrast */
 [data-testid="stSidebar"] b {
     color: #FFFFFF !important;
     font-weight: 800;
 }
-/* Ensure Analysis items headers remain blue */
 .analysis-item b { color: #60A5FA; font-weight: 700; }
-/* Override Gold for the Asset Price which uses a different color */
 .asset-price-value { color: #F59E0B !important; }
 
 /* --- SIDEBAR COMPONENTS --- */
@@ -101,11 +96,10 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 28px; font-weight: 800; color: #60A5FA; margin-top: 0px; margin-bottom: 5px;
     padding-top: 5px; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
 }
-/* 💡 CHANGE 1: Increased font size and padding for sidebar items */
 .sidebar-item {
     background: #1F2937; border-radius: 8px;
     padding: 8px 12px; margin: 4px 0; 
-    font-size: 17px; /* Increased from 16px */
+    font-size: 17px;
     color: #9CA3AF; border: 1px solid #374151;
 }
 .local-time-info { color: #00FFFF !important; font-weight: 700; font-size: 17px !important; }
@@ -113,14 +107,12 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 17px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 
-/* Sidebar Asset Price block (No longer used, but kept for future) */
 .sidebar-asset-price-item {
     background: #1F2937; border-radius: 8px;
     padding: 6px 10px; margin: 8px 0;
     font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
 }
 
-/* Price figure prominence in sidebar (No longer used, but kept for future) */
 .asset-price-value-sidebar {
     color: #F59E0B;
     font-weight: 800;
@@ -133,7 +125,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     font-size: 16px;
 }
 
-/* Analysis items with descriptions */
 .analysis-item {
     font-size: 18px;
     color: #E0E0E0;
@@ -157,7 +148,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-top: 1px dashed #374151;
 }
 
-/* Trading recommendation (for Natural Language Summary box) */
 .trade-recommendation-summary {
     font-size: 18px;
     line-height: 1.8;
@@ -169,7 +159,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-left: 5px solid #60A5FA;
 }
 
-/* Risk warning */
 .risk-warning {
     background: #7C2D12;
     border: 2px solid #DC2626;
@@ -180,7 +169,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     color: #FCA5A5;
 }
 
-/* Psychology motto */
 .analysis-motto-prominent {
     font-size: 20px;
     font-weight: 900;
@@ -195,7 +183,6 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     text-align: center;
 }
 
-/* Colors for data/bias */
 .bullish { color: #10B981; font-weight: 700; }
 .bearish { color: #EF4444; font-weight: 700; }
 .neutral { color: #F59E0B; font-weight: 700; }
@@ -214,10 +201,8 @@ FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# Define simplified sets for basic type validation (not comprehensive)
-# UPDATED: Only crypto symbols
+# Define simplified sets for crypto symbols
 KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE", "AVAX", "DOT", "LINK", "MATIC", "UNI", "ATOM", "LTC", "BCH", "NEAR", "ALGO", "VET", "ICP", "FIL", "EGLD", "XTZ", "AAVE", "MKR", "COMP", "YFI", "ZEC", "XLM", "HBAR", "ETC", "QNT", "GRT", "SNX", "STORJ", "ANKR", "CRV", "1INCH", "SUSHI", "UMA", "OCEAN", "REN", "ZRX", "BAT", "KNC", "ENJ", "CHR", "MANA", "SAND", "GALA", "AXS", "SLP", "ILV", "RNDR", "FET", "AGIX"}
-# KNOWN_STOCK_SYMBOLS has been removed
 
 # Timezone mapping dictionary
 TIMEZONE_MAP = {
@@ -286,10 +271,8 @@ def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
     quote_currency_upper = quote_currency.upper()
     
     if asset_type == "Crypto":
-        # Crypto symbols are always pairs (e.g., BTCUSD)
         final_symbol = base_symbol + quote_currency_upper
     else:
-        # Stock/Index symbols are the ticker itself (e.g., TSLA, ^IXIC)
         final_symbol = base_symbol
         
     return base_symbol, final_symbol
@@ -361,7 +344,6 @@ def fetch_stock_price_yahoo(ticker):
     return None, None
 
 def fetch_crypto_price_binance(symbol):
-    # This uses the full symbol, e.g., BTCUSD
     binance_symbol = symbol.replace("USD", "USDT")
     url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
     try:
@@ -376,7 +358,6 @@ def fetch_crypto_price_binance(symbol):
     return None, None
 
 def fetch_crypto_price_coingecko(symbol, api_key=""):
-    # This needs the base symbol (e.g., BTC, not BTCUSD)
     base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {'vs_currencies': 'usd', 'include_24hr_change': 'true', 'symbols': base_symbol}
@@ -400,14 +381,12 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     symbol = symbol.upper()
     base_symbol = symbol.replace("USD", "").replace("USDT", "")
     
-    # --- CRYPTO LOGIC (Finnhub -> Binance -> CoinGecko) ---
-    # Try Finnhub first (works for crypto too)
+    # Try Finnhub first
     if FH_PRIVATE_API_KEY:
         price, change = fetch_stock_price_finnhub(symbol, FH_PRIVATE_API_KEY)
         if price is not None:
             return price, change
     
-    # Fall back to public API key
     if FH_API_KEY:
         price, change = fetch_stock_price_finnhub(symbol, FH_API_KEY)
         if price is not None:
@@ -418,7 +397,7 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     if price is not None:
         return price, change
     
-    # Finally try CoinGecko
+    # Try CoinGecko
     price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
     if price is not None:
         return price, change
@@ -596,7 +575,6 @@ The primary and all backup data sources for this asset are currently unavailable
 </div>
 """
 
-
 # === ANALYZE (Main Logic) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_details, risk_multiple, reward_multiple):
     
@@ -630,7 +608,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     kde_rsi_output = get_kde_rsi_status(kde_val)
     bias = combined_bias(kde_val, supertrend_output)
     
-    # --- STEP 3: ATR CALCULATION (Updated to use ta library) ---
+    # --- STEP 3: ATR CALCULATION ---
     if all(col in df_1h.columns for col in ['High', 'Low', 'Close']):
         try:
             atr_indicator = AverageTrueRange(high=df_1h['High'], low=df_1h['Low'], close=df_1h['Close'], window=14)
@@ -649,90 +627,376 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         volatility_percent = atr_synth_val / synth_base
         atr_val = current_price * volatility_percent
         
-    # --- STEP 4: OUTPUT GENERATION (Dynamic Motivation) ---
+    # --- STEP 4: Get trade recommendation ---
+    trade_parameters = get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple)
     
+    # --- STEP 5: Determine bias color ---
+    if "Strong Bullish" in bias or "Bullish" in bias:
+        bias_color = "#10B981"
+        bias_bg = "rgba(16, 185, 129, 0.15)"
+        bias_text = "BULLISH 📈"
+    elif "Strong Bearish" in bias or "Bearish" in bias:
+        bias_color = "#EF4444"
+        bias_bg = "rgba(239, 68, 68, 0.15)"
+        bias_text = "BEARISH 📉"
+    else:
+        bias_color = "#F59E0B"
+        bias_bg = "rgba(245, 158, 11, 0.15)"
+        bias_text = "NEUTRAL ➡️"
+    
+    # --- STEP 6: Parse indicator signals for cards ---
+    # RSI
+    if "Extreme Oversold" in kde_rsi_output or "Oversold" in kde_rsi_output and "Extreme" not in kde_rsi_output:
+        rsi_signal = "Bullish"
+        rsi_color = "#10B981"
+        rsi_icon = "🟢"
+    elif "Extreme Overbought" in kde_rsi_output or "Overbought" in kde_rsi_output and "Extreme" not in kde_rsi_output:
+        rsi_signal = "Bearish"
+        rsi_color = "#EF4444"
+        rsi_icon = "🔴"
+    else:
+        rsi_signal = "Neutral"
+        rsi_color = "#F59E0B"
+        rsi_icon = "🟡"
+    rsi_value = f"{kde_val:.2f}%"
+    rsi_explanation = "KDE RSI measures momentum density to identify extreme conditions." if not show_details else get_kde_rsi_explanation()
+    
+    # SuperTrend
+    if "Bullish" in st_status_1h:
+        st_signal = "Bullish"
+        st_color = "#10B981"
+        st_icon = "🟢"
+    elif "Bearish" in st_status_1h:
+        st_signal = "Bearish"
+        st_color = "#EF4444"
+        st_icon = "🔴"
+    else:
+        st_signal = "Neutral"
+        st_color = "#F59E0B"
+        st_icon = "🟡"
+    st_explanation = get_supertrend_explanation(st_status_1h)
+    
+    # Bollinger Bands
+    if "Upper" in bb_status:
+        bb_signal = "Bearish"
+        bb_color = "#EF4444"
+        bb_icon = "🔴"
+    elif "Lower" in bb_status:
+        bb_signal = "Bullish"
+        bb_color = "#10B981"
+        bb_icon = "🟢"
+    else:
+        bb_signal = "Neutral"
+        bb_color = "#F59E0B"
+        bb_icon = "🟡"
+    bb_explanation = get_bollinger_explanation(bb_status)
+    
+    # Parabolic SAR
+    if "Bullish" in psar_status:
+        psar_signal = "Bullish"
+        psar_color = "#10B981"
+        psar_icon = "🟢"
+    elif "Bearish" in psar_status:
+        psar_signal = "Bearish"
+        psar_color = "#EF4444"
+        psar_icon = "🔴"
+    else:
+        psar_signal = "Neutral"
+        psar_color = "#F59E0B"
+        psar_icon = "🟡"
+    psar_explanation = get_psar_explanation(psar_status)
+    
+    # --- STEP 7: Build the formatted output ---
+    
+    # Motivation
     motivation_options = {
         "Strong Bullish": [
-            "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. Trade the plan! **The market rewards conviction.**",
-            "STRONG BUY SIGNAL: The trend and momentum align. **Never fight the trend, but always respect your stops.**",
-            "BULLISH PRESSURE: Capitalize on the upward force. **Successful trading is 80% preparation, 20% execution.**"
+            "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. The market rewards conviction.",
+            "STRONG BUY SIGNAL: The trend and momentum align. Never fight the trend, but always respect your stops.",
+            "BULLISH PRESSURE: Capitalize on the upward force. Successful trading is 80% preparation, 20% execution."
         ],
         "Strong Bearish": [
-            "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. **Keep risk management paramount.**",
-            "STRONG SELL SIGNAL: Sentiment has turned decisively. **Manage the downside, and the upside will take care of itself.**",
-            "BEARISH PRESSURE: Do not hold against a strong downtrend. **The goal is not to trade often, but to trade well.**"
+            "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. Keep risk management paramount.",
+            "STRONG SELL SIGNAL: Sentiment has turned decisively. Manage the downside, and the upside will take care of itself.",
+            "BEARISH PRESSURE: Do not hold against a strong downtrend. The goal is not to trade often, but to trade well."
         ],
         "Neutral (Consolidation/Wait for Entry Trigger)": [
-            "MARKET RESTING: Patience now builds precision later. Preserve capital. **Successful trading is 80% waiting.**",
-            "CONSOLIDATION ZONE: Wait for the price to show its hand. **No position is a position.**",
-            "IDLE CAPITAL: Do not enter a trade without a clear edge. **The best opportunities are often the ones you wait for.**"
+            "MARKET RESTING: Patience now builds precision later. Preserve capital. Successful trading is 80% waiting.",
+            "CONSOLIDATION ZONE: Wait for the price to show its hand. No position is a position.",
+            "IDLE CAPITAL: Do not enter a trade without a clear edge. The best opportunities are often the ones you wait for."
         ],
         "Neutral (Conflicting Signals/Extreme Condition)": [
-            "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. **Avoid emotional trading; trade only what you see.**",
-            "HIGH UNCERTAINTY: Indicators are mixed or at extremes. **Protect your capital; avoid the urge to guess.**",
-            "AVOID THE CHOP: This is a market for scalpers or observers. **Focus on the next clear setup, not this messy one.**"
+            "CONFLICTING SIGNALS: Wait for clear confirmation from trend or momentum. Avoid emotional trading.",
+            "HIGH UNCERTAINTY: Indicators are mixed or at extremes. Protect your capital.",
+            "AVOID THE CHOP: Focus on the next clear setup, not this messy one."
         ]
     }
-    
     default_motivation = "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion."
     motivation = random.choice(motivation_options.get(bias, [default_motivation]))
     
-    current_price_line = f"Current Price : <span class='asset-price-value'>{price_display} {vs_currency.upper()}</span>{change_display}"
-    trade_parameters = get_trade_recommendation(bias, current_price, atr_val, risk_multiple, reward_multiple)
-    analysis_summary_html = get_natural_language_summary(symbol, bias, trade_parameters)
+    change_sign = "+" if price_change_24h > 0 else ""
+    change_class = "bullish" if price_change_24h > 0 else ("bearish" if price_change_24h < 0 else "neutral")
     
-    # --- BUILD INDICATOR DETAILS (conditionally shown) ---
-    indicator_details_basic = f"""
-<div class='analysis-item'><b>{supertrend_output}</b> ({st_status_1h.split(' - ')[1]})</div>
-
-<div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
-
-<div class='analysis-item'>EMA Crossover (5/20): <b>{ema_status}</b></div>
-
-<div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
-"""
+    # Build the complete HTML
+    output = f"""
+    <style>
+    .price-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #1a2332;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        border: 1px solid #374151;
+        flex-wrap: wrap;
+        gap: 12px;
+    }}
+    .price-header .price-section .label {{
+        font-size: 13px;
+        color: #9CA3AF;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }}
+    .price-header .price-section .value {{
+        font-size: 30px;
+        font-weight: 700;
+        color: #F59E0B;
+    }}
+    .price-header .price-section .value .currency {{
+        font-size: 16px;
+        color: #9CA3AF;
+        font-weight: 400;
+    }}
+    .price-header .change-section {{
+        text-align: right;
+    }}
+    .price-header .change-section .label {{
+        font-size: 13px;
+        color: #9CA3AF;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }}
+    .price-header .change-section .change {{
+        font-size: 20px;
+        font-weight: 700;
+    }}
+    .bias-badge {{
+        display: inline-block;
+        padding: 8px 24px;
+        border-radius: 50px;
+        font-size: 20px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: {bias_bg};
+        color: {bias_color};
+        border: 2px solid {bias_color};
+    }}
+    .grid-2x2 {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0;
+    }}
+    .indicator-card {{
+        background: #1a2332;
+        border-radius: 10px;
+        padding: 16px 18px;
+        border-left: 4px solid #374151;
+        transition: all 0.2s ease;
+    }}
+    .indicator-card:hover {{
+        background: #1f2a3a;
+        transform: translateX(3px);
+    }}
+    .indicator-card .card-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+    }}
+    .indicator-card .name {{
+        font-size: 13px;
+        color: #9CA3AF;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }}
+    .indicator-card .signal-badge {{
+        font-size: 13px;
+        font-weight: 700;
+        padding: 2px 12px;
+        border-radius: 20px;
+    }}
+    .indicator-card .value {{
+        font-size: 20px;
+        font-weight: 700;
+        color: #E5E7EB;
+        margin: 2px 0;
+    }}
+    .indicator-card .explanation {{
+        font-size: 13px;
+        color: #9CA3AF;
+        margin-top: 6px;
+        line-height: 1.5;
+    }}
+    .recommendation-box {{
+        background: #1a2332;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-top: 20px;
+        border: 1px solid #374151;
+        border-left: 4px solid #60A5FA;
+    }}
+    .recommendation-box .title {{
+        font-size: 18px;
+        font-weight: 700;
+        color: #60A5FA;
+        margin-bottom: 8px;
+    }}
+    .recommendation-box .content {{
+        font-size: 16px;
+        line-height: 1.8;
+        color: #E5E7EB;
+    }}
+    .recommendation-box strong {{
+        color: #FFD700 !important;
+    }}
+    .motivation-text {{
+        font-size: 15px;
+        font-weight: 700;
+        color: #F59E0B;
+        text-align: center;
+        padding: 12px 16px;
+        margin-top: 16px;
+        border: 2px solid #F59E0B;
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.05);
+    }}
+    .disclaimer {{
+        font-size: 12px;
+        color: #6B7280;
+        text-align: center;
+        margin-top: 20px;
+        padding-top: 14px;
+        border-top: 1px solid #1F2937;
+        line-height: 1.6;
+    }}
+    .detail-toggle {{
+        text-align: center;
+        margin-top: 12px;
+        font-size: 14px;
+        color: #60A5FA;
+    }}
+    @media (max-width: 768px) {{
+        .grid-2x2 {{
+            grid-template-columns: 1fr;
+        }}
+        .price-header {{
+            flex-direction: column;
+            align-items: flex-start;
+        }}
+        .price-header .change-section {{
+            text-align: left;
+            width: 100%;
+        }}
+    }}
+    </style>
     
-    indicator_details_expanded = ""
-    if show_details:
-        indicator_details_expanded = f"""
-<div class='indicator-explanation'>{get_kde_rsi_explanation()}</div>
-
-<div class='analysis-item'><b>{supertrend_output}</b> ({st_status_1h.split(' - ')[1]})</div>
-<div class='indicator-explanation'>{get_supertrend_explanation(st_status_1h)}</div>
-
-<div class='analysis-item'>Bollinger Bands: <b>{bb_status}</b></div>
-<div class='indicator-explanation'>{get_bollinger_explanation(bb_status)}</div>
-
-<div class='analysis-item'>EMA Crossover (5/20): <b>{ema_status}</b></div>
-<div class='indicator-explanation'>{get_ema_explanation(ema_status)}</div>
-
-<div class='analysis-item'>Parabolic SAR: <b>{psar_status}</b></div>
-<div class='indicator-explanation'>{get_psar_explanation(psar_status)}</div>
-"""
+    <div class='big-text'>
     
-    # --- FINAL OUTPUT STRUCTURE ---
-    full_output = f"""
-<div class='big-text'>
-<div class='analysis-item'>{current_price_line}</div>
-
-<div class='section-header'>📊 Detailed Indicator Analysis</div>
-
-<div class='analysis-item'>KDE RSI Status: <b>{kde_rsi_output}</b></div>
-{indicator_details_expanded if show_details else indicator_details_basic}
-
-<div class='analysis-bias'>Overall Market Bias: <span class='{bias.split(" ")[0].lower()}'>{bias}</span></div>
-
-<div class='section-header'>⭐ AI Trading Recommendation Summary</div>
-{analysis_summary_html}
-
-<div class='analysis-motto-prominent'>{motivation}</div>
-
-<div class='risk-warning'>
-⚠️ <b>Risk Disclaimer:</b>  This is not financial advice. All trading involves risk. Past performance doesn't guarantee future results. Only trade with money you can afford to lose. Always use stop losses.
-</div>
-</div>
-"""
-    return full_output
+    <!-- PRICE HEADER -->
+    <div class='price-header'>
+        <div class='price-section'>
+            <div class='label'>Current Price</div>
+            <div class='value'>${price_display} <span class='currency'>{vs_currency.upper()}</span></div>
+        </div>
+        <div class='change-section'>
+            <div class='label'>24h Change</div>
+            <div class='change {change_class}'>{change_sign}{price_change_24h:.2f}%</div>
+        </div>
+        <div>
+            <span class='bias-badge'>{bias_text}</span>
+        </div>
+    </div>
+    
+    <!-- INDICATOR GRID -->
+    <div style='margin-top: 8px;'>
+        <div style='font-size: 15px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;'>Technical Indicators</div>
+        <div class='grid-2x2'>
+            
+            <!-- RSI Card -->
+            <div class='indicator-card' style='border-left-color: {rsi_color};'>
+                <div class='card-header'>
+                    <span class='name'>RSI</span>
+                    <span class='signal-badge' style='background: {rsi_color}22; color: {rsi_color};'>{rsi_icon} {rsi_signal}</span>
+                </div>
+                <div class='value'>{rsi_value}</div>
+                <div class='explanation'>{rsi_explanation}</div>
+            </div>
+            
+            <!-- SuperTrend Card -->
+            <div class='indicator-card' style='border-left-color: {st_color};'>
+                <div class='card-header'>
+                    <span class='name'>SuperTrend</span>
+                    <span class='signal-badge' style='background: {st_color}22; color: {st_color};'>{st_icon} {st_signal}</span>
+                </div>
+                <div class='value'>{st_status_1h.split(' - ')[0]}</div>
+                <div class='explanation'>{st_explanation}</div>
+            </div>
+            
+            <!-- Bollinger Bands Card -->
+            <div class='indicator-card' style='border-left-color: {bb_color};'>
+                <div class='card-header'>
+                    <span class='name'>Bollinger Bands</span>
+                    <span class='signal-badge' style='background: {bb_color}22; color: {bb_color};'>{bb_icon} {bb_signal}</span>
+                </div>
+                <div class='value'>{bb_status}</div>
+                <div class='explanation'>{bb_explanation}</div>
+            </div>
+            
+            <!-- Parabolic SAR Card -->
+            <div class='indicator-card' style='border-left-color: {psar_color};'>
+                <div class='card-header'>
+                    <span class='name'>Parabolic SAR</span>
+                    <span class='signal-badge' style='background: {psar_color}22; color: {psar_color};'>{psar_icon} {psar_signal}</span>
+                </div>
+                <div class='value'>{psar_status}</div>
+                <div class='explanation'>{psar_explanation}</div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- AI RECOMMENDATION -->
+    <div class='recommendation-box'>
+        <div class='title'>⭐ AI Trading Recommendation</div>
+        <div class='content'>
+            <strong>{trade_parameters['title']}</strong><br>
+            {trade_parameters['action']}<br>
+            <strong>Target:</strong> {trade_parameters['target']}<br>
+            <strong>Stop Loss:</strong> {trade_parameters['stop']}<br>
+            <strong>Strategy:</strong> {trade_parameters['strategy']}
+        </div>
+    </div>
+    
+    <!-- MOTIVATION -->
+    <div class='motivation-text'>{motivation}</div>
+    
+    <!-- DISCLAIMER -->
+    <div class='disclaimer'>
+        <strong>⚠️ Risk Disclaimer:</strong> This is not financial advice. All trading involves risk. 
+        Past performance doesn't guarantee future results. Only trade with money you can afford to lose. 
+        Always use stop losses.
+    </div>
+    
+    </div>
+    """
+    
+    return output
 
 # === Session Logic ---
 utc_now = datetime.datetime.now(timezone.utc)
@@ -785,7 +1049,6 @@ session_name, volatility_html = get_session_info(utc_now)
 # --- SIDEBAR DISPLAY ---
 st.sidebar.markdown("<p class='sidebar-title'>📊 Crypto Market Context</p>", unsafe_allow_html=True)
 
-# Updated timezone selection with city names
 tz_city_names = sorted(TIMEZONE_MAP.keys())
 try: 
     default_ix = tz_city_names.index("Pakistan (PKT)")
@@ -847,7 +1110,7 @@ with col_rr1:
     rr_selection = st.selectbox(
         "Select Risk:Reward Ratio Profile",
         list(RISK_REWARD_OPTIONS.keys()),
-        index=2  # Default to 1:2
+        index=2
     )
 
 with col_rr2:
@@ -864,7 +1127,6 @@ with col_rr3:
         custom_reward = None
         st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-# Determine actual risk and reward multiples
 if rr_selection == "Custom":
     RISK_MULTIPLE = custom_risk if custom_risk else 1.0
     REWARD_MULTIPLE = custom_reward if custom_reward else 2.0
@@ -873,13 +1135,9 @@ else:
 
 vs_currency = "usd"
 if user_input:
-    # Always use Crypto as asset type
     asset_type = "Crypto"
-    
-    # Resolve to the base symbol
     base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
     
-    # No validation needed since we only support crypto
     with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
         price, price_change_24h = get_asset_price(resolved_symbol, vs_currency, asset_type)
         st.markdown(analyze(resolved_symbol, price, price_change_24h, vs_currency, asset_type, show_indicator_details, RISK_MULTIPLE, REWARD_MULTIPLE), unsafe_allow_html=True)
