@@ -196,6 +196,168 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .indicator-bullish { color: #10B981; font-weight: 700; }
 .indicator-bearish { color: #EF4444; font-weight: 700; }
 .indicator-neutral { color: #F59E0B; font-weight: 700; }
+
+.price-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1a2332;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    border: 1px solid #374151;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.price-header .price-section .label {
+    font-size: 13px;
+    color: #9CA3AF;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.price-header .price-section .value {
+    font-size: 30px;
+    font-weight: 700;
+    color: #F59E0B;
+}
+.price-header .price-section .value .currency {
+    font-size: 16px;
+    color: #9CA3AF;
+    font-weight: 400;
+}
+.price-header .change-section {
+    text-align: right;
+}
+.price-header .change-section .label {
+    font-size: 13px;
+    color: #9CA3AF;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.price-header .change-section .change {
+    font-size: 20px;
+    font-weight: 700;
+}
+.bias-badge {
+    display: inline-block;
+    padding: 8px 24px;
+    border-radius: 50px;
+    font-size: 20px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+}
+.indicator-card {
+    background: #1a2332;
+    border-radius: 10px;
+    padding: 16px 18px;
+    border-left: 4px solid #374151;
+    transition: all 0.2s ease;
+}
+.indicator-card:hover {
+    background: #1f2a3a;
+    transform: translateX(3px);
+}
+.indicator-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+.indicator-card .name {
+    font-size: 13px;
+    color: #9CA3AF;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.indicator-card .signal-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 2px 12px;
+    border-radius: 20px;
+}
+.indicator-card .value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E5E7EB;
+    margin: 2px 0;
+}
+.indicator-card .explanation {
+    font-size: 13px;
+    color: #9CA3AF;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+.recommendation-box {
+    background: #1a2332;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 20px;
+    border: 1px solid #374151;
+    border-left: 4px solid #60A5FA;
+}
+.recommendation-box .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #60A5FA;
+    margin-bottom: 8px;
+}
+.recommendation-box .content {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #E5E7EB;
+}
+.recommendation-box strong {
+    color: #FFD700 !important;
+}
+.motivation-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: #F59E0B;
+    text-align: center;
+    padding: 12px 16px;
+    margin-top: 16px;
+    border: 2px solid #F59E0B;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.05);
+}
+.disclaimer {
+    font-size: 12px;
+    color: #6B7280;
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid #1F2937;
+    line-height: 1.6;
+}
+.detail-toggle {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #60A5FA;
+}
+@media (max-width: 768px) {
+    .grid-2x2 {
+        grid-template-columns: 1fr;
+    }
+    .price-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .price-header .change-section {
+        text-align: left;
+        width: 100%;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -512,6 +674,8 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
     # Detect divergences
     # Look back 20 periods for swing points
     lookback = 20
+    divergence = "No Divergence Detected"
+    
     if len(rsi) > lookback:
         rsi_array = rsi.iloc[-lookback:].values
         price_array = close.iloc[-lookback:].values
@@ -535,8 +699,6 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
                 rsi_lows.append((i, rsi_array[i]))
         
         # Check for divergences using last 2 swing points
-        divergence = "No Divergence Detected"
-        
         if len(price_highs) >= 2:
             # Bearish divergence: price makes higher high, RSI makes lower high
             if price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
@@ -612,7 +774,7 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
         position = "Within Bands"
         status = "Normal"
     
-    detail = f"Price at {format_price(current_close)} | Upper: ${format_price(current_upper)} | Middle: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
+    detail = f"Price at ${format_price(current_close)} | Upper: ${format_price(current_upper)} | Middle: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
     
     if is_squeeze:
         detail += " | 🔥 BOLLINGER SQUEEZE — Breakout Likely!"
@@ -856,7 +1018,7 @@ The primary and all backup data sources for this asset are currently unavailable
 </div>
 """
 
-# === ANALYZE (Main Logic - UPDATED) ===
+# === ANALYZE (Main Logic - FIXED) ===
 def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_details, risk_multiple, reward_multiple):
     
     # --- STEP 1: HANDLE API FAILURE ---
@@ -869,7 +1031,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     current_price = price_raw 
     price_display = format_price(current_price) 
     price_change_24h = price_change_24h if price_change_24h is not None else 0.0 
-    change_display = format_change_main(price_change_24h)
     
     # --- STEP 2: Get Historical Data ---
     df = get_historical_data(symbol, interval="1h", limit=200)
@@ -885,7 +1046,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     atr_val = atr_indicator.average_true_range().iloc[-1] * current_price / 100  # Scale to price
     
-    if "Bullish" in bias:
+    if "Strong Bullish" in bias or "Bullish" in bias:
         entry = current_price
         target = entry + (reward_multiple * atr_val) 
         stop = entry - (risk_multiple * atr_val)
@@ -897,7 +1058,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
             "stop": f"strictly set the stop loss below <strong>{format_price(stop)}</strong>",
             "type": "bullish"
         }
-    elif "Bearish" in bias:
+    elif "Strong Bearish" in bias or "Bearish" in bias:
         entry = current_price
         target = entry - (reward_multiple * atr_val)
         stop = entry + (risk_multiple * atr_val)
@@ -923,11 +1084,11 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     
     # --- STEP 6: Build Output ---
     # Determine bias color
-    if "Bullish" in bias:
+    if "Strong Bullish" in bias or "Bullish" in bias:
         bias_color = "#10B981"
         bias_bg = "rgba(16, 185, 129, 0.15)"
         bias_text = "BULLISH 📈"
-    elif "Bearish" in bias:
+    elif "Strong Bearish" in bias or "Bearish" in bias:
         bias_color = "#EF4444"
         bias_bg = "rgba(239, 68, 68, 0.15)"
         bias_text = "BEARISH 📉"
@@ -975,175 +1136,15 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     change_sign = "+" if price_change_24h > 0 else ""
     change_class = "bullish" if price_change_24h > 0 else ("bearish" if price_change_24h < 0 else "neutral")
     
-    # Build the complete HTML
-    output = f"""
-    <style>
-    .price-header {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #1a2332;
-        border-radius: 12px;
-        padding: 20px 24px;
-        margin-bottom: 20px;
-        border: 1px solid #374151;
-        flex-wrap: wrap;
-        gap: 12px;
-    }}
-    .price-header .price-section .label {{
-        font-size: 13px;
-        color: #9CA3AF;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }}
-    .price-header .price-section .value {{
-        font-size: 30px;
-        font-weight: 700;
-        color: #F59E0B;
-    }}
-    .price-header .price-section .value .currency {{
-        font-size: 16px;
-        color: #9CA3AF;
-        font-weight: 400;
-    }}
-    .price-header .change-section {{
-        text-align: right;
-    }}
-    .price-header .change-section .label {{
-        font-size: 13px;
-        color: #9CA3AF;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }}
-    .price-header .change-section .change {{
-        font-size: 20px;
-        font-weight: 700;
-    }}
-    .bias-badge {{
-        display: inline-block;
-        padding: 8px 24px;
-        border-radius: 50px;
-        font-size: 20px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        background: {bias_bg};
-        color: {bias_color};
-        border: 2px solid {bias_color};
-    }}
-    .grid-2x2 {{
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin: 16px 0;
-    }}
-    .indicator-card {{
-        background: #1a2332;
-        border-radius: 10px;
-        padding: 16px 18px;
-        border-left: 4px solid #374151;
-        transition: all 0.2s ease;
-    }}
-    .indicator-card:hover {{
-        background: #1f2a3a;
-        transform: translateX(3px);
-    }}
-    .indicator-card .card-header {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2px;
-    }}
-    .indicator-card .name {{
-        font-size: 13px;
-        color: #9CA3AF;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }}
-    .indicator-card .signal-badge {{
-        font-size: 13px;
-        font-weight: 700;
-        padding: 2px 12px;
-        border-radius: 20px;
-    }}
-    .indicator-card .value {{
-        font-size: 18px;
-        font-weight: 700;
-        color: #E5E7EB;
-        margin: 2px 0;
-    }}
-    .indicator-card .explanation {{
-        font-size: 13px;
-        color: #9CA3AF;
-        margin-top: 6px;
-        line-height: 1.5;
-    }}
-    .recommendation-box {{
-        background: #1a2332;
-        border-radius: 12px;
-        padding: 20px 24px;
-        margin-top: 20px;
-        border: 1px solid #374151;
-        border-left: 4px solid #60A5FA;
-    }}
-    .recommendation-box .title {{
-        font-size: 18px;
-        font-weight: 700;
-        color: #60A5FA;
-        margin-bottom: 8px;
-    }}
-    .recommendation-box .content {{
-        font-size: 16px;
-        line-height: 1.8;
-        color: #E5E7EB;
-    }}
-    .recommendation-box strong {{
-        color: #FFD700 !important;
-    }}
-    .motivation-text {{
-        font-size: 15px;
-        font-weight: 700;
-        color: #F59E0B;
-        text-align: center;
-        padding: 12px 16px;
-        margin-top: 16px;
-        border: 2px solid #F59E0B;
-        border-radius: 8px;
-        background: rgba(245, 158, 11, 0.05);
-    }}
-    .disclaimer {{
-        font-size: 12px;
-        color: #6B7280;
-        text-align: center;
-        margin-top: 20px;
-        padding-top: 14px;
-        border-top: 1px solid #1F2937;
-        line-height: 1.6;
-    }}
-    .detail-toggle {{
-        text-align: center;
-        margin-top: 12px;
-        font-size: 14px;
-        color: #60A5FA;
-    }}
-    @media (max-width: 768px) {{
-        .grid-2x2 {{
-            grid-template-columns: 1fr;
-        }}
-        .price-header {{
-            flex-direction: column;
-            align-items: flex-start;
-        }}
-        .price-header .change-section {{
-            text-align: left;
-            width: 100%;
-        }}
-    }}
-    </style>
+    # Format indicator values for display
+    trend_value = indicator_data['trend']['status']
+    momentum_value = f"RSI: {indicator_data['momentum']['value']:.2f}"
+    volatility_value = 'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'
+    reversal_value = 'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']
+    liquidity_value = f"POC: ${format_price(indicator_data['liquidity']['value'])}"
     
+    # Build the complete HTML - FIXED WITH PROPER STRING FORMATTING
+    output = f"""
     <div class='big-text'>
     
     <!-- PRICE HEADER -->
@@ -1157,7 +1158,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
             <div class='change {change_class}'>{change_sign}{price_change_24h:.2f}%</div>
         </div>
         <div>
-            <span class='bias-badge'>{bias_text}</span>
+            <span class='bias-badge' style='background: {bias_bg}; color: {bias_color}; border: 2px solid {bias_color};'>{bias_text}</span>
         </div>
     </div>
     
@@ -1172,7 +1173,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
                     <span class='name'>Trend — SuperTrend</span>
                     <span class='signal-badge' style='background: {trend_color}22; color: {trend_color};'>{indicator_data['trend']['status']}</span>
                 </div>
-                <div class='value'>{indicator_data['trend']['status']}</div>
+                <div class='value'>{trend_value}</div>
                 <div class='explanation'>{indicator_data['trend']['detail']}</div>
             </div>
             
@@ -1182,7 +1183,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
                     <span class='name'>Momentum — RSI</span>
                     <span class='signal-badge' style='background: {momentum_color}22; color: {momentum_color};'>{indicator_data['momentum']['status']}</span>
                 </div>
-                <div class='value'>RSI: {indicator_data['momentum']['value']:.2f}</div>
+                <div class='value'>{momentum_value}</div>
                 <div class='explanation'>{indicator_data['momentum']['detail']}</div>
             </div>
             
@@ -1192,7 +1193,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
                     <span class='name'>Volatility — Bollinger Bands</span>
                     <span class='signal-badge' style='background: {volatility_color}22; color: {volatility_color};'>{'🔥 SQUEEZE' if indicator_data['volatility']['is_squeeze'] else 'NORMAL'}</span>
                 </div>
-                <div class='value'>{'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'}</div>
+                <div class='value'>{volatility_value}</div>
                 <div class='explanation'>{indicator_data['volatility']['detail']}</div>
             </div>
             
@@ -1202,7 +1203,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
                     <span class='name'>Reversal — Parabolic SAR</span>
                     <span class='signal-badge' style='background: {reversal_color}22; color: {reversal_color};'>{'⚠️ REVERSAL' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</span>
                 </div>
-                <div class='value'>{'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
+                <div class='value'>{reversal_value}</div>
                 <div class='explanation'>{indicator_data['reversal']['detail']}</div>
             </div>
             
@@ -1215,7 +1216,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
             <span class='name'>Liquidity — Volume Profile</span>
             <span class='signal-badge' style='background: {liquidity_color}22; color: {liquidity_color};'>POC</span>
         </div>
-        <div class='value'>Point of Control: ${format_price(indicator_data['liquidity']['value'])}</div>
+        <div class='value'>{liquidity_value}</div>
         <div class='explanation'>{indicator_data['liquidity']['detail']}</div>
     </div>
     
