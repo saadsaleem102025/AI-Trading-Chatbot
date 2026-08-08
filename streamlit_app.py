@@ -32,7 +32,7 @@ RISK_REWARD_OPTIONS = {
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="AI Crypto Trading Chatbot", layout="wide", initial_sidebar_state="expanded")
 
-# === 1. STYLE ===
+# === MAIN STYLES ===
 st.markdown("""
 <style>
 /* Base Streamlit overrides */
@@ -47,14 +47,15 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     line-height: 1.7 !important;
 }
 
-/* Main background (Lighter) */
+/* Main background */
 [data-testid="stAppViewContainer"] {
     background: #1F2937;
     color: #E0E0E0 !important;
     padding-left: 360px !important;
     padding-right: 25px;
 }
-/* Sidebar styling (Darker) */
+
+/* Sidebar styling */
 [data-testid="stSidebar"] {
     background: #111827;
     width: 340px !important; min-width: 340px !important; max-width: 350px !important;
@@ -63,6 +64,7 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-right: 1px solid #1F2937;
     box-shadow: 8px 0 18px rgba(0,0,0,0.4);
 }
+
 /* Main content boxes */
 .big-text {
     background: #111827;
@@ -112,91 +114,12 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .status-volatility-info { color: #32CD32 !important; font-weight: 700; font-size: 17px !important; }
 .sidebar-item b { color: #FFFFFF !important; font-weight: 800; }
 
-.sidebar-asset-price-item {
-    background: #1F2937; border-radius: 8px;
-    padding: 6px 10px; margin: 8px 0;
-    font-size: 16px; color: #E5E7EB; border: 1px solid #374151;
-}
-
-.asset-price-value-sidebar {
-    color: #F59E0B;
-    font-weight: 800;
-    font-size: 22px; 
-    display: inline-block;
-    margin-right: 5px;
-}
-.change-percent-sidebar {
-    font-weight: 700;
-    font-size: 16px;
-}
-
-.analysis-item {
-    font-size: 18px;
-    color: #E0E0E0;
-    margin: 8px 0;
-}
-
-.indicator-explanation {
-    font-size: 15px;
-    color: #9CA3AF;
-    font-style: italic;
-    margin-left: 20px;
-    margin-top: 3px;
-    margin-bottom: 10px;
-}
-
-.analysis-bias {
-    font-size: 24px;
-    font-weight: 800;
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px dashed #374151;
-}
-
-.trade-recommendation-summary {
-    font-size: 18px;
-    line-height: 1.8;
-    margin-top: 10px;
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #243B55;
-    border-radius: 8px;
-    border-left: 5px solid #60A5FA;
-}
-
-.risk-warning {
-    background: #7C2D12;
-    border: 2px solid #DC2626;
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 20px;
-    font-size: 14px;
-    color: #FCA5A5;
-}
-
-.analysis-motto-prominent {
-    font-size: 20px;
-    font-weight: 900;
-    color: #F59E0B;
-    text-transform: uppercase;
-    text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-    margin-top: 15px;
-    padding: 10px;
-    border: 2px solid #F59E0B;
-    border-radius: 8px;
-    background: #111827;
-    text-align: center;
-}
-
 .bullish { color: #10B981; font-weight: 700; }
 .bearish { color: #EF4444; font-weight: 700; }
 .neutral { color: #F59E0B; font-weight: 700; }
 .percent-label { color: #C084FC; font-weight: 700; }
 
-.indicator-bullish { color: #10B981; font-weight: 700; }
-.indicator-bearish { color: #EF4444; font-weight: 700; }
-.indicator-neutral { color: #F59E0B; font-weight: 700; }
-
+/* PRICE HEADER */
 .price-header {
     display: flex;
     justify-content: space-between;
@@ -249,6 +172,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     text-transform: uppercase;
     letter-spacing: 1px;
 }
+
+/* INDICATOR GRID */
 .grid-2x2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -297,6 +222,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     margin-top: 6px;
     line-height: 1.5;
 }
+
+/* RECOMMENDATION BOX */
 .recommendation-box {
     background: #1a2332;
     border-radius: 12px;
@@ -319,6 +246,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
 .recommendation-box strong {
     color: #FFD700 !important;
 }
+
+/* MOTIVATION */
 .motivation-text {
     font-size: 15px;
     font-weight: 700;
@@ -330,6 +259,8 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-radius: 8px;
     background: rgba(245, 158, 11, 0.05);
 }
+
+/* DISCLAIMER */
 .disclaimer {
     font-size: 12px;
     color: #6B7280;
@@ -339,12 +270,20 @@ html, body, [class*="stText"], [data-testid="stMarkdownContainer"] {
     border-top: 1px solid #1F2937;
     line-height: 1.6;
 }
-.detail-toggle {
-    text-align: center;
-    margin-top: 12px;
-    font-size: 14px;
-    color: #60A5FA;
+
+/* TRADE SUMMARY */
+.trade-recommendation-summary {
+    font-size: 18px;
+    line-height: 1.8;
+    margin-top: 10px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #243B55;
+    border-radius: 8px;
+    border-left: 5px solid #60A5FA;
 }
+
+/* RESPONSIVE */
 @media (max-width: 768px) {
     .grid-2x2 {
         grid-template-columns: 1fr;
@@ -463,18 +402,6 @@ def format_change_sidebar(ch):
     color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
     return f"<span class='change-percent-sidebar {color_class}' style='font-size: 16px; font-weight: 700;'>{sign}{ch:.2f}%</span>"
 
-def format_change_main(ch):
-    if ch is None:
-        return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='neutral'>(24h% Change N/A)</span></span>"
-    
-    try: ch = float(ch)
-    except Exception: return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='neutral'>(24h% Change N/A)</span></span>"
-    
-    sign = "+" if ch > 0 else ""
-    color_class = "bullish" if ch > 0 else ("bearish" if ch < 0 else "neutral")
-    
-    return f"<span style='white-space: nowrap;'>&nbsp;|&nbsp;<span class='{color_class}'>{sign}{ch:.2f}%</span> <span class='percent-label'>(24h% Change)</span></span>"
-
 # --- API HELPERS ---
 def fetch_stock_price_finnhub(ticker, api_key):
     if not api_key: return None, None
@@ -487,23 +414,6 @@ def fetch_stock_price_finnhub(ticker, api_key):
             change_percent = ((price - prev_close) / prev_close) * 100
             time.sleep(0.5) 
             return price, change_percent
-    except Exception:
-        pass
-    return None, None
-
-def fetch_stock_price_yahoo(ticker):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-
-    try:
-        r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}).json()
-        if 'chart' in r and 'result' in r['chart'] and r['chart']['result']:
-            result = r['chart']['result'][0]
-            meta = result.get('meta', {})
-            current_price = meta.get('regularMarketPrice')
-            prev_close = meta.get('previousClose')
-            if current_price and prev_close and prev_close > 0:
-                change_percent = ((current_price - prev_close) / prev_close) * 100
-                return float(current_price), float(change_percent)
     except Exception:
         pass
     return None, None
@@ -572,19 +482,16 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
 # === HISTORICAL DATA FETCHER ===
 def get_historical_data(symbol, interval="1h", limit=200):
     """Fetch historical OHLCV data for indicator calculations"""
-    # For now, use synthetic data since real data requires paid API
-    # This maintains compatibility with existing code
     return synthesize_series(symbol, length=limit)
 
 def synthesize_series(symbol, length=200, volatility_pct=0.008): 
     """Generate synthetic OHLCV data for indicator calculations"""
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
-    base = 100.0  # Base price for synthetic data
+    base = 100.0
     returns = np.random.normal(0, volatility_pct, size=length)
     series = base * np.exp(np.cumsum(returns))
     
-    # Generate volume data (random with some pattern)
     volume = np.random.lognormal(mean=10, sigma=1, size=length) * 1000
     
     df = pd.DataFrame({
@@ -597,29 +504,22 @@ def synthesize_series(symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === NEW INDICATOR FUNCTIONS ===
+# === INDICATOR FUNCTIONS ===
 
 def calculate_supertrend(df, period=10, multiplier=3):
-    """
-    Calculate SuperTrend indicator
-    Returns: trend direction and SuperTrend line value
-    """
     high = df['High']
     low = df['Low']
     close = df['Close']
     
-    # Calculate ATR
     atr_indicator = AverageTrueRange(high=high, low=low, close=close, window=period)
     atr = atr_indicator.average_true_range()
     
-    # Calculate upper and lower bands
     hl2 = (high + low) / 2
     upper_band = hl2 + (multiplier * atr)
     lower_band = hl2 - (multiplier * atr)
     
-    # Initialize SuperTrend
     supertrend = pd.Series(index=df.index, dtype=float)
-    trend = pd.Series(index=df.index, dtype=int)  # 1 for uptrend, -1 for downtrend
+    trend = pd.Series(index=df.index, dtype=int)
     
     for i in range(period, len(df)):
         if i == period:
@@ -655,24 +555,15 @@ def calculate_supertrend(df, period=10, multiplier=3):
     }
 
 def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
-    """
-    Calculate RSI with moving average and divergence detection
-    Returns: RSI value, MA of RSI, and divergence signal
-    """
     close = df['Close']
     
-    # Calculate RSI
     rsi_indicator = RSIIndicator(close=close, window=rsi_period)
     rsi = rsi_indicator.rsi()
-    
-    # Calculate moving average of RSI
     rsi_ma = rsi.rolling(window=ma_period).mean()
     
     current_rsi = rsi.iloc[-1]
     current_rsi_ma = rsi_ma.iloc[-1]
     
-    # Detect divergences
-    # Look back 20 periods for swing points
     lookback = 20
     divergence = "No Divergence Detected"
     
@@ -680,38 +571,29 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
         rsi_array = rsi.iloc[-lookback:].values
         price_array = close.iloc[-lookback:].values
         
-        # Find swing highs and lows in price
         price_highs = []
         price_lows = []
         rsi_highs = []
         rsi_lows = []
         
         for i in range(2, len(price_array) - 2):
-            # Price swing high
             if price_array[i] > price_array[i-1] and price_array[i] > price_array[i-2] and \
                price_array[i] > price_array[i+1] and price_array[i] > price_array[i+2]:
                 price_highs.append((i, price_array[i]))
                 rsi_highs.append((i, rsi_array[i]))
-            # Price swing low
             if price_array[i] < price_array[i-1] and price_array[i] < price_array[i-2] and \
                price_array[i] < price_array[i+1] and price_array[i] < price_array[i+2]:
                 price_lows.append((i, price_array[i]))
                 rsi_lows.append((i, rsi_array[i]))
         
-        # Check for divergences using last 2 swing points
         if len(price_highs) >= 2:
-            # Bearish divergence: price makes higher high, RSI makes lower high
             if price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
                 divergence = "Bearish Divergence Detected"
         
         if len(price_lows) >= 2:
-            # Bullish divergence: price makes lower low, RSI makes higher low
             if price_lows[-1][1] < price_lows[-2][1] and rsi_lows[-1][1] > rsi_lows[-2][1]:
                 divergence = "Bullish Divergence Detected"
-    else:
-        divergence = "Insufficient Data for Divergence Detection"
     
-    # Determine RSI status
     if current_rsi > 70:
         status = "Overbought"
         detail = f"RSI at {current_rsi:.2f} — Overbought, potential reversal"
@@ -729,13 +611,8 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
     }
 
 def calculate_bollinger_bands(df, period=20, std_dev=2):
-    """
-    Calculate Bollinger Bands with squeeze detection
-    Returns: band status and squeeze flag
-    """
     close = df['Close']
     
-    # Calculate Bollinger Bands
     bb_indicator = BollingerBands(close=close, window=period, window_dev=std_dev)
     upper = bb_indicator.bollinger_hband()
     middle = bb_indicator.bollinger_mavg()
@@ -746,33 +623,19 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
     current_lower = lower.iloc[-1]
     current_close = close.iloc[-1]
     
-    # Calculate band width
     band_width = (current_upper - current_lower) / current_middle
     
-    # Calculate historical band widths for squeeze detection
     historical_widths = []
     for i in range(period, len(close)):
         if not pd.isna(upper.iloc[i]) and not pd.isna(lower.iloc[i]) and not pd.isna(middle.iloc[i]):
             width = (upper.iloc[i] - lower.iloc[i]) / middle.iloc[i]
             historical_widths.append(width)
     
-    # Check for squeeze (bottom 20th percentile)
     is_squeeze = False
     if len(historical_widths) >= 100:
         percentile_20 = np.percentile(historical_widths, 20)
         if band_width <= percentile_20:
             is_squeeze = True
-    
-    # Determine position relative to bands
-    if current_close > current_upper:
-        position = "Above Upper Band"
-        status = "Overbought"
-    elif current_close < current_lower:
-        position = "Below Lower Band"
-        status = "Oversold"
-    else:
-        position = "Within Bands"
-        status = "Normal"
     
     detail = f"Price at ${format_price(current_close)} | Upper: ${format_price(current_upper)} | Middle: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
     
@@ -782,46 +645,32 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
         detail += f" | Band Width: {band_width:.3f} — Normal Volatility"
     
     return {
-        "status": status,
+        "status": "Normal",
         "value": band_width,
         "detail": detail,
-        "is_squeeze": is_squeeze,
-        "upper": current_upper,
-        "middle": current_middle,
-        "lower": current_lower
+        "is_squeeze": is_squeeze
     }
 
 def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
-    """
-    Calculate Parabolic SAR with reversal detection
-    Returns: SAR position and reversal flag
-    """
     high = df['High']
     low = df['Low']
     close = df['Close']
     
-    # Calculate PSAR
     psar_indicator = PSARIndicator(high=high, low=low, close=close, step=step, max_step=max_step)
     psar = psar_indicator.psar()
     
     current_psar = psar.iloc[-1]
     current_close = close.iloc[-1]
-    previous_psar = psar.iloc[-2] if len(psar) > 1 else current_psar
     
-    # Determine position
     if current_close > current_psar:
-        position = "Below Price"
         status = "Bullish"
         detail = f"SAR at ${format_price(current_psar)} — Below price, uptrend confirmed"
     else:
-        position = "Above Price"
         status = "Bearish"
         detail = f"SAR at ${format_price(current_psar)} — Above price, downtrend confirmed"
     
-    # Check for reversal (SAR just flipped)
     is_reversal = False
     if len(psar) > 2:
-        # Check if SAR flipped in last 1-2 candles
         for i in range(1, min(3, len(psar))):
             if (psar.iloc[-i] > close.iloc[-i] and psar.iloc[-i-1] < close.iloc[-i-1]) or \
                (psar.iloc[-i] < close.iloc[-i] and psar.iloc[-i-1] > close.iloc[-i-1]):
@@ -839,50 +688,34 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     }
 
 def calculate_volume_profile(df, num_bins=25):
-    """
-    Calculate Volume Profile approximation
-    Returns: Point of Control (POC) and key support/resistance levels
-    """
-    # Check if volume data exists
     if 'Volume' not in df.columns or df['Volume'].sum() == 0:
-        # Fallback to pivot points
         high = df['High'].iloc[-100:] if len(df) > 100 else df['High']
         low = df['Low'].iloc[-100:] if len(df) > 100 else df['Low']
-        
         swing_high = high.max()
         swing_low = low.min()
-        
         return {
             "status": "Fallback Mode",
             "value": (swing_high + swing_low) / 2,
-            "detail": f"⚠️ FALLBACK: Volume data unavailable. Using pivot points — Resistance: ${format_price(swing_high)} | Support: ${format_price(swing_low)} | Mid: ${format_price((swing_high + swing_low) / 2)}"
+            "detail": f"⚠️ FALLBACK: Using pivot points — Resistance: ${format_price(swing_high)} | Support: ${format_price(swing_low)}"
         }
     
-    # Use last 200 candles or available data
     lookback = min(200, len(df))
     price = df['Close'].iloc[-lookback:]
     volume = df['Volume'].iloc[-lookback:]
     
-    # Create price bins
     price_min = price.min()
     price_max = price.max()
-    bin_width = (price_max - price_min) / num_bins
-    
-    # Bin the data
     bins = np.linspace(price_min, price_max, num_bins + 1)
     bin_indices = np.digitize(price, bins) - 1
     
-    # Sum volume per bin
     volume_by_bin = defaultdict(float)
     for idx, vol in zip(bin_indices, volume):
         if 0 <= idx < num_bins:
             volume_by_bin[idx] += vol
     
-    # Find POC (bin with highest volume)
     poc_bin = max(volume_by_bin, key=volume_by_bin.get)
     poc_price = (bins[poc_bin] + bins[poc_bin + 1]) / 2
     
-    # Find top 3 volume bins
     sorted_bins = sorted(volume_by_bin.items(), key=lambda x: x[1], reverse=True)
     top_bins = sorted_bins[:3]
     top_prices = [(bins[bin_idx] + bins[bin_idx + 1]) / 2 for bin_idx, _ in top_bins]
@@ -901,23 +734,11 @@ def calculate_volume_profile(df, num_bins=25):
 
 # === OVERALL INDICATOR CALCULATION ===
 def calculate_all_indicators(symbol, df):
-    """
-    Calculate all 5 indicators and return as structured dictionary
-    """
     try:
-        # 1. Trend Direction - SuperTrend
         supertrend = calculate_supertrend(df)
-        
-        # 2. Momentum - RSI with MA and Divergence
         rsi_data = calculate_rsi_with_divergence(df)
-        
-        # 3. Volatility - Bollinger Bands with Squeeze
         bollinger = calculate_bollinger_bands(df)
-        
-        # 4. Reversal Timing - Parabolic SAR
         psar = calculate_parabolic_sar(df)
-        
-        # 5. Liquidity - Volume Profile
         volume_profile = calculate_volume_profile(df)
         
         return {
@@ -928,7 +749,6 @@ def calculate_all_indicators(symbol, df):
             "liquidity": volume_profile
         }
     except Exception as e:
-        # Return error state for all indicators
         return {
             "trend": {"status": "Error", "value": None, "detail": f"Calculation error: {str(e)}"},
             "momentum": {"status": "Error", "value": None, "detail": "Unable to calculate RSI"},
@@ -939,26 +759,17 @@ def calculate_all_indicators(symbol, df):
 
 # === OVERALL BIAS DETERMINATION ===
 def determine_overall_bias(indicator_data):
-    """
-    Determine overall market bias based on all indicators
-    """
     bullish_count = 0
     bearish_count = 0
     
-    # Check each indicator
     if indicator_data["trend"]["status"] == "Bullish":
-        bullish_count += 2  # Trend is weighted higher
+        bullish_count += 2
     elif indicator_data["trend"]["status"] == "Bearish":
         bearish_count += 2
     
     if indicator_data["momentum"]["status"] in ["Overbought"]:
         bearish_count += 1
     elif indicator_data["momentum"]["status"] in ["Oversold"]:
-        bullish_count += 1
-    
-    if indicator_data["volatility"]["status"] == "Overbought":
-        bearish_count += 1
-    elif indicator_data["volatility"]["status"] == "Oversold":
         bullish_count += 1
     
     if indicator_data["reversal"]["status"] == "Bullish":
@@ -976,8 +787,6 @@ def determine_overall_bias(indicator_data):
 # === NATURAL LANGUAGE SUMMARY ===
 def get_natural_language_summary(symbol, bias, indicator_data):
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
-    
-    # Add indicator summaries
     summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
     summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
     summary += f"• <strong>Momentum (RSI):</strong> {indicator_data['momentum']['status']} — {indicator_data['momentum']['detail']}<br>"
@@ -1042,9 +851,8 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     bias = determine_overall_bias(indicator_data)
     
     # --- STEP 5: Generate Recommendation ---
-    # Simple ATR calculation for stop loss
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-    atr_val = atr_indicator.average_true_range().iloc[-1] * current_price / 100  # Scale to price
+    atr_val = atr_indicator.average_true_range().iloc[-1] * current_price / 100
     
     if "Strong Bullish" in bias or "Bullish" in bias:
         entry = current_price
@@ -1083,7 +891,6 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         }
     
     # --- STEP 6: Build Output ---
-    # Determine bias color
     if "Strong Bullish" in bias or "Bullish" in bias:
         bias_color = "#10B981"
         bias_bg = "rgba(16, 185, 129, 0.15)"
@@ -1097,38 +904,20 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         bias_bg = "rgba(245, 158, 11, 0.15)"
         bias_text = "NEUTRAL ➡️"
     
-    # Get indicator colors for cards
     trend_color = "#10B981" if indicator_data["trend"]["status"] == "Bullish" else "#EF4444" if indicator_data["trend"]["status"] == "Bearish" else "#F59E0B"
     momentum_color = "#EF4444" if "Overbought" in indicator_data["momentum"]["status"] else "#10B981" if "Oversold" in indicator_data["momentum"]["status"] else "#F59E0B"
     volatility_color = "#F59E0B" if indicator_data["volatility"]["is_squeeze"] else "#60A5FA"
     reversal_color = "#EF4444" if indicator_data["reversal"]["is_reversal"] else "#10B981" if indicator_data["reversal"]["status"] == "Bullish" else "#F59E0B"
     liquidity_color = "#C084FC"
     
-    # Build natural language summary
     analysis_summary_html = get_natural_language_summary(symbol, bias, indicator_data)
     
-    # Motivation
     motivation_options = {
-        "Strong Bullish": [
-            "MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. The market rewards conviction.",
-            "STRONG BUY SIGNAL: The trend and momentum align. Never fight the trend, but always respect your stops."
-        ],
-        "Bullish": [
-            "BULLISH PRESSURE: Capitalize on the upward force. Successful trading is 80% preparation, 20% execution.",
-            "UPTREND DETECTED: Look for buying opportunities on pullbacks."
-        ],
-        "Strong Bearish": [
-            "DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. Keep risk management paramount.",
-            "STRONG SELL SIGNAL: Sentiment has turned decisively. Manage the downside."
-        ],
-        "Bearish": [
-            "BEARISH PRESSURE: Do not hold against a strong downtrend. The goal is not to trade often, but to trade well.",
-            "DOWNTREND DETECTED: Look for selling opportunities on rallies."
-        ],
-        "Neutral": [
-            "MARKET RESTING: Patience now builds precision later. Preserve capital. Successful trading is 80% waiting.",
-            "CONSOLIDATION ZONE: Wait for the price to show its hand. No position is a position."
-        ]
+        "Strong Bullish": ["MOMENTUM CONFIRMED: Look for breakout entries or pullbacks. The market rewards conviction.", "STRONG BUY SIGNAL: The trend and momentum align. Never fight the trend, but always respect your stops."],
+        "Bullish": ["BULLISH PRESSURE: Capitalize on the upward force. Successful trading is 80% preparation, 20% execution.", "UPTREND DETECTED: Look for buying opportunities on pullbacks."],
+        "Strong Bearish": ["DOWNTREND CONFIRMED: Respect stops and look for short opportunities near resistance. Keep risk management paramount.", "STRONG SELL SIGNAL: Sentiment has turned decisively. Manage the downside."],
+        "Bearish": ["BEARISH PRESSURE: Do not hold against a strong downtrend. The goal is not to trade often, but to trade well.", "DOWNTREND DETECTED: Look for selling opportunities on rallies."],
+        "Neutral": ["MARKET RESTING: Patience now builds precision later. Preserve capital. Successful trading is 80% waiting.", "CONSOLIDATION ZONE: Wait for the price to show its hand. No position is a position."]
     }
     default_motivation = "MAINTAIN EMOTIONAL DISTANCE: Trade the strategy, not the emotion."
     motivation = random.choice(motivation_options.get(bias, [default_motivation]))
@@ -1136,14 +925,7 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
     change_sign = "+" if price_change_24h > 0 else ""
     change_class = "bullish" if price_change_24h > 0 else ("bearish" if price_change_24h < 0 else "neutral")
     
-    # Format indicator values for display
-    trend_value = indicator_data['trend']['status']
-    momentum_value = f"RSI: {indicator_data['momentum']['value']:.2f}"
-    volatility_value = 'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'
-    reversal_value = 'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']
-    liquidity_value = f"POC: ${format_price(indicator_data['liquidity']['value'])}"
-    
-    # Build the complete HTML - FIXED WITH PROPER STRING FORMATTING
+    # Build the HTML
     output = f"""
     <div class='big-text'>
     
@@ -1167,56 +949,56 @@ def analyze(symbol, price_raw, price_change_24h, vs_currency, asset_type, show_d
         <div style='font-size: 15px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;'>Technical Indicators</div>
         <div class='grid-2x2'>
             
-            <!-- 1. Trend - SuperTrend -->
+            <!-- Trend -->
             <div class='indicator-card' style='border-left-color: {trend_color};'>
                 <div class='card-header'>
                     <span class='name'>Trend — SuperTrend</span>
                     <span class='signal-badge' style='background: {trend_color}22; color: {trend_color};'>{indicator_data['trend']['status']}</span>
                 </div>
-                <div class='value'>{trend_value}</div>
+                <div class='value'>{indicator_data['trend']['status']}</div>
                 <div class='explanation'>{indicator_data['trend']['detail']}</div>
             </div>
             
-            <!-- 2. Momentum - RSI -->
+            <!-- Momentum -->
             <div class='indicator-card' style='border-left-color: {momentum_color};'>
                 <div class='card-header'>
                     <span class='name'>Momentum — RSI</span>
                     <span class='signal-badge' style='background: {momentum_color}22; color: {momentum_color};'>{indicator_data['momentum']['status']}</span>
                 </div>
-                <div class='value'>{momentum_value}</div>
+                <div class='value'>RSI: {indicator_data['momentum']['value']:.2f}</div>
                 <div class='explanation'>{indicator_data['momentum']['detail']}</div>
             </div>
             
-            <!-- 3. Volatility - Bollinger Bands -->
+            <!-- Volatility -->
             <div class='indicator-card' style='border-left-color: {volatility_color};'>
                 <div class='card-header'>
                     <span class='name'>Volatility — Bollinger Bands</span>
                     <span class='signal-badge' style='background: {volatility_color}22; color: {volatility_color};'>{'🔥 SQUEEZE' if indicator_data['volatility']['is_squeeze'] else 'NORMAL'}</span>
                 </div>
-                <div class='value'>{volatility_value}</div>
+                <div class='value'>{'Squeeze Detected!' if indicator_data['volatility']['is_squeeze'] else 'Normal Volatility'}</div>
                 <div class='explanation'>{indicator_data['volatility']['detail']}</div>
             </div>
             
-            <!-- 4. Reversal - Parabolic SAR -->
+            <!-- Reversal -->
             <div class='indicator-card' style='border-left-color: {reversal_color};'>
                 <div class='card-header'>
                     <span class='name'>Reversal — Parabolic SAR</span>
                     <span class='signal-badge' style='background: {reversal_color}22; color: {reversal_color};'>{'⚠️ REVERSAL' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</span>
                 </div>
-                <div class='value'>{reversal_value}</div>
+                <div class='value'>{'Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
                 <div class='explanation'>{indicator_data['reversal']['detail']}</div>
             </div>
             
         </div>
     </div>
     
-    <!-- 5. Liquidity - Volume Profile (Full Width Card) -->
+    <!-- Liquidity -->
     <div class='indicator-card' style='border-left-color: {liquidity_color}; margin-top: 12px;'>
         <div class='card-header'>
             <span class='name'>Liquidity — Volume Profile</span>
             <span class='signal-badge' style='background: {liquidity_color}22; color: {liquidity_color};'>POC</span>
         </div>
-        <div class='value'>{liquidity_value}</div>
+        <div class='value'>POC: ${format_price(indicator_data['liquidity']['value'])}</div>
         <div class='explanation'>{indicator_data['liquidity']['detail']}</div>
     </div>
     
