@@ -362,13 +362,26 @@ def format_price(p):
     else: return f"{p:.6f}".rstrip("0").rstrip(".")
 
 # --- COINGECKO API ---
-@st.cache_data(ttl=60, show_spinner=False)
+def get_coin_id(symbol):
+    """Map symbol to CoinGecko coin ID"""
+    symbol = symbol.upper().replace("USD", "").replace("USDT", "")
+    symbol_map = {
+        'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana',
+        'ADA': 'cardano', 'XRP': 'ripple', 'DOGE': 'dogecoin',
+        'DOT': 'polkadot', 'LINK': 'chainlink', 'MATIC': 'polygon',
+        'UNI': 'uniswap', 'ATOM': 'cosmos', 'LTC': 'litecoin',
+        'BCH': 'bitcoin-cash', 'NEAR': 'near', 'ALGO': 'algorand',
+        'AVAX': 'avalanche-2', 'FTM': 'fantom'
+    }
+    return symbol_map.get(symbol, symbol.lower())
+
+@st.cache_data(ttl=120, show_spinner=False)
 def fetch_crypto_price_coingecko(symbol, api_key=""):
-    """Fetch crypto price from CoinGecko"""
-    base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
+    """Fetch current price from CoinGecko"""
+    coin_id = get_coin_id(symbol)
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
-        'ids': base_symbol, 
+        'ids': coin_id, 
         'vs_currencies': 'usd', 
         'include_24hr_change': 'true'
     }
@@ -379,83 +392,122 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
     try:
         response = requests.get(url, params=params, headers=headers, timeout=10)
         data = response.json()
-        
-        for coin_id, coin_data in data.items():
-            if 'usd' in coin_data and float(coin_data['usd']) > 0:
-                price = float(coin_data['usd'])
-                change_percent = float(coin_data.get('usd_24h_change', 0))
-                return price, change_percent
-        
-        symbol_map = {
-            'btc': 'bitcoin', 'eth': 'ethereum', 'sol': 'solana',
-            'ada': 'cardano', 'xrp': 'ripple', 'doge': 'dogecoin',
-            'dot': 'polkadot', 'link': 'chainlink', 'matic': 'polygon',
-            'uni': 'uniswap', 'atom': 'cosmos', 'ltc': 'litecoin',
-            'bch': 'bitcoin-cash', 'near': 'near', 'algo': 'algorand',
-            'avax': 'avalanche-2', 'ftm': 'fantom'
-        }
-        
-        if base_symbol in symbol_map:
-            coin_id = symbol_map[base_symbol]
-            params['ids'] = coin_id
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            data = response.json()
-            if coin_id in data and 'usd' in data[coin_id]:
-                price = float(data[coin_id]['usd'])
-                change_percent = float(data[coin_id].get('usd_24h_change', 0))
-                return price, change_percent
-                
+        if coin_id in data and 'usd' in data[coin_id]:
+            price = float(data[coin_id]['usd'])
+            change_percent = float(data[coin_id].get('usd_24h_change', 0))
+            return price, change_percent
     except Exception as e:
         pass
-    
     return None, None
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
+    """
+    Fetch REAL historical OHLCV data from CoinGecko
+    Uses /coins/{id}/ohlc endpoint for reliable OHLC data
+    """
+    coin_id = get_coin_id(symbol)
+    
+    # CoinGecko OHLC endpoint
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+    
+    # Determine interval based on days requested
+    # CoinGecko free tier limits:
+    # - 1 day: 1 minute intervals (max 1 day)
+    # - 7-30 days: 1 hour intervals
+    # - 90 days: 4 hour intervals
+    # - 365 days: 1 day intervals
+    if days <= 1:
+        interval = '1m'  # 1 minute
+    elif days <= 30:
+        interval = '1h'  # 1 hour
+    elif days <= 90:
+        interval = '4h'  # 4 hours
+    else:
+        interval = '1d'  # 1 day
+    
+    params = {
+        'vs_currency': 'usd',
+        'days': days,
+    }
+    
+    headers = {}
+    if api_key:
+        headers['x-cg-demo-api-key'] = api_key
+    
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        data = response.json()
+        
+        if not data or len(data) < 10:
+            st.error(f"Insufficient historical data returned for {symbol}. Please try again.")
+            return None
+        
+        # Convert to DataFrame
+        # OHLC data format: [timestamp, open, high, low, close]
+        df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close'])
+        
+        # Convert timestamp from milliseconds to datetime
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df = df.set_index('timestamp')
+        
+        # Add volume (CoinGecko OHLC doesn't include volume, use approximate)
+        # We'll use a simple volume approximation based on price movement
+        df['volume'] = df['close'].rolling(5).std() * 1000 + 1000
+        
+        # Rename columns to match expected format
+        df = df.rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+        
+        # Ensure all columns exist
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = df['Close']  # Fallback
+        
+        # Sort by date (oldest first)
+        df = df.sort_index()
+        
+        return df
+        
+    except requests.exceptions.Timeout:
+        st.error("⏱️ Historical data request timed out. Please try again.")
+        return None
+    except requests.exceptions.RequestException as e:
+        st.error(f"🌐 Network error fetching historical data: {str(e)}")
+        return None
+    except Exception as e:
+        st.error(f"❌ Error fetching historical data: {str(e)}")
+        return None
+
 def get_asset_price(symbol):
-    symbol = symbol.upper().replace("USD", "").replace("USDT", "")
+    """Get current price from CoinGecko"""
     return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
 
-# --- HISTORICAL DATA - FIXED TO USE ACTUAL PRICE ---
-def get_historical_data(symbol, current_price, length=200):
+def get_historical_data(symbol, days=30):
     """
-    Generate synthetic historical data that matches the actual price scale
-    Uses the current price as the base for realistic price levels
+    Get REAL historical data from CoinGecko
+    Returns DataFrame with Open, High, Low, Close, Volume columns
     """
-    seed_val = int(hash(symbol + str(current_price)) % (2**31 - 1))
-    np.random.seed(seed_val)
+    df = fetch_historical_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
     
-    # Use current price as base
-    base_price = current_price
+    if df is None or len(df) < 10:
+        st.error(f"❌ Unable to fetch sufficient historical data for {symbol}. Please try again later.")
+        return None
     
-    # Generate returns with realistic volatility (1-2% daily volatility for crypto)
-    volatility = 0.015
-    returns = np.random.normal(0, volatility, size=length)
-    
-    # Generate price series starting from a few days ago
-    # Reverse the returns to go back in time
-    price_series = base_price * np.exp(np.cumsum(returns[::-1])[::-1])
-    
-    # Ensure the last value matches current price
-    price_series[-1] = base_price
-    
-    # Generate volume data
-    volume = np.random.lognormal(mean=np.log(base_price * 100), sigma=1, size=length) * 100
-    
-    df = pd.DataFrame({
-        "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="h"),
-        "Close": price_series,
-        "High": price_series * (1 + np.random.uniform(0.002, 0.015, size=length)),
-        "Low": price_series * (1 - np.random.uniform(0.002, 0.015, size=length)),
-        "Open": price_series * (1 + np.random.uniform(-0.01, 0.01, size=length)),
-        "Volume": volume
-    })
-    
-    return df.iloc[-length:].set_index('datetime')
+    return df
 
 # --- SWING POINT DETECTION ---
 def find_swing_points(df, lookback=30):
-    """
-    Find recent swing highs and lows using the same logic as RSI divergence
-    """
+    """Find recent swing highs and lows"""
+    if df is None or len(df) < lookback:
+        return None, None
+    
     close = df['Close']
     high = df['High']
     low = df['Low']
@@ -502,6 +554,9 @@ def find_swing_points(df, lookback=30):
 
 # --- INDICATOR FUNCTIONS ---
 def calculate_supertrend(df, period=10, multiplier=3):
+    if df is None or len(df) < period:
+        return {"status": "Error", "value": None, "detail": "Insufficient data"}
+    
     high = df['High']; low = df['Low']; close = df['Close']
     
     atr_indicator = AverageTrueRange(high=high, low=low, close=close, window=period)
@@ -548,6 +603,9 @@ def calculate_supertrend(df, period=10, multiplier=3):
     }
 
 def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
+    if df is None or len(df) < rsi_period + ma_period:
+        return {"status": "Error", "value": None, "detail": "Insufficient data"}
+    
     close = df['Close']
     
     rsi_indicator = RSIIndicator(close=close, window=rsi_period)
@@ -607,6 +665,9 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
     }
 
 def calculate_bollinger_bands(df, period=20, std_dev=2):
+    if df is None or len(df) < period:
+        return {"status": "Error", "value": None, "detail": "Insufficient data"}
+    
     close = df['Close']
     
     bb_indicator = BollingerBands(close=close, window=period, window_dev=std_dev)
@@ -659,6 +720,9 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
     }
 
 def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
+    if df is None or len(df) < 10:
+        return {"status": "Error", "value": None, "detail": "Insufficient data"}
+    
     high = df['High']; low = df['Low']; close = df['Close']
     
     psar_indicator = PSARIndicator(high=high, low=low, close=close, step=step, max_step=max_step)
@@ -693,14 +757,16 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     }
 
 def calculate_volume_profile(df, num_bins=25):
-    if 'Volume' not in df.columns or df['Volume'].sum() == 0:
-        high = df['High'].iloc[-100:] if len(df) > 100 else df['High']
-        low = df['Low'].iloc[-100:] if len(df) > 100 else df['Low']
-        return {
-            "status": "Fallback",
-            "value": (high.max() + low.min()) / 2,
-            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
-        }
+    if df is None or len(df) < 20 or 'Volume' not in df.columns:
+        if df is not None:
+            high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
+            low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
+            return {
+                "status": "Fallback",
+                "value": (high.max() + low.min()) / 2,
+                "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
+            }
+        return {"status": "Error", "value": None, "detail": "Insufficient data"}
     
     lookback = min(200, len(df))
     price = df['Close'].iloc[-lookback:]
@@ -734,6 +800,15 @@ def calculate_volume_profile(df, num_bins=25):
     }
 
 def calculate_all_indicators(symbol, df):
+    if df is None:
+        return {
+            "trend": {"status": "Error", "value": None, "detail": "No data"},
+            "momentum": {"status": "Error", "value": None, "detail": "No data"},
+            "volatility": {"status": "Error", "value": None, "detail": "No data"},
+            "reversal": {"status": "Error", "value": None, "detail": "No data"},
+            "liquidity": {"status": "Error", "value": None, "detail": "No data"}
+        }
+    
     try:
         return {
             "trend": calculate_supertrend(df),
@@ -806,11 +881,20 @@ def get_session_info(utc_now):
 
 # --- TRADE PARAMETERS ---
 def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df):
-    """
-    Generate trade parameters with proper entry triggers using support/resistance
-    """
+    if df is None:
+        return {
+            "title": "⏳ No Data Available",
+            "direction": "ERROR",
+            "current_price": price,
+            "entry_trigger": None,
+            "entry_label": "No historical data",
+            "trigger_hit": False,
+            "stop_loss": None,
+            "target": None,
+            "strategy": "Unable to calculate indicators",
+            "type": "neutral"
+        }
     
-    # Find support and resistance levels using swing points
     resistance, support = find_swing_points(df, lookback=30)
     
     if resistance is None or support is None:
@@ -882,11 +966,13 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
 # --- DISPLAY FUNCTION ---
 def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple, df):
     
-    # Calculate ATR on the correctly scaled data
+    if df is None:
+        st.error("❌ No historical data available for analysis.")
+        return
+    
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     atr_val = atr_indicator.average_true_range().iloc[-1]
     
-    # Get trade parameters with proper entry triggers
     trade_params = get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df)
     
     if "Bullish" in bias:
@@ -913,7 +999,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     change_sign = "+" if price_change > 0 else ""
     change_class = "bullish" if price_change > 0 else "bearish"
     
-    # Price Card
     st.markdown(f"""
     <div class="price-card">
         <div class="price-section">
@@ -932,7 +1017,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     </div>
     """, unsafe_allow_html=True)
     
-    # Indicators - 2x2 Grid
     st.markdown('<div class="section-header">📈 Technical Indicators</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -986,7 +1070,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         </div>
         """, unsafe_allow_html=True)
     
-    # Liquidity - Full width
     st.markdown(f"""
     <div class="indicator-card-full">
         <div class="card-header">
@@ -1000,7 +1083,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     
     st.divider()
     
-    # AI Recommendation with Proper Entry Triggers
     if trade_params["type"] != "neutral":
         trigger_status = "✅ TRIGGER HIT" if trade_params["trigger_hit"] else "⏳ PENDING TRIGGER"
         trigger_class = "trigger-hit" if trade_params["trigger_hit"] else "trigger-pending"
@@ -1029,7 +1111,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         </div>
         """, unsafe_allow_html=True)
     
-    # Natural Language Summary
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
     summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
     summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
@@ -1158,15 +1239,18 @@ if user_input:
         price, price_change = get_asset_price(symbol)
         
         if price is not None:
-            # Generate historical data with the correct price scale
-            df = get_historical_data(symbol, price, length=200)
+            # Fetch REAL historical data (30 days)
+            df = get_historical_data(symbol, days=30)
             
-            indicator_data = calculate_all_indicators(symbol, df)
-            bias = determine_overall_bias(indicator_data)
-            
-            display_analysis(
-                symbol, price, price_change, vs_currency,
-                indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE, df
-            )
+            if df is not None:
+                indicator_data = calculate_all_indicators(symbol, df)
+                bias = determine_overall_bias(indicator_data)
+                
+                display_analysis(
+                    symbol, price, price_change, vs_currency,
+                    indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE, df
+                )
+            else:
+                st.error("❌ Unable to fetch historical data. Please try again.")
         else:
             st.error(f"❌ Unable to fetch price data for {symbol}. Please check the ticker symbol and try again.")
