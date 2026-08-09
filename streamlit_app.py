@@ -9,16 +9,15 @@ import time
 from datetime import time as dt_time, timedelta, timezone
 import ta
 from ta.volatility import AverageTrueRange
-from ta.trend import MACD, EMAIndicator, SMAIndicator, PSARIndicator
+from ta.trend import PSARIndicator
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 import random
-import json
 from collections import defaultdict
 
 
 
-# --- CONFIGURATION & CONSTANTS ---
+# --- CONFIGURATION ---
 RISK_REWARD_OPTIONS = {
     "1:1 (Conservative/Scalper)": (1.0, 1.0),
     "1:1.5 (Conservative/Swing Trader)": (1.0, 1.5),
@@ -28,35 +27,28 @@ RISK_REWARD_OPTIONS = {
     "Custom": None
 } 
 
-# --- STREAMLIT CONFIGURATION ---
+# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="AI Crypto Trading Chatbot",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# === MAIN STYLES - BEAUTIFUL UI ===
+# --- STYLES ---
 st.markdown("""
 <style>
-/* Import Google Font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+* { font-family: 'Inter', sans-serif; }
 
-* {
-    font-family: 'Inter', sans-serif;
-}
-
-/* Base Streamlit overrides */
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
-/* Main background - Dark theme with gradient */
 [data-testid="stAppViewContainer"] {
     background: linear-gradient(135deg, #0f1724 0%, #1a2332 50%, #0f1724 100%);
     padding-left: 360px !important;
     padding-right: 25px;
 }
 
-/* Sidebar styling - Glass morphism */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0d1520 0%, #162032 100%);
     width: 340px !important;
@@ -66,12 +58,11 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     left: 0;
     bottom: 0;
     z-index: 100;
-    padding: 0.5rem 1.2rem 0.5rem 1.2rem;
+    padding: 0.5rem 1.2rem;
     border-right: 1px solid rgba(96, 165, 250, 0.15);
     box-shadow: 8px 0 30px rgba(0,0,0,0.6);
 }
 
-/* Sidebar components */
 .sidebar-title {
     font-size: 26px;
     font-weight: 800;
@@ -80,7 +71,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     -webkit-text-fill-color: transparent;
     margin-top: 5px;
     margin-bottom: 15px;
-    padding-top: 5px;
 }
 .sidebar-item {
     background: rgba(31, 41, 55, 0.6);
@@ -91,29 +81,11 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     font-size: 16px;
     color: #9CA3AF;
     border: 1px solid rgba(55, 65, 81, 0.5);
-    transition: all 0.3s ease;
 }
-.sidebar-item:hover {
-    border-color: rgba(96, 165, 250, 0.3);
-    background: rgba(31, 41, 55, 0.8);
-}
-.local-time-info { 
-    color: #00FFFF !important; 
-    font-weight: 700; 
-    font-size: 18px;
-}
-.active-session-info { 
-    color: #FF8C00 !important; 
-    font-weight: 700; 
-    font-size: 18px;
-}
-.status-volatility-info { 
-    color: #34D399 !important; 
-    font-weight: 700; 
-    font-size: 18px;
-}
+.local-time-info { color: #00FFFF !important; font-weight: 700; }
+.active-session-info { color: #FF8C00 !important; font-weight: 700; }
+.status-volatility-info { color: #34D399 !important; font-weight: 700; }
 
-/* Main Title */
 .main-title {
     font-size: 32px;
     font-weight: 900;
@@ -130,7 +102,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     100% { background-position: 0% 50%; }
 }
 
-/* Price Display - Premium Card */
 .price-card {
     background: linear-gradient(135deg, #1a2332 0%, #24304a 100%);
     border-radius: 16px;
@@ -143,11 +114,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     gap: 16px;
     margin-bottom: 24px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    transition: all 0.3s ease;
-}
-.price-card:hover {
-    border-color: rgba(96, 165, 250, 0.3);
-    box-shadow: 0 8px 40px rgba(96, 165, 250, 0.1);
 }
 .price-card .price-section .label {
     font-size: 12px;
@@ -187,14 +153,8 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     text-transform: uppercase;
     letter-spacing: 1.5px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    transition: all 0.3s ease;
-}
-.bias-badge:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 30px rgba(0,0,0,0.4);
 }
 
-/* Section Header */
 .section-header {
     font-size: 14px;
     color: #9CA3AF;
@@ -213,7 +173,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     background: linear-gradient(90deg, rgba(96, 165, 250, 0.2), transparent);
 }
 
-/* Indicator Grid */
 .indicator-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -221,7 +180,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     margin: 0 0 14px 0;
 }
 
-/* Indicator Card - Premium */
 .indicator-card {
     background: linear-gradient(135deg, #1a2332 0%, #1f2a3e 100%);
     border-radius: 14px;
@@ -229,18 +187,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     border-left: 5px solid #374151;
     transition: all 0.3s ease;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    position: relative;
-    overflow: hidden;
-}
-.indicator-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100px;
-    height: 100px;
-    background: radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 70%);
-    pointer-events: none;
 }
 .indicator-card:hover {
     transform: translateY(-3px);
@@ -264,7 +210,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     font-weight: 700;
     padding: 3px 14px;
     border-radius: 20px;
-    letter-spacing: 0.5px;
 }
 .indicator-card .value {
     font-size: 20px;
@@ -279,7 +224,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.5;
 }
 
-/* Full width card for Liquidity */
 .indicator-card-full {
     background: linear-gradient(135deg, #1a2332 0%, #1f2a3e 100%);
     border-radius: 14px;
@@ -288,18 +232,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     transition: all 0.3s ease;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     margin-top: 0px;
-    position: relative;
-    overflow: hidden;
-}
-.indicator-card-full::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100px;
-    height: 100px;
-    background: radial-gradient(circle, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
-    pointer-events: none;
 }
 .indicator-card-full:hover {
     transform: translateY(-3px);
@@ -337,7 +269,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.5;
 }
 
-/* Recommendation Box - Premium */
 .recommendation-box {
     background: linear-gradient(135deg, #1a2332 0%, #1e2d4a 100%);
     border-radius: 14px;
@@ -346,20 +277,12 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     border: 1px solid rgba(96, 165, 250, 0.15);
     border-left: 5px solid #60A5FA;
     box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    transition: all 0.3s ease;
-}
-.recommendation-box:hover {
-    border-color: rgba(96, 165, 250, 0.3);
-    box-shadow: 0 6px 30px rgba(96, 165, 250, 0.1);
 }
 .recommendation-box .title {
     font-size: 18px;
     font-weight: 700;
     color: #60A5FA;
     margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
 }
 .recommendation-box .content {
     font-size: 16px;
@@ -370,7 +293,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     color: #FFD700 !important;
 }
 
-/* Trade Summary */
 .trade-summary {
     font-size: 17px;
     line-height: 1.9;
@@ -386,7 +308,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     color: #FFD700 !important;
 }
 
-/* Motivation Text */
 .motivation-text {
     font-size: 16px;
     font-weight: 700;
@@ -397,15 +318,8 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     border: 2px solid rgba(245, 158, 11, 0.2);
     border-radius: 12px;
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
-    box-shadow: 0 0 40px rgba(245, 158, 11, 0.03);
-    transition: all 0.3s ease;
-}
-.motivation-text:hover {
-    border-color: rgba(245, 158, 11, 0.4);
-    box-shadow: 0 0 60px rgba(245, 158, 11, 0.05);
 }
 
-/* Disclaimer */
 .disclaimer {
     font-size: 12px;
     color: #6B7280;
@@ -414,33 +328,16 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     padding-top: 16px;
     border-top: 1px solid rgba(55, 65, 81, 0.3);
     line-height: 1.8;
-    letter-spacing: 0.3px;
 }
 
-/* Color Classes */
 .bullish { color: #34D399 !important; font-weight: 700; }
 .bearish { color: #F87171 !important; font-weight: 700; }
 .neutral { color: #FBBF24 !important; font-weight: 700; }
 
-/* Divider */
-.custom-divider {
-    border: none;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.2), transparent);
-    margin: 20px 0;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
     [data-testid="stAppViewContainer"] {
         padding-left: 0px !important;
         padding-right: 15px !important;
-    }
-    [data-testid="stSidebar"] {
-        width: 280px !important;
-        min-width: 280px !important;
-        transform: translateX(-100%);
-        transition: transform 0.3s ease;
     }
     .indicator-grid {
         grid-template-columns: 1fr;
@@ -449,29 +346,9 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
         flex-direction: column;
         align-items: flex-start;
     }
-    .price-card .change-section {
-        text-align: left;
-        width: 100%;
-    }
     .main-title {
         font-size: 24px;
     }
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-::-webkit-scrollbar-track {
-    background: #1a2332;
-}
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #60A5FA, #34D399);
-    border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #3B82F6, #10B981);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -481,40 +358,25 @@ FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-KNOWN_CRYPTO_SYMBOLS = {"BTC", "ETH", "ADA", "XRP", "DOGE", "SOL", "PI", "HYPE", "AVAX", "DOT", "LINK", "MATIC", "UNI", "ATOM", "LTC", "BCH", "NEAR", "ALGO", "VET", "ICP", "FIL", "EGLD", "XTZ", "AAVE", "MKR", "COMP", "YFI", "ZEC", "XLM", "HBAR", "ETC", "QNT", "GRT", "SNX", "STORJ", "ANKR", "CRV", "1INCH", "SUSHI", "UMA", "OCEAN", "REN", "ZRX", "BAT", "KNC", "ENJ", "CHR", "MANA", "SAND", "GALA", "AXS", "SLP", "ILV", "RNDR", "FET", "AGIX"}
-
+# --- CONSTANTS ---
 TIMEZONE_MAP = {
     "Pakistan (PKT)": "Asia/Karachi",
     "United States - New York (EST/EDT)": "America/New_York",
     "United States - Los Angeles (PST/PDT)": "America/Los_Angeles",
     "United Kingdom (GMT/BST)": "Europe/London",
-    "France (CET/CEST)": "Europe/Paris",
-    "Germany (CET/CEST)": "Europe/Berlin",
     "Japan (JST)": "Asia/Tokyo",
     "Singapore (SGT)": "Asia/Singapore",
     "Australia (AEST/AEDT)": "Australia/Sydney",
     "India (IST)": "Asia/Kolkata",
-    "China (CST)": "Asia/Shanghai",
 }
 
-def resolve_asset_symbol(input_text, asset_type, quote_currency="USD"):
-    base_symbol = input_text.strip().upper()
-    if asset_type == "Crypto":
-        final_symbol = base_symbol + quote_currency.upper()
-    else:
-        final_symbol = base_symbol
-    return base_symbol, final_symbol
-
-# === HELPERS ===
 def format_price(p):
     if p is None: return "N/A" 
     try: p = float(p)
-    except Exception: return "N/A" 
-    if abs(p) >= 10: s = f"{p:,.2f}"
-    elif abs(p) >= 1: s = f"{p:,.4f}" 
-    elif abs(p) >= 0.01: s = f"{p:.4f}"
-    else: s = f"{p:.6f}"
-    return s.rstrip("0").rstrip(".")
+    except: return "N/A" 
+    if abs(p) >= 10: return f"{p:,.2f}"
+    elif abs(p) >= 1: return f"{p:,.4f}" 
+    else: return f"{p:.6f}".rstrip("0").rstrip(".")
 
 # --- API HELPERS ---
 def fetch_stock_price_finnhub(ticker, api_key):
@@ -526,9 +388,8 @@ def fetch_stock_price_finnhub(ticker, api_key):
             price = float(r['c'])
             prev_close = float(r['pc'])
             change_percent = ((price - prev_close) / prev_close) * 100
-            time.sleep(0.5) 
             return price, change_percent
-    except Exception:
+    except:
         pass
     return None, None
 
@@ -537,36 +398,16 @@ def fetch_crypto_price_binance(symbol):
     url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
     try:
         r = requests.get(url, timeout=5).json()
-        if 'lastPrice' in r and 'priceChangePercent' in r and float(r['lastPrice']) > 0:
+        if 'lastPrice' in r and float(r['lastPrice']) > 0:
             price = float(r['lastPrice'])
-            change_percent = float(r['priceChangePercent'])
-            time.sleep(0.5)
+            change_percent = float(r.get('priceChangePercent', 0))
             return price, change_percent
-    except Exception:
+    except:
         pass
     return None, None
 
-def fetch_crypto_price_coingecko(symbol, api_key=""):
-    base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
-    url = "https://api.coingecko.com/api/v3/simple/price"
-    params = {'vs_currencies': 'usd', 'include_24hr_change': 'true', 'symbols': base_symbol}
-    headers = {}
-    if api_key: headers['x-cg-demo-api-key'] = api_key
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=5).json()
-        for coin_data in r.values():
-            if 'usd' in coin_data and float(coin_data['usd']) > 0:
-                price = float(coin_data['usd'])
-                change_percent = float(coin_data.get('usd_24h_change', 0))
-                time.sleep(0.5) 
-                return price, change_percent
-    except Exception:
-        pass
-    return None, None
-
-# === UNIVERSAL PRICE FETCHER ===
 @st.cache_data(ttl=60, show_spinner=False)
-def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
+def get_asset_price(symbol, vs_currency="usd"):
     symbol = symbol.upper()
     
     if FH_PRIVATE_API_KEY:
@@ -583,21 +424,13 @@ def get_asset_price(symbol, vs_currency="usd", asset_type="Crypto"):
     if price is not None:
         return price, change
     
-    price, change = fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
-    if price is not None:
-        return price, change
-    
     return None, None
 
-# === HISTORICAL DATA ===
-def get_historical_data(symbol, interval="1h", limit=200):
-    return synthesize_series(symbol, length=limit)
-
-def synthesize_series(symbol, length=200, volatility_pct=0.008): 
+def get_historical_data(symbol, length=200):
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
     base = 100.0
-    returns = np.random.normal(0, volatility_pct, size=length)
+    returns = np.random.normal(0, 0.008, size=length)
     series = base * np.exp(np.cumsum(returns))
     volume = np.random.lognormal(mean=10, sigma=1, size=length) * 1000
     
@@ -611,13 +444,9 @@ def synthesize_series(symbol, length=200, volatility_pct=0.008):
     })
     return df.iloc[-length:].set_index('datetime')
 
-# === INDICATOR FUNCTIONS - FIXED ===
-
+# --- INDICATOR FUNCTIONS ---
 def calculate_supertrend(df, period=10, multiplier=3):
-    """SuperTrend with proper Series initialization"""
-    high = df['High']
-    low = df['Low']
-    close = df['Close']
+    high = df['High']; low = df['Low']; close = df['Close']
     
     atr_indicator = AverageTrueRange(high=high, low=low, close=close, window=period)
     atr = atr_indicator.average_true_range()
@@ -626,7 +455,6 @@ def calculate_supertrend(df, period=10, multiplier=3):
     upper_band = hl2 + (multiplier * atr)
     lower_band = hl2 - (multiplier * atr)
     
-    # Pre-initialize full-length Series
     supertrend = pd.Series(index=df.index, dtype=float)
     trend = pd.Series(index=df.index, dtype=int)
     
@@ -664,7 +492,6 @@ def calculate_supertrend(df, period=10, multiplier=3):
     }
 
 def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
-    """RSI with MA and proper divergence detection"""
     close = df['Close']
     
     rsi_indicator = RSIIndicator(close=close, window=rsi_period)
@@ -681,22 +508,14 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
         rsi_array = rsi.iloc[-lookback:].values
         price_array = close.iloc[-lookback:].values
         
-        price_highs = []
-        price_lows = []
-        rsi_highs = []
-        rsi_lows = []
+        price_highs = []; price_lows = []; rsi_highs = []; rsi_lows = []
         
-        # Strict swing point detection with AND logic
-        # Only exclude the very last bar
         for i in range(2, len(price_array) - 1):
-            # Swing high: point must be higher than neighbors on BOTH sides
             is_swing_high = (
                 i >= 2 and i <= len(price_array) - 2 and
                 price_array[i] > price_array[i-1] and price_array[i] > price_array[i-2] and
                 price_array[i] > price_array[i+1]
             )
-            
-            # Swing low: point must be lower than neighbors on BOTH sides
             is_swing_low = (
                 i >= 2 and i <= len(price_array) - 2 and
                 price_array[i] < price_array[i-1] and price_array[i] < price_array[i-2] and
@@ -706,42 +525,32 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
             if is_swing_high:
                 price_highs.append((i, price_array[i]))
                 rsi_highs.append((i, rsi_array[i]))
-            
             if is_swing_low:
                 price_lows.append((i, price_array[i]))
                 rsi_lows.append((i, rsi_array[i]))
         
-        # Bearish Divergence: Price higher high, RSI lower high
-        if len(price_highs) >= 2:
-            if price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
-                divergence = "Bearish Divergence Detected"
-        
-        # Bullish Divergence: Price lower low, RSI higher low
-        if len(price_lows) >= 2:
-            if price_lows[-1][1] < price_lows[-2][1] and rsi_lows[-1][1] > rsi_lows[-2][1]:
-                divergence = "Bullish Divergence Detected"
-    else:
-        divergence = "Insufficient Data"
+        if len(price_highs) >= 2 and price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
+            divergence = "Bearish Divergence Detected"
+        if len(price_lows) >= 2 and price_lows[-1][1] < price_lows[-2][1] and rsi_lows[-1][1] > rsi_lows[-2][1]:
+            divergence = "Bullish Divergence Detected"
     
     if current_rsi > 70:
         status = "Overbought"
-        detail = f"RSI at {current_rsi:.2f} — Overbought, potential reversal"
+        detail = f"RSI at {current_rsi:.2f} — Overbought"
     elif current_rsi < 30:
         status = "Oversold"
-        detail = f"RSI at {current_rsi:.2f} — Oversold, potential bounce"
+        detail = f"RSI at {current_rsi:.2f} — Oversold"
     else:
         status = "Neutral"
-        detail = f"RSI at {current_rsi:.2f} — Neutral momentum"
+        detail = f"RSI at {current_rsi:.2f} — Neutral"
     
     return {
         "status": status,
         "value": current_rsi,
-        "detail": f"{detail} | RSI MA: {current_rsi_ma:.2f} | {divergence}",
-        "divergence": divergence
+        "detail": f"{detail} | MA: {current_rsi_ma:.2f} | {divergence}"
     }
 
 def calculate_bollinger_bands(df, period=20, std_dev=2):
-    """Bollinger Bands with proper squeeze status"""
     close = df['Close']
     
     bb_indicator = BollingerBands(close=close, window=period, window_dev=std_dev)
@@ -775,27 +584,22 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
     else:
         position = "Within Bands"
     
-    # FIXED: Status now reflects squeeze
     if is_squeeze:
         status = "Squeeze"
-        detail = f"🔥 SQUEEZE DETECTED! {position} | Width: {band_width:.3f}"
+        detail = f"🔥 SQUEEZE! {position} | Width: {band_width:.3f}"
     else:
         status = "Normal"
-        detail = f"{position} | Upper: ${format_price(current_upper)} | Mid: ${format_price(current_middle)} | Lower: ${format_price(current_lower)} | Width: {band_width:.3f}"
+        detail = f"{position} | Upper: ${format_price(current_upper)} | Mid: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
     
     return {
         "status": status,
         "value": band_width,
         "detail": detail,
-        "is_squeeze": is_squeeze,
-        "position": position
+        "is_squeeze": is_squeeze
     }
 
 def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
-    """Parabolic SAR with reversal detection"""
-    high = df['High']
-    low = df['Low']
-    close = df['Close']
+    high = df['High']; low = df['Low']; close = df['Close']
     
     psar_indicator = PSARIndicator(high=high, low=low, close=close, step=step, max_step=max_step)
     psar = psar_indicator.psar()
@@ -805,10 +609,10 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     
     if current_close > current_psar:
         status = "Bullish"
-        detail = f"SAR at ${format_price(current_psar)} — Below price, uptrend"
+        detail = f"SAR at ${format_price(current_psar)} — Below price"
     else:
         status = "Bearish"
-        detail = f"SAR at ${format_price(current_psar)} — Above price, downtrend"
+        detail = f"SAR at ${format_price(current_psar)} — Above price"
     
     is_reversal = False
     if len(psar) > 2:
@@ -819,7 +623,7 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
                 break
     
     if is_reversal:
-        detail += " | ⚠️ REVERSAL IMMINENT — SAR flipped!"
+        detail += " | ⚠️ REVERSAL!"
     
     return {
         "status": status,
@@ -829,24 +633,20 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     }
 
 def calculate_volume_profile(df, num_bins=25):
-    """Volume Profile with fallback"""
     if 'Volume' not in df.columns or df['Volume'].sum() == 0:
         high = df['High'].iloc[-100:] if len(df) > 100 else df['High']
         low = df['Low'].iloc[-100:] if len(df) > 100 else df['Low']
-        swing_high = high.max()
-        swing_low = low.min()
         return {
-            "status": "Fallback Mode",
-            "value": (swing_high + swing_low) / 2,
-            "detail": f"⚠️ FALLBACK: Using pivot points — Resistance: ${format_price(swing_high)} | Support: ${format_price(swing_low)}"
+            "status": "Fallback",
+            "value": (high.max() + low.min()) / 2,
+            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
         }
     
     lookback = min(200, len(df))
     price = df['Close'].iloc[-lookback:]
     volume = df['Volume'].iloc[-lookback:]
     
-    price_min = price.min()
-    price_max = price.max()
+    price_min = price.min(); price_max = price.max()
     bins = np.linspace(price_min, price_max, num_bins + 1)
     bin_indices = np.digitize(price, bins) - 1
     
@@ -861,11 +661,11 @@ def calculate_volume_profile(df, num_bins=25):
     sorted_bins = sorted(volume_by_bin.items(), key=lambda x: x[1], reverse=True)[:3]
     top_prices = [(bins[bin_idx] + bins[bin_idx + 1]) / 2 for bin_idx, _ in sorted_bins]
     
-    detail = f"POC (Point of Control): ${format_price(poc_price)}"
+    detail = f"POC: ${format_price(poc_price)}"
     if len(top_prices) > 1:
-        detail += f" | Secondary Zones: ${format_price(top_prices[1])}"
+        detail += f" | Zone 2: ${format_price(top_prices[1])}"
     if len(top_prices) > 2:
-        detail += f", ${format_price(top_prices[2])}"
+        detail += f" | Zone 3: ${format_price(top_prices[2])}"
     
     return {
         "status": "Volume Profile",
@@ -891,44 +691,24 @@ def calculate_all_indicators(symbol, df):
             "liquidity": {"status": "Error", "value": None, "detail": "Error"}
         }
 
-# === BIAS DETERMINATION - UPDATED ===
 def determine_overall_bias(indicator_data):
-    """
-    Weighted bias with divergence and squeeze detection
-    """
-    bullish = 0
-    bearish = 0
+    bullish = 0; bearish = 0
     
-    # 1. TREND (weighted x2)
-    if indicator_data["trend"]["status"] == "Bullish":
-        bullish += 2
-    elif indicator_data["trend"]["status"] == "Bearish":
-        bearish += 2
+    if indicator_data["trend"]["status"] == "Bullish": bullish += 2
+    elif indicator_data["trend"]["status"] == "Bearish": bearish += 2
     
-    # 2. MOMENTUM (x1)
-    if indicator_data["momentum"]["status"] == "Overbought":
-        bearish += 1
-    elif indicator_data["momentum"]["status"] == "Oversold":
-        bullish += 1
+    if indicator_data["momentum"]["status"] == "Overbought": bearish += 1
+    elif indicator_data["momentum"]["status"] == "Oversold": bullish += 1
     
-    # 3. DIVERGENCE (x1 - FIXED: now reads from detail)
-    if "Bearish Divergence" in indicator_data["momentum"]["detail"]:
-        bearish += 1
-    elif "Bullish Divergence" in indicator_data["momentum"]["detail"]:
-        bullish += 1
+    if "Bearish Divergence" in indicator_data["momentum"]["detail"]: bearish += 1
+    elif "Bullish Divergence" in indicator_data["momentum"]["detail"]: bullish += 1
     
-    # 4. REVERSAL (x1)
-    if indicator_data["reversal"]["status"] == "Bullish":
-        bullish += 1
-    elif indicator_data["reversal"]["status"] == "Bearish":
-        bearish += 1
+    if indicator_data["reversal"]["status"] == "Bullish": bullish += 1
+    elif indicator_data["reversal"]["status"] == "Bearish": bearish += 1
     
-    # 5. VOLATILITY SQUEEZE (x0.5)
     if indicator_data["volatility"]["status"] == "Squeeze":
-        if indicator_data["trend"]["status"] == "Bullish":
-            bullish += 0.5
-        elif indicator_data["trend"]["status"] == "Bearish":
-            bearish += 0.5
+        if indicator_data["trend"]["status"] == "Bullish": bullish += 0.5
+        elif indicator_data["trend"]["status"] == "Bearish": bearish += 0.5
     
     if bullish > bearish:
         return "Strong Bullish" if bullish - bearish >= 2 else "Bullish"
@@ -937,19 +717,15 @@ def determine_overall_bias(indicator_data):
     else:
         return "Neutral"
 
-# === SESSION LOGIC ===
+# --- SESSION LOGIC ---
 def get_session_info(utc_now):
     current_time_utc = utc_now.time()
-    utc_hour = utc_now.hour
-    session_name = "Quiet/Sydney Session"
+    session_name = "Quiet Session"
     current_range_pct = 0.02
     
     if dt_time(13, 0) <= current_time_utc < dt_time(17, 0):
         session_name = "Overlap: London / New York"
         current_range_pct = 0.30 
-    elif dt_time(8, 0) <= current_time_utc < dt_time(9, 0):
-        session_name = "Overlap: Tokyo / London"
-        current_range_pct = 0.18
     elif dt_time(13, 0) <= current_time_utc < dt_time(22, 0):
         session_name = "US Session (New York)"
         current_range_pct = 0.15
@@ -958,31 +734,29 @@ def get_session_info(utc_now):
         current_range_pct = 0.15
     elif dt_time(0, 0) <= current_time_utc < dt_time(9, 0):
         session_name = "Asian Session (Tokyo)"
-        current_range_pct = 0.08 if utc_hour < 3 else 0.05
+        current_range_pct = 0.08
     
-    avg_range_pct = 0.1
-    ratio = (current_range_pct / avg_range_pct) * 100
-    if ratio < 20: status = "Flat / Very Low Volatility"
-    elif 20 <= ratio < 60: status = "Low Volatility / Room to Move"
-    elif 60 <= ratio < 100: status = "Moderate Volatility / Near Average"
-    else: status = "High Volatility / Possible Exhaustion"
+    ratio = (current_range_pct / 0.1) * 100
+    if ratio < 20: status = "Very Low Volatility"
+    elif ratio < 60: status = "Low Volatility"
+    elif ratio < 100: status = "Moderate Volatility"
+    else: status = "High Volatility"
     
     return session_name, f"Status: {status} ({ratio:.0f}% of Avg)"
 
-# === DISPLAY FUNCTION ===
+# --- DISPLAY FUNCTION ---
 def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple):
     
     df = get_historical_data(symbol)
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     atr_val = atr_indicator.average_true_range().iloc[-1] * price / 100
     
-    # Trade params
     if "Bullish" in bias:
         entry = price
         target = entry + (reward_multiple * atr_val)
         stop = entry - (risk_multiple * atr_val)
         trade_params = {
-            "title": "LONG Position Recommended 📈",
+            "title": "📈 LONG Position Recommended",
             "action": f"Enter near ${format_price(entry)}",
             "strategy": "Wait for confirmation or pullback",
             "target": f"Take profit at ${format_price(target)}",
@@ -993,7 +767,7 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         target = entry - (reward_multiple * atr_val)
         stop = entry + (risk_multiple * atr_val)
         trade_params = {
-            "title": "SHORT Position Recommended 📉",
+            "title": "📉 SHORT Position Recommended",
             "action": f"Enter near ${format_price(entry)}",
             "strategy": "Short on rallies to resistance",
             "target": f"Cover short at ${format_price(target)}",
@@ -1008,46 +782,27 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
             "stop": f"Bearish trigger below ${format_price(price - atr_val)}"
         }
     
-    # Bias colors
     if "Bullish" in bias:
-        bias_color = "#34D399"
-        bias_bg = "rgba(52, 211, 153, 0.15)"
-        bias_text = "BULLISH 📈"
+        bias_color = "#34D399"; bias_bg = "rgba(52, 211, 153, 0.15)"; bias_text = "BULLISH 📈"
     elif "Bearish" in bias:
-        bias_color = "#F87171"
-        bias_bg = "rgba(248, 113, 113, 0.15)"
-        bias_text = "BEARISH 📉"
+        bias_color = "#F87171"; bias_bg = "rgba(248, 113, 113, 0.15)"; bias_text = "BEARISH 📉"
     else:
-        bias_color = "#FBBF24"
-        bias_bg = "rgba(251, 191, 36, 0.15)"
-        bias_text = "NEUTRAL ➡️"
+        bias_color = "#FBBF24"; bias_bg = "rgba(251, 191, 36, 0.15)"; bias_text = "NEUTRAL ➡️"
     
-    # Indicator colors
     trend_color = "#34D399" if indicator_data["trend"]["status"] == "Bullish" else "#F87171" if indicator_data["trend"]["status"] == "Bearish" else "#FBBF24"
     momentum_color = "#F87171" if indicator_data["momentum"]["status"] == "Overbought" else "#34D399" if indicator_data["momentum"]["status"] == "Oversold" else "#FBBF24"
     volatility_color = "#F59E0B" if indicator_data["volatility"]["status"] == "Squeeze" else "#60A5FA"
     reversal_color = "#F87171" if indicator_data["reversal"]["is_reversal"] else "#34D399" if indicator_data["reversal"]["status"] == "Bullish" else "#FBBF24"
     
-    # Motivation
     motivation_options = {
-        "Strong Bullish": ["🚀 MOMENTUM CONFIRMED: Look for breakout entries.", "💪 STRONG BUY: Trend and momentum align."],
-        "Bullish": ["📈 BULLISH PRESSURE: Capitalize on upward force.", "⬆️ UPTREND: Look for buying opportunities."],
-        "Strong Bearish": ["📉 DOWNTREND CONFIRMED: Respect stops.", "⚠️ STRONG SELL: Sentiment has turned decisively."],
-        "Bearish": ["🔽 BEARISH PRESSURE: Don't fight the trend.", "⬇️ DOWNTREND: Look for selling opportunities."],
-        "Neutral": ["⏳ MARKET RESTING: Patience is key.", "🔄 CONSOLIDATION: Wait for price to show its hand."]
+        "Strong Bullish": ["🚀 MOMENTUM CONFIRMED! Look for breakout entries."],
+        "Bullish": ["📈 BULLISH PRESSURE: Capitalize on upward force."],
+        "Strong Bearish": ["📉 DOWNTREND CONFIRMED! Respect stops."],
+        "Bearish": ["🔽 BEARISH PRESSURE: Don't fight the trend."],
+        "Neutral": ["⏳ MARKET RESTING: Patience is key."]
     }
     motivation = random.choice(motivation_options.get(bias, ["🧠 TRADE SMART: Follow the plan."]))
     
-    # Build Natural Language Summary
-    summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
-    summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
-    summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
-    summary += f"• <strong>Momentum (RSI):</strong> {indicator_data['momentum']['status']} — {indicator_data['momentum']['detail']}<br>"
-    summary += f"• <strong>Volatility (Bollinger):</strong> {indicator_data['volatility']['detail']}<br>"
-    summary += f"• <strong>Reversal (Parabolic SAR):</strong> {indicator_data['reversal']['detail']}<br>"
-    summary += f"• <strong>Liquidity (Volume Profile):</strong> {indicator_data['liquidity']['detail']}"
-    
-    # --- DISPLAY ---
     change_sign = "+" if price_change > 0 else ""
     change_class = "bullish" if price_change > 0 else "bearish"
     
@@ -1076,7 +831,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     col1, col2 = st.columns(2)
     
     with col1:
-        # Trend
         st.markdown(f"""
         <div class="indicator-card" style="border-left-color: {trend_color};">
             <div class="card-header">
@@ -1088,7 +842,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         </div>
         """, unsafe_allow_html=True)
         
-        # Volatility
         squeeze_label = "🔥 SQUEEZE" if indicator_data['volatility']['status'] == "Squeeze" else "NORMAL"
         st.markdown(f"""
         <div class="indicator-card" style="border-left-color: {volatility_color};">
@@ -1102,7 +855,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         """, unsafe_allow_html=True)
     
     with col2:
-        # Momentum
         st.markdown(f"""
         <div class="indicator-card" style="border-left-color: {momentum_color};">
             <div class="card-header">
@@ -1114,7 +866,6 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
         </div>
         """, unsafe_allow_html=True)
         
-        # Reversal
         reversal_label = "⚠️ REVERSAL" if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status'].upper()
         reversal_color_display = "#F87171" if indicator_data['reversal']['is_reversal'] else reversal_color
         st.markdown(f"""
@@ -1140,7 +891,7 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
+    st.divider()
     
     # AI Recommendation
     st.markdown(f"""
@@ -1156,25 +907,30 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     """, unsafe_allow_html=True)
     
     # Natural Language Summary
+    summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
+    summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
+    summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
+    summary += f"• <strong>Momentum (RSI):</strong> {indicator_data['momentum']['status']} — {indicator_data['momentum']['detail']}<br>"
+    summary += f"• <strong>Volatility (Bollinger):</strong> {indicator_data['volatility']['detail']}<br>"
+    summary += f"• <strong>Reversal (Parabolic SAR):</strong> {indicator_data['reversal']['detail']}<br>"
+    summary += f"• <strong>Liquidity (Volume Profile):</strong> {indicator_data['liquidity']['detail']}"
+    
     st.markdown(f"""
     <div class="trade-summary">
     {summary}
     </div>
     """, unsafe_allow_html=True)
     
-    # Motivation
     st.markdown(f"""
     <div class="motivation-text">
         💡 {motivation}
     </div>
     """, unsafe_allow_html=True)
     
-    # Disclaimer
     st.markdown("""
     <div class="disclaimer">
         ⚠️ <strong>Risk Disclaimer:</strong> This is not financial advice. All trading involves risk. 
-        Past performance doesn't guarantee future results. Only trade with money you can afford to lose. 
-        Always use stop losses.
+        Past performance doesn't guarantee future results. Only trade with money you can afford to lose.
     </div>
     """, unsafe_allow_html=True)
 
@@ -1222,7 +978,7 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# === MAIN EXECUTION ===
+# === MAIN ===
 st.markdown('<div class="main-title">🤖 AI Crypto Trading Chatbot</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns([1.5, 2.5, 1.5])
@@ -1235,15 +991,13 @@ with col2:
     user_input = st.text_input(
         "Enter Cryptocurrency Ticker",
         placeholder="e.g., BTC, ETH, SOL, ADA, DOGE",
-        label_visibility="visible",
-        help="Enter any crypto ticker symbol"
+        label_visibility="visible"
     )
 
 with col3:
     show_indicator_details = st.checkbox("Show Indicator Details", value=False)
 
-# Risk-Reward Ratio Selection
-st.markdown("<div style='margin-top: 15px; margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 col_rr1, col_rr2, col_rr3 = st.columns([2, 2, 2])
 
 with col_rr1:
@@ -1273,22 +1027,21 @@ if rr_selection == "Custom":
 else:
     RISK_MULTIPLE, REWARD_MULTIPLE = RISK_REWARD_OPTIONS[rr_selection]
 
-vs_currency = "usd"
 if user_input:
-    asset_type = "Crypto"
-    base_symbol, resolved_symbol = resolve_asset_symbol(user_input, asset_type, vs_currency)
+    vs_currency = "usd"
+    symbol = user_input.strip().upper() + "USD"
     
-    with st.spinner(f"Fetching live data and generating analysis for {resolved_symbol}..."):
-        price, price_change = get_asset_price(resolved_symbol, vs_currency, asset_type)
+    with st.spinner(f"Fetching live data for {symbol}..."):
+        price, price_change = get_asset_price(symbol, vs_currency)
         
         if price is not None:
-            df = get_historical_data(resolved_symbol)
-            indicator_data = calculate_all_indicators(resolved_symbol, df)
+            df = get_historical_data(symbol)
+            indicator_data = calculate_all_indicators(symbol, df)
             bias = determine_overall_bias(indicator_data)
             
             display_analysis(
-                resolved_symbol, price, price_change, vs_currency,
+                symbol, price, price_change, vs_currency,
                 indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE
             )
         else:
-            st.error(f"❌ Unable to fetch price data for {resolved_symbol}. Please check the ticker symbol and try again.")
+            st.error(f"❌ Unable to fetch price data for {symbol}. Please check the ticker symbol and try again.")
