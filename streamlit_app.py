@@ -34,6 +34,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- API KEYS ---
+CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
+
 # --- STYLES ---
 st.markdown("""
 <style>
@@ -353,11 +356,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- API KEYS ---
-FH_API_KEY = st.secrets.get("FINNHUB_API_KEY", "") 
-FH_PRIVATE_API_KEY = st.secrets.get("FINNHUB_PRIVATE_API_KEY", "")
-CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
-
 # --- CONSTANTS ---
 TIMEZONE_MAP = {
     "Pakistan (PKT)": "Asia/Karachi",
@@ -378,54 +376,116 @@ def format_price(p):
     elif abs(p) >= 1: return f"{p:,.4f}" 
     else: return f"{p:.6f}".rstrip("0").rstrip(".")
 
-# --- API HELPERS ---
-def fetch_stock_price_finnhub(ticker, api_key):
-    if not api_key: return None, None
-    url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={api_key}"
-    try:
-        r = requests.get(url, timeout=5).json()
-        if r.get('c') and r.get('pc') and r['pc'] != 0 and float(r['c']) > 0:
-            price = float(r['c'])
-            prev_close = float(r['pc'])
-            change_percent = ((price - prev_close) / prev_close) * 100
-            return price, change_percent
-    except:
-        pass
-    return None, None
-
-def fetch_crypto_price_binance(symbol):
-    binance_symbol = symbol.replace("USD", "USDT")
-    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={binance_symbol}"
-    try:
-        r = requests.get(url, timeout=5).json()
-        if 'lastPrice' in r and float(r['lastPrice']) > 0:
-            price = float(r['lastPrice'])
-            change_percent = float(r.get('priceChangePercent', 0))
-            return price, change_percent
-    except:
-        pass
-    return None, None
-
+# --- COINGECKO API ---
 @st.cache_data(ttl=60, show_spinner=False)
-def get_asset_price(symbol, vs_currency="usd"):
-    symbol = symbol.upper()
+def fetch_crypto_price_coingecko(symbol, api_key=""):
+    """
+    Fetch crypto price from CoinGecko
+    Symbol: e.g., BTC, ETH, SOL
+    """
+    base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
+    url = "https://api.coingecko.com/api/v3/simple/price"
+    params = {
+        'ids': base_symbol, 
+        'vs_currencies': 'usd', 
+        'include_24hr_change': 'true'
+    }
+    headers = {}
+    if api_key:
+        headers['x-cg-demo-api-key'] = api_key
     
-    if FH_PRIVATE_API_KEY:
-        price, change = fetch_stock_price_finnhub(symbol, FH_PRIVATE_API_KEY)
-        if price is not None:
-            return price, change
-    
-    if FH_API_KEY:
-        price, change = fetch_stock_price_finnhub(symbol, FH_API_KEY)
-        if price is not None:
-            return price, change
-    
-    price, change = fetch_crypto_price_binance(symbol)
-    if price is not None:
-        return price, change
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        data = response.json()
+        
+        # CoinGecko uses coin IDs, not symbols directly
+        # Try to find the coin in the response
+        for coin_id, coin_data in data.items():
+            if 'usd' in coin_data and float(coin_data['usd']) > 0:
+                price = float(coin_data['usd'])
+                change_percent = float(coin_data.get('usd_24h_change', 0))
+                return price, change_percent
+        
+        # If not found, try with symbol mapping
+        symbol_map = {
+            'btc': 'bitcoin',
+            'eth': 'ethereum',
+            'sol': 'solana',
+            'ada': 'cardano',
+            'xrp': 'ripple',
+            'doge': 'dogecoin',
+            'dot': 'polkadot',
+            'link': 'chainlink',
+            'matic': 'polygon',
+            'uni': 'uniswap',
+            'atom': 'cosmos',
+            'ltc': 'litecoin',
+            'bch': 'bitcoin-cash',
+            'near': 'near',
+            'algo': 'algorand',
+            'vet': 'vechain',
+            'avax': 'avalanche-2',
+            'ftm': 'fantom',
+            'icp': 'internet-computer',
+            'fil': 'filecoin',
+            'egld': 'elrond-erd-2',
+            'xtz': 'tezos',
+            'aave': 'aave',
+            'mkr': 'maker',
+            'comp': 'compound-governance-token',
+            'yfi': 'yearn-finance',
+            'zec': 'zcash',
+            'xlm': 'stellar',
+            'hbar': 'hedera-hashgraph',
+            'etc': 'ethereum-classic',
+            'qnt': 'quant-network',
+            'grt': 'the-graph',
+            'snx': 'synthetix-network-token',
+            '1inch': '1inch',
+            'sushi': 'sushi',
+            'uma': 'uma',
+            'ocean': 'ocean-protocol',
+            'ren': 'ren',
+            'zrx': '0x',
+            'bat': 'basic-attention-token',
+            'knc': 'kyber-network',
+            'enj': 'enjin-coin',
+            'chr': 'chromia',
+            'mana': 'decentraland',
+            'sand': 'the-sandbox',
+            'gala': 'gala',
+            'axs': 'axie-infinity',
+            'slp': 'smooth-love-potion',
+            'ilv': 'illuvium',
+            'rndr': 'render-token',
+            'fet': 'fetch-ai',
+            'agix': 'singularitynet',
+            'hype': 'hype',
+            'pi': 'pi-network'
+        }
+        
+        if base_symbol in symbol_map:
+            coin_id = symbol_map[base_symbol]
+            params['ids'] = coin_id
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            data = response.json()
+            if coin_id in data and 'usd' in data[coin_id]:
+                price = float(data[coin_id]['usd'])
+                change_percent = float(data[coin_id].get('usd_24h_change', 0))
+                return price, change_percent
+                
+    except Exception as e:
+        print(f"CoinGecko error: {e}")
+        pass
     
     return None, None
 
+def get_asset_price(symbol):
+    """Get price from CoinGecko only"""
+    symbol = symbol.upper().replace("USD", "").replace("USDT", "")
+    return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
+
+# --- HISTORICAL DATA ---
 def get_historical_data(symbol, length=200):
     seed_val = int(hash(symbol) % (2**31 - 1))
     np.random.seed(seed_val) 
@@ -934,7 +994,7 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     </div>
     """, unsafe_allow_html=True)
 
-# === SIDEBAR ===
+# --- SIDEBAR ---
 utc_now = datetime.datetime.now(timezone.utc)
 session_name, volatility_html = get_session_info(utc_now)
 
@@ -978,7 +1038,7 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# === MAIN ===
+# --- MAIN ---
 st.markdown('<div class="main-title">🤖 AI Crypto Trading Chatbot</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns([1.5, 2.5, 1.5])
@@ -1029,10 +1089,10 @@ else:
 
 if user_input:
     vs_currency = "usd"
-    symbol = user_input.strip().upper() + "USD"
+    symbol = user_input.strip().upper()
     
-    with st.spinner(f"Fetching live data for {symbol}..."):
-        price, price_change = get_asset_price(symbol, vs_currency)
+    with st.spinner(f"Fetching live data for {symbol} from CoinGecko..."):
+        price, price_change = get_asset_price(symbol)
         
         if price is not None:
             df = get_historical_data(symbol)
