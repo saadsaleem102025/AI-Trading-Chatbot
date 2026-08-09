@@ -375,7 +375,7 @@ def get_coin_id(symbol):
     }
     return symbol_map.get(symbol, symbol.lower())
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_crypto_price_coingecko(symbol, api_key=""):
     """Fetch current price from CoinGecko"""
     coin_id = get_coin_id(symbol)
@@ -403,28 +403,21 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
     """
-    Fetch REAL historical OHLCV data from CoinGecko
-    Uses /coins/{id}/ohlc endpoint for reliable OHLC data
+    Fetch REAL historical OHLC data from CoinGecko
+    Uses /coins/{id}/ohlc endpoint
     """
     coin_id = get_coin_id(symbol)
     
-    # CoinGecko OHLC endpoint
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
     
-    # Determine interval based on days requested
-    # CoinGecko free tier limits:
-    # - 1 day: 1 minute intervals (max 1 day)
-    # - 7-30 days: 1 hour intervals
-    # - 90 days: 4 hour intervals
-    # - 365 days: 1 day intervals
     if days <= 1:
-        interval = '1m'  # 1 minute
+        interval = '1m'
     elif days <= 30:
-        interval = '1h'  # 1 hour
+        interval = '1h'
     elif days <= 90:
-        interval = '4h'  # 4 hours
+        interval = '4h'
     else:
-        interval = '1d'  # 1 day
+        interval = '1d'
     
     params = {
         'vs_currency': 'usd',
@@ -443,34 +436,17 @@ def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
             st.error(f"Insufficient historical data returned for {symbol}. Please try again.")
             return None
         
-        # Convert to DataFrame
-        # OHLC data format: [timestamp, open, high, low, close]
         df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close'])
-        
-        # Convert timestamp from milliseconds to datetime
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         df = df.set_index('timestamp')
         
-        # Add volume (CoinGecko OHLC doesn't include volume, use approximate)
-        # We'll use a simple volume approximation based on price movement
-        df['volume'] = df['close'].rolling(5).std() * 1000 + 1000
-        
-        # Rename columns to match expected format
         df = df.rename(columns={
             'open': 'Open',
             'high': 'High',
             'low': 'Low',
-            'close': 'Close',
-            'volume': 'Volume'
+            'close': 'Close'
         })
         
-        # Ensure all columns exist
-        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = df['Close']  # Fallback
-        
-        # Sort by date (oldest first)
         df = df.sort_index()
         
         return df
@@ -485,20 +461,102 @@ def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
         st.error(f"❌ Error fetching historical data: {str(e)}")
         return None
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_volume_data_coingecko(symbol, days=30, api_key=""):
+    """
+    Fetch REAL volume data from CoinGecko
+    Uses /coins/{id}/market_chart endpoint
+    Returns: [timestamp, volume] pairs
+    """
+    coin_id = get_coin_id(symbol)
+    
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+    params = {
+        'vs_currency': 'usd',
+        'days': days,
+    }
+    
+    headers = {}
+    if api_key:
+        headers['x-cg-demo-api-key'] = api_key
+    
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        data = response.json()
+        
+        if not data or 'total_volumes' not in data or not data['total_volumes']:
+            st.warning("⚠️ Volume data unavailable. Using fallback support/resistance calculation.")
+            return None
+        
+        # Format: [[timestamp, volume], ...]
+        volume_data = data['total_volumes']
+        
+        # Convert to DataFrame
+        df_volume = pd.DataFrame(volume_data, columns=['timestamp', 'Volume'])
+        df_volume['timestamp'] = pd.to_datetime(df_volume['timestamp'], unit='ms')
+        df_volume = df_volume.set_index('timestamp')
+        
+        return df_volume
+        
+    except requests.exceptions.Timeout:
+        st.warning("⏱️ Volume data request timed out. Using fallback support/resistance calculation.")
+        return None
+    except requests.exceptions.RequestException as e:
+        st.warning(f"🌐 Network error fetching volume data: {str(e)}")
+        return None
+    except Exception as e:
+        st.warning(f"❌ Error fetching volume data: {str(e)}")
+        return None
+
+def merge_ohlc_with_volume(df_ohlc, df_volume):
+    """
+    Merge OHLC data with volume data by timestamp alignment
+    Uses nearest timestamp matching if exact match not found
+    """
+    if df_ohlc is None or df_volume is None:
+        return df_ohlc
+    
+    # Copy to avoid modifying original
+    df = df_ohlc.copy()
+    
+    # Reindex volume to match OHLC timestamps using nearest alignment
+    # This handles cases where the two endpoints have different intervals
+    df['Volume'] = df_volume['Volume'].reindex(df.index, method='nearest')
+    
+    # If any volume values are NaN, fill with median of available volumes
+    if df['Volume'].isna().any():
+        median_volume = df['Volume'].median()
+        df['Volume'] = df['Volume'].fillna(median_volume)
+    
+    return df
+
 def get_asset_price(symbol):
     """Get current price from CoinGecko"""
     return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
 
 def get_historical_data(symbol, days=30):
     """
-    Get REAL historical data from CoinGecko
+    Get REAL historical data from CoinGecko with REAL volume
     Returns DataFrame with Open, High, Low, Close, Volume columns
     """
-    df = fetch_historical_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
+    # Fetch OHLC data
+    df_ohlc = fetch_historical_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
     
-    if df is None or len(df) < 10:
+    if df_ohlc is None or len(df_ohlc) < 10:
         st.error(f"❌ Unable to fetch sufficient historical data for {symbol}. Please try again later.")
         return None
+    
+    # Fetch volume data
+    df_volume = fetch_volume_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
+    
+    # Merge volume data if available
+    if df_volume is not None:
+        df = merge_ohlc_with_volume(df_ohlc, df_volume)
+    else:
+        # If volume data unavailable, add a placeholder volume column
+        # The calculate_volume_profile() function will detect this and use fallback
+        df = df_ohlc.copy()
+        df['Volume'] = None
     
     return df
 
@@ -757,17 +815,27 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     }
 
 def calculate_volume_profile(df, num_bins=25):
-    if df is None or len(df) < 20 or 'Volume' not in df.columns:
-        if df is not None:
-            high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
-            low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
-            return {
-                "status": "Fallback",
-                "value": (high.max() + low.min()) / 2,
-                "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
-            }
+    """
+    Calculate Volume Profile using REAL volume data
+    If volume data is None or all NaN, falls back to pivot points
+    """
+    if df is None or len(df) < 20:
         return {"status": "Error", "value": None, "detail": "Insufficient data"}
     
+    # Check if we have real volume data
+    has_volume = 'Volume' in df.columns and df['Volume'].notna().any() and df['Volume'].sum() > 0
+    
+    if not has_volume:
+        # Fallback to pivot points (support/resistance)
+        high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
+        low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
+        return {
+            "status": "Fallback",
+            "value": (high.max() + low.min()) / 2,
+            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
+        }
+    
+    # Use REAL volume data
     lookback = min(200, len(df))
     price = df['Close'].iloc[-lookback:]
     volume = df['Volume'].iloc[-lookback:]
@@ -778,8 +846,18 @@ def calculate_volume_profile(df, num_bins=25):
     
     volume_by_bin = defaultdict(float)
     for idx, vol in zip(bin_indices, volume):
-        if 0 <= idx < num_bins:
+        if 0 <= idx < num_bins and not pd.isna(vol):
             volume_by_bin[idx] += vol
+    
+    if not volume_by_bin:
+        # Fallback if volume binning fails
+        high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
+        low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
+        return {
+            "status": "Fallback",
+            "value": (high.max() + low.min()) / 2,
+            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
+        }
     
     poc_bin = max(volume_by_bin, key=volume_by_bin.get)
     poc_price = (bins[poc_bin] + bins[poc_bin + 1]) / 2
@@ -1239,7 +1317,7 @@ if user_input:
         price, price_change = get_asset_price(symbol)
         
         if price is not None:
-            # Fetch REAL historical data (30 days)
+            # Fetch REAL historical data with REAL volume
             df = get_historical_data(symbol, days=30)
             
             if df is not None:
