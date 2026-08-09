@@ -40,7 +40,6 @@ CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "")
 # --- STYLES ---
 st.markdown("""
 <style>
-/* Base font - clear and readable */
 * {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 }
@@ -94,7 +93,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     margin-bottom: 20px;
 }
 
-/* Price Card */
 .price-card {
     background: #1a2332;
     border-radius: 12px;
@@ -154,15 +152,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     margin-bottom: 12px;
 }
 
-/* Indicator Grid */
-.indicator-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin: 0 0 12px 0;
-}
-
-/* Indicator Cards */
 .indicator-card {
     background: #1a2332;
     border-radius: 10px;
@@ -202,7 +191,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.5;
 }
 
-/* Full width card */
 .indicator-card-full {
     background: #1a2332;
     border-radius: 10px;
@@ -243,7 +231,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.5;
 }
 
-/* Recommendation Box */
 .recommendation-box {
     background: #1a2332;
     border-radius: 12px;
@@ -279,7 +266,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     font-weight: 400;
 }
 
-/* Trade Summary */
 .trade-summary {
     font-size: 16px;
     line-height: 1.8;
@@ -294,7 +280,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     color: #F59E0B;
 }
 
-/* Motivation */
 .motivation-text {
     font-size: 16px;
     font-weight: 700;
@@ -307,7 +292,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     background: rgba(251, 191, 36, 0.05);
 }
 
-/* Disclaimer */
 .disclaimer {
     font-size: 12px;
     color: #6B7280;
@@ -318,12 +302,10 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.6;
 }
 
-/* Color Classes */
 .bullish { color: #34D399 !important; font-weight: 700; }
 .bearish { color: #F87171 !important; font-weight: 700; }
 .neutral { color: #FBBF24 !important; font-weight: 700; }
 
-/* Streamlit overrides */
 .stMarkdown p, .stMarkdown div {
     color: #E5E7EB !important;
 }
@@ -340,7 +322,6 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     background-color: #1a2332 !important;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     [data-testid="stAppViewContainer"] {
         padding-left: 0px !important;
@@ -405,7 +386,6 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
                 change_percent = float(coin_data.get('usd_24h_change', 0))
                 return price, change_percent
         
-        # Symbol mapping
         symbol_map = {
             'btc': 'bitcoin', 'eth': 'ethereum', 'sol': 'solana',
             'ada': 'cardano', 'xrp': 'ripple', 'doge': 'dogecoin',
@@ -434,36 +414,52 @@ def get_asset_price(symbol):
     symbol = symbol.upper().replace("USD", "").replace("USDT", "")
     return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
 
-# --- HISTORICAL DATA ---
-def get_historical_data(symbol, length=200):
-    seed_val = int(hash(symbol) % (2**31 - 1))
-    np.random.seed(seed_val) 
-    base = 100.0
-    returns = np.random.normal(0, 0.008, size=length)
-    series = base * np.exp(np.cumsum(returns))
-    volume = np.random.lognormal(mean=10, sigma=1, size=length) * 1000
+# --- HISTORICAL DATA - FIXED TO USE ACTUAL PRICE ---
+def get_historical_data(symbol, current_price, length=200):
+    """
+    Generate synthetic historical data that matches the actual price scale
+    Uses the current price as the base for realistic price levels
+    """
+    seed_val = int(hash(symbol + str(current_price)) % (2**31 - 1))
+    np.random.seed(seed_val)
+    
+    # Use current price as base
+    base_price = current_price
+    
+    # Generate returns with realistic volatility (1-2% daily volatility for crypto)
+    volatility = 0.015
+    returns = np.random.normal(0, volatility, size=length)
+    
+    # Generate price series starting from a few days ago
+    # Reverse the returns to go back in time
+    price_series = base_price * np.exp(np.cumsum(returns[::-1])[::-1])
+    
+    # Ensure the last value matches current price
+    price_series[-1] = base_price
+    
+    # Generate volume data
+    volume = np.random.lognormal(mean=np.log(base_price * 100), sigma=1, size=length) * 100
     
     df = pd.DataFrame({
         "datetime": pd.date_range(end=datetime.datetime.utcnow(), periods=length, freq="h"),
-        "Close": series, 
-        "High": series * (1.002 + np.random.uniform(0, 0.001, size=length)), 
-        "Low": series * (0.998 - np.random.uniform(0, 0.001, size=length)), 
-        "Open": series * (1.0005 + np.random.uniform(-0.001, 0.001, size=length)),
+        "Close": price_series,
+        "High": price_series * (1 + np.random.uniform(0.002, 0.015, size=length)),
+        "Low": price_series * (1 - np.random.uniform(0.002, 0.015, size=length)),
+        "Open": price_series * (1 + np.random.uniform(-0.01, 0.01, size=length)),
         "Volume": volume
     })
+    
     return df.iloc[-length:].set_index('datetime')
 
 # --- SWING POINT DETECTION ---
 def find_swing_points(df, lookback=30):
     """
     Find recent swing highs and lows using the same logic as RSI divergence
-    Returns: resistance (swing high) and support (swing low)
     """
     close = df['Close']
     high = df['High']
     low = df['Low']
     
-    # Use last lookback candles
     if len(close) > lookback:
         price_array = close.iloc[-lookback:].values
         high_array = high.iloc[-lookback:].values
@@ -477,14 +473,12 @@ def find_swing_points(df, lookback=30):
     swing_lows = []
     
     for i in range(2, len(price_array) - 1):
-        # Swing high using CLOSE price (more reliable than high)
         is_swing_high = (
             i >= 2 and i <= len(price_array) - 2 and
             price_array[i] > price_array[i-1] and price_array[i] > price_array[i-2] and
             price_array[i] > price_array[i+1]
         )
         
-        # Swing low using CLOSE price
         is_swing_low = (
             i >= 2 and i <= len(price_array) - 2 and
             price_array[i] < price_array[i-1] and price_array[i] < price_array[i-2] and
@@ -496,15 +490,13 @@ def find_swing_points(df, lookback=30):
         if is_swing_low:
             swing_lows.append(price_array[i])
     
-    # Get the most recent swing high and low
     resistance = swing_highs[-1] if swing_highs else None
     support = swing_lows[-1] if swing_lows else None
     
-    # If no swings found, use the high/low of the lookback period
     if resistance is None:
-        resistance = max(high_array[-5:])  # Use last 5 high as fallback
+        resistance = max(high_array[-5:])
     if support is None:
-        support = min(low_array[-5:])  # Use last 5 low as fallback
+        support = min(low_array[-5:])
     
     return resistance, support
 
@@ -812,7 +804,7 @@ def get_session_info(utc_now):
     
     return session_name, f"Status: {status} ({ratio:.0f}% of Avg)"
 
-# --- TRADE PARAMETERS WITH PROPER ENTRY TRIGGERS ---
+# --- TRADE PARAMETERS ---
 def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df):
     """
     Generate trade parameters with proper entry triggers using support/resistance
@@ -822,24 +814,18 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
     resistance, support = find_swing_points(df, lookback=30)
     
     if resistance is None or support is None:
-        # Fallback: use Bollinger Bands
         bb_upper = indicator_data['volatility'].get('upper', price * 1.02)
         bb_lower = indicator_data['volatility'].get('lower', price * 0.98)
         resistance = resistance or bb_upper
         support = support or bb_lower
     
-    # ATR multiplier for stop loss (1.5× ATR is standard)
     atr_multiplier = 1.5
     
     if "Bullish" in bias:
-        # ENTRY TRIGGER: Break above resistance
         entry_trigger = resistance
         entry_label = f"Break above ${format_price(entry_trigger)}"
-        
-        # Check if trigger already hit
         trigger_hit = price > entry_trigger
         
-        # Calculate stop and target based on entry trigger
         stop_loss = entry_trigger - (atr_multiplier * atr_val)
         target = entry_trigger + (atr_multiplier * atr_val * reward_multiple / risk_multiple)
         
@@ -857,14 +843,10 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
         }
         
     elif "Bearish" in bias:
-        # ENTRY TRIGGER: Break below support
         entry_trigger = support
         entry_label = f"Break below ${format_price(entry_trigger)}"
-        
-        # Check if trigger already hit
         trigger_hit = price < entry_trigger
         
-        # Calculate stop and target based on entry trigger
         stop_loss = entry_trigger + (atr_multiplier * atr_val)
         target = entry_trigger - (atr_multiplier * atr_val * reward_multiple / risk_multiple)
         
@@ -882,7 +864,6 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
         }
         
     else:
-        # NEUTRAL - No trade setup
         trade_params = {
             "title": "⏳ No Trade Setup — Wait for Clarity",
             "direction": "NEUTRAL",
@@ -901,9 +882,9 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
 # --- DISPLAY FUNCTION ---
 def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple, df):
     
-    # Calculate ATR
+    # Calculate ATR on the correctly scaled data
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-    atr_val = atr_indicator.average_true_range().iloc[-1] * price / 100
+    atr_val = atr_indicator.average_true_range().iloc[-1]
     
     # Get trade parameters with proper entry triggers
     trade_params = get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df)
@@ -1177,7 +1158,9 @@ if user_input:
         price, price_change = get_asset_price(symbol)
         
         if price is not None:
-            df = get_historical_data(symbol)
+            # Generate historical data with the correct price scale
+            df = get_historical_data(symbol, price, length=200)
+            
             indicator_data = calculate_all_indicators(symbol, df)
             bias = determine_overall_bias(indicator_data)
             
