@@ -17,6 +17,9 @@ from collections import defaultdict
 
 
 
+# --- DEMO MODE FLAG ---
+DEMO_MODE = True  # Set to False for full version
+
 # --- CONFIGURATION ---
 RISK_REWARD_OPTIONS = {
     "1:1 (Conservative/Scalper)": (1.0, 1.0),
@@ -29,7 +32,7 @@ RISK_REWARD_OPTIONS = {
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="AI Crypto Trading Chatbot",
+    page_title="Crypto Market Analyzer",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -84,12 +87,11 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 }
 .local-time-info { color: #22D3EE !important; font-weight: 700; font-size: 18px; }
 .active-session-info { color: #FBBF24 !important; font-weight: 700; font-size: 18px; }
-.status-volatility-info { color: #34D399 !important; font-weight: 700; font-size: 18px; }
 
 .main-title {
     font-size: 28px;
-    font-weight: 800;
-    color: #F59E0B;
+    font-weight: 700;
+    color: #E5E7EB;
     margin-bottom: 20px;
 }
 
@@ -158,6 +160,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     padding: 16px 18px;
     border-left: 4px solid #374151;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    margin-bottom: 12px;
 }
 .indicator-card .card-header {
     display: flex;
@@ -197,7 +200,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     padding: 16px 18px;
     border-left: 4px solid #8B5CF6;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    margin-top: 0px;
+    margin-top: 12px;
 }
 .indicator-card-full .card-header {
     display: flex;
@@ -266,30 +269,17 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     font-weight: 400;
 }
 
-.trade-summary {
-    font-size: 16px;
-    line-height: 1.8;
-    margin-top: 12px;
-    margin-bottom: 16px;
-    padding: 16px 20px;
-    background: #0f1f2e;
-    border-radius: 10px;
-    border-left: 4px solid #60A5FA;
-}
-.trade-summary strong {
-    color: #F59E0B;
-}
-
-.motivation-text {
-    font-size: 16px;
-    font-weight: 700;
-    color: #FBBF24;
-    text-align: center;
+.demo-notice {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+    border-radius: 8px;
     padding: 12px 16px;
-    margin-top: 14px;
-    border: 2px solid rgba(251, 191, 36, 0.2);
-    border-radius: 10px;
-    background: rgba(251, 191, 36, 0.05);
+    margin-top: 8px;
+    font-size: 14px;
+    color: #D1D5DB;
+}
+.demo-notice strong {
+    color: #FBBF24;
 }
 
 .disclaimer {
@@ -344,13 +334,30 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 # --- CONSTANTS ---
 TIMEZONE_MAP = {
     "Pakistan (PKT)": "Asia/Karachi",
-    "United States - New York (EST/EDT)": "America/New_York",
-    "United States - Los Angeles (PST/PDT)": "America/Los_Angeles",
-    "United Kingdom (GMT/BST)": "Europe/London",
+    "UTC": "UTC",
+    "US Eastern (ET)": "America/New_York",
+    "UK (GMT/BST)": "Europe/London",
     "Japan (JST)": "Asia/Tokyo",
     "Singapore (SGT)": "Asia/Singapore",
-    "Australia (AEST/AEDT)": "Australia/Sydney",
+    "UAE (GST)": "Asia/Dubai",
     "India (IST)": "Asia/Kolkata",
+}
+
+# --- FULL COIN MAP (commented for demo, uncomment for paid version) ---
+# FULL_COIN_MAP = {
+#     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana',
+#     'ADA': 'cardano', 'XRP': 'ripple', 'DOGE': 'dogecoin',
+#     'DOT': 'polkadot', 'LINK': 'chainlink', 'MATIC': 'polygon',
+#     'UNI': 'uniswap', 'ATOM': 'cosmos', 'LTC': 'litecoin',
+#     'BCH': 'bitcoin-cash', 'NEAR': 'near', 'ALGO': 'algorand',
+#     'AVAX': 'avalanche-2', 'FTM': 'fantom'
+# }
+
+# --- DEMO COIN MAP (only 3 coins) ---
+DEMO_COIN_MAP = {
+    'BTC': 'bitcoin',
+    'ETH': 'ethereum',
+    'SOL': 'solana',
 }
 
 def format_price(p):
@@ -363,17 +370,14 @@ def format_price(p):
 
 # --- COINGECKO API ---
 def get_coin_id(symbol):
-    """Map symbol to CoinGecko coin ID"""
+    """Map symbol to CoinGecko coin ID - uses demo or full map based on DEMO_MODE"""
     symbol = symbol.upper().replace("USD", "").replace("USDT", "")
-    symbol_map = {
-        'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana',
-        'ADA': 'cardano', 'XRP': 'ripple', 'DOGE': 'dogecoin',
-        'DOT': 'polkadot', 'LINK': 'chainlink', 'MATIC': 'polygon',
-        'UNI': 'uniswap', 'ATOM': 'cosmos', 'LTC': 'litecoin',
-        'BCH': 'bitcoin-cash', 'NEAR': 'near', 'ALGO': 'algorand',
-        'AVAX': 'avalanche-2', 'FTM': 'fantom'
-    }
-    return symbol_map.get(symbol, symbol.lower())
+    
+    if DEMO_MODE:
+        return DEMO_COIN_MAP.get(symbol, symbol.lower())
+    else:
+        # Full map would be used here
+        return symbol.lower()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_crypto_price_coingecko(symbol, api_key=""):
@@ -402,10 +406,7 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
-    """
-    Fetch REAL historical OHLC data from CoinGecko
-    Uses /coins/{id}/ohlc endpoint
-    """
+    """Fetch REAL historical OHLC data from CoinGecko"""
     coin_id = get_coin_id(symbol)
     
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
@@ -463,11 +464,7 @@ def fetch_historical_data_coingecko(symbol, days=30, api_key=""):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_volume_data_coingecko(symbol, days=30, api_key=""):
-    """
-    Fetch REAL volume data from CoinGecko
-    Uses /coins/{id}/market_chart endpoint
-    Returns: [timestamp, volume] pairs
-    """
+    """Fetch REAL volume data from CoinGecko"""
     coin_id = get_coin_id(symbol)
     
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
@@ -485,45 +482,26 @@ def fetch_volume_data_coingecko(symbol, days=30, api_key=""):
         data = response.json()
         
         if not data or 'total_volumes' not in data or not data['total_volumes']:
-            st.warning("⚠️ Volume data unavailable. Using fallback support/resistance calculation.")
             return None
         
-        # Format: [[timestamp, volume], ...]
         volume_data = data['total_volumes']
-        
-        # Convert to DataFrame
         df_volume = pd.DataFrame(volume_data, columns=['timestamp', 'Volume'])
         df_volume['timestamp'] = pd.to_datetime(df_volume['timestamp'], unit='ms')
         df_volume = df_volume.set_index('timestamp')
         
         return df_volume
         
-    except requests.exceptions.Timeout:
-        st.warning("⏱️ Volume data request timed out. Using fallback support/resistance calculation.")
-        return None
-    except requests.exceptions.RequestException as e:
-        st.warning(f"🌐 Network error fetching volume data: {str(e)}")
-        return None
-    except Exception as e:
-        st.warning(f"❌ Error fetching volume data: {str(e)}")
+    except Exception:
         return None
 
 def merge_ohlc_with_volume(df_ohlc, df_volume):
-    """
-    Merge OHLC data with volume data by timestamp alignment
-    Uses nearest timestamp matching if exact match not found
-    """
+    """Merge OHLC data with volume data by timestamp alignment"""
     if df_ohlc is None or df_volume is None:
         return df_ohlc
     
-    # Copy to avoid modifying original
     df = df_ohlc.copy()
-    
-    # Reindex volume to match OHLC timestamps using nearest alignment
-    # This handles cases where the two endpoints have different intervals
     df['Volume'] = df_volume['Volume'].reindex(df.index, method='nearest')
     
-    # If any volume values are NaN, fill with median of available volumes
     if df['Volume'].isna().any():
         median_volume = df['Volume'].median()
         df['Volume'] = df['Volume'].fillna(median_volume)
@@ -535,26 +513,17 @@ def get_asset_price(symbol):
     return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
 
 def get_historical_data(symbol, days=30):
-    """
-    Get REAL historical data from CoinGecko with REAL volume
-    Returns DataFrame with Open, High, Low, Close, Volume columns
-    """
-    # Fetch OHLC data
+    """Get REAL historical data with volume"""
     df_ohlc = fetch_historical_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
     
     if df_ohlc is None or len(df_ohlc) < 10:
-        st.error(f"❌ Unable to fetch sufficient historical data for {symbol}. Please try again later.")
         return None
     
-    # Fetch volume data
     df_volume = fetch_volume_data_coingecko(symbol, days, CG_PUBLIC_API_KEY)
     
-    # Merge volume data if available
     if df_volume is not None:
         df = merge_ohlc_with_volume(df_ohlc, df_volume)
     else:
-        # If volume data unavailable, add a placeholder volume column
-        # The calculate_volume_profile() function will detect this and use fallback
         df = df_ohlc.copy()
         df['Volume'] = None
     
@@ -562,7 +531,6 @@ def get_historical_data(symbol, days=30):
 
 # --- SWING POINT DETECTION ---
 def find_swing_points(df, lookback=30):
-    """Find recent swing highs and lows"""
     if df is None or len(df) < lookback:
         return None, None
     
@@ -657,7 +625,7 @@ def calculate_supertrend(df, period=10, multiplier=3):
     return {
         "status": current_trend,
         "value": current_value,
-        "detail": f"SuperTrend line at ${format_price(current_value)}"
+        "detail": f"SuperTrend line at ${format_price(current_value)}" if not DEMO_MODE else "SuperTrend: " + current_trend
     }
 
 def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
@@ -708,18 +676,15 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
     
     if current_rsi > 70:
         status = "Overbought"
-        detail = f"RSI at {current_rsi:.2f} — Overbought"
     elif current_rsi < 30:
         status = "Oversold"
-        detail = f"RSI at {current_rsi:.2f} — Oversold"
     else:
         status = "Neutral"
-        detail = f"RSI at {current_rsi:.2f} — Neutral"
     
     return {
         "status": status,
         "value": current_rsi,
-        "detail": f"{detail} | MA: {current_rsi_ma:.2f} | {divergence}"
+        "detail": f"RSI: {status}" if DEMO_MODE else f"RSI: {current_rsi:.2f} | MA: {current_rsi_ma:.2f} | {divergence}"
     }
 
 def calculate_bollinger_bands(df, period=20, std_dev=2):
@@ -761,10 +726,10 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
     
     if is_squeeze:
         status = "Squeeze"
-        detail = f"🔥 SQUEEZE! {position} | Width: {band_width:.3f}"
+        detail = f"🔥 SQUEEZE DETECTED" if DEMO_MODE else f"🔥 SQUEEZE! {position} | Width: {band_width:.3f}"
     else:
         status = "Normal"
-        detail = f"{position} | Upper: ${format_price(current_upper)} | Mid: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
+        detail = f"Bollinger: {position}" if DEMO_MODE else f"{position} | Upper: ${format_price(current_upper)} | Mid: ${format_price(current_middle)} | Lower: ${format_price(current_lower)}"
     
     return {
         "status": status,
@@ -791,10 +756,10 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     
     if current_close > current_psar:
         status = "Bullish"
-        detail = f"SAR at ${format_price(current_psar)} — Below price"
+        detail = "SAR: Bullish" if DEMO_MODE else f"SAR at ${format_price(current_psar)} — Below price"
     else:
         status = "Bearish"
-        detail = f"SAR at ${format_price(current_psar)} — Above price"
+        detail = "SAR: Bearish" if DEMO_MODE else f"SAR at ${format_price(current_psar)} — Above price"
     
     is_reversal = False
     if len(psar) > 2:
@@ -804,7 +769,9 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
                 is_reversal = True
                 break
     
-    if is_reversal:
+    if is_reversal and DEMO_MODE:
+        detail += " | ⚠️ REVERSAL"
+    elif is_reversal:
         detail += " | ⚠️ REVERSAL!"
     
     return {
@@ -815,27 +782,20 @@ def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
     }
 
 def calculate_volume_profile(df, num_bins=25):
-    """
-    Calculate Volume Profile using REAL volume data
-    If volume data is None or all NaN, falls back to pivot points
-    """
     if df is None or len(df) < 20:
         return {"status": "Error", "value": None, "detail": "Insufficient data"}
     
-    # Check if we have real volume data
     has_volume = 'Volume' in df.columns and df['Volume'].notna().any() and df['Volume'].sum() > 0
     
     if not has_volume:
-        # Fallback to pivot points (support/resistance)
         high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
         low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
         return {
             "status": "Fallback",
             "value": (high.max() + low.min()) / 2,
-            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
+            "detail": "Volume Profile: POC analysis available in full version" if DEMO_MODE else f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
         }
     
-    # Use REAL volume data
     lookback = min(200, len(df))
     price = df['Close'].iloc[-lookback:]
     volume = df['Volume'].iloc[-lookback:]
@@ -850,13 +810,12 @@ def calculate_volume_profile(df, num_bins=25):
             volume_by_bin[idx] += vol
     
     if not volume_by_bin:
-        # Fallback if volume binning fails
         high = df['High'].iloc[-50:] if len(df) > 50 else df['High']
         low = df['Low'].iloc[-50:] if len(df) > 50 else df['Low']
         return {
             "status": "Fallback",
             "value": (high.max() + low.min()) / 2,
-            "detail": f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
+            "detail": "Volume Profile: POC analysis available in full version" if DEMO_MODE else f"Resistance: ${format_price(high.max())} | Support: ${format_price(low.min())}"
         }
     
     poc_bin = max(volume_by_bin, key=volume_by_bin.get)
@@ -865,11 +824,14 @@ def calculate_volume_profile(df, num_bins=25):
     sorted_bins = sorted(volume_by_bin.items(), key=lambda x: x[1], reverse=True)[:3]
     top_prices = [(bins[bin_idx] + bins[bin_idx + 1]) / 2 for bin_idx, _ in sorted_bins]
     
-    detail = f"POC: ${format_price(poc_price)}"
-    if len(top_prices) > 1:
-        detail += f" | Zone 2: ${format_price(top_prices[1])}"
-    if len(top_prices) > 2:
-        detail += f" | Zone 3: ${format_price(top_prices[2])}"
+    if DEMO_MODE:
+        detail = "Volume Profile: POC analysis available in full version"
+    else:
+        detail = f"POC: ${format_price(poc_price)}"
+        if len(top_prices) > 1:
+            detail += f" | Zone 2: ${format_price(top_prices[1])}"
+        if len(top_prices) > 2:
+            detail += f" | Zone 3: ${format_price(top_prices[2])}"
     
     return {
         "status": "Volume Profile",
@@ -934,31 +896,34 @@ def determine_overall_bias(indicator_data):
 def get_session_info(utc_now):
     current_time_utc = utc_now.time()
     session_name = "Quiet Session"
-    current_range_pct = 0.02
     
     if dt_time(13, 0) <= current_time_utc < dt_time(17, 0):
         session_name = "Overlap: London / New York"
-        current_range_pct = 0.30 
     elif dt_time(13, 0) <= current_time_utc < dt_time(22, 0):
         session_name = "US Session (New York)"
-        current_range_pct = 0.15
     elif dt_time(8, 0) <= current_time_utc < dt_time(17, 0):
         session_name = "European Session (London)"
-        current_range_pct = 0.15
     elif dt_time(0, 0) <= current_time_utc < dt_time(9, 0):
         session_name = "Asian Session (Tokyo)"
-        current_range_pct = 0.08
     
-    ratio = (current_range_pct / 0.1) * 100
-    if ratio < 20: status = "Very Low Volatility"
-    elif ratio < 60: status = "Low Volatility"
-    elif ratio < 100: status = "Moderate Volatility"
-    else: status = "High Volatility"
-    
-    return session_name, f"Status: {status} ({ratio:.0f}% of Avg)"
+    return session_name
 
 # --- TRADE PARAMETERS ---
 def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df):
+    if DEMO_MODE:
+        return {
+            "title": "📋 Trade Plan",
+            "direction": "DEMO",
+            "current_price": price,
+            "entry_trigger": None,
+            "entry_label": "📋 Your personalized entry, target, and stop-loss levels are generated when you order your own dashboard — this demo shows the analysis method only.",
+            "trigger_hit": False,
+            "stop_loss": None,
+            "target": None,
+            "strategy": "Full trade plan available in custom build",
+            "type": "demo"
+        }
+    
     if df is None:
         return {
             "title": "⏳ No Data Available",
@@ -1042,7 +1007,7 @@ def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, re
     return trade_params
 
 # --- DISPLAY FUNCTION ---
-def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple, df):
+def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple, df, show_details):
     
     if df is None:
         st.error("❌ No historical data available for analysis.")
@@ -1054,37 +1019,24 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     trade_params = get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df)
     
     if "Bullish" in bias:
-        bias_color = "#34D399"; bias_bg = "rgba(52, 211, 153, 0.15)"; bias_text = "BULLISH 📈"
+        bias_color = "#34D399"; bias_bg = "rgba(52, 211, 153, 0.15)"; bias_text = "BULLISH"
     elif "Bearish" in bias:
-        bias_color = "#F87171"; bias_bg = "rgba(248, 113, 113, 0.15)"; bias_text = "BEARISH 📉"
+        bias_color = "#F87171"; bias_bg = "rgba(248, 113, 113, 0.15)"; bias_text = "BEARISH"
     else:
-        bias_color = "#FBBF24"; bias_bg = "rgba(251, 191, 36, 0.15)"; bias_text = "NEUTRAL ➡️"
-    
-    trend_color = "#34D399" if indicator_data["trend"]["status"] == "Bullish" else "#F87171" if indicator_data["trend"]["status"] == "Bearish" else "#FBBF24"
-    momentum_color = "#F87171" if indicator_data["momentum"]["status"] == "Overbought" else "#34D399" if indicator_data["momentum"]["status"] == "Oversold" else "#FBBF24"
-    volatility_color = "#F59E0B" if indicator_data["volatility"]["status"] == "Squeeze" else "#60A5FA"
-    reversal_color = "#F87171" if indicator_data["reversal"]["is_reversal"] else "#34D399" if indicator_data["reversal"]["status"] == "Bullish" else "#FBBF24"
-    
-    motivation_options = {
-        "Strong Bullish": ["🚀 MOMENTUM CONFIRMED! Look for breakout entries."],
-        "Bullish": ["📈 BULLISH PRESSURE: Capitalize on upward force."],
-        "Strong Bearish": ["📉 DOWNTREND CONFIRMED! Respect stops."],
-        "Bearish": ["🔽 BEARISH PRESSURE: Don't fight the trend."],
-        "Neutral": ["⏳ MARKET RESTING: Patience is key."]
-    }
-    motivation = random.choice(motivation_options.get(bias, ["🧠 TRADE SMART: Follow the plan."]))
+        bias_color = "#FBBF24"; bias_bg = "rgba(251, 191, 36, 0.15)"; bias_text = "NEUTRAL"
     
     change_sign = "+" if price_change > 0 else ""
     change_class = "bullish" if price_change > 0 else "bearish"
     
+    # Price Card
     st.markdown(f"""
     <div class="price-card">
         <div class="price-section">
-            <div class="label">💰 Current Price</div>
+            <div class="label">Current Price</div>
             <div class="value">${format_price(price)} <span class="currency">{vs_currency.upper()}</span></div>
         </div>
         <div class="change-section">
-            <div class="label">📊 24h Change</div>
+            <div class="label">24h Change</div>
             <div class="change {change_class}">{change_sign}{price_change:.2f}%</div>
         </div>
         <div>
@@ -1095,153 +1047,166 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="section-header">📈 Technical Indicators</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="indicator-card" style="border-left-color: {trend_color};">
-            <div class="card-header">
-                <span class="name">📊 Trend — SuperTrend</span>
-                <span class="signal-badge" style="background: {trend_color}22; color: {trend_color};">{indicator_data['trend']['status'].upper()}</span>
-            </div>
-            <div class="value">{indicator_data['trend']['status']}</div>
-            <div class="explanation">{indicator_data['trend']['detail']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Indicator Cards - only shown if show_details is True
+    if show_details:
+        st.markdown('<div class="section-header">Technical Indicators</div>', unsafe_allow_html=True)
         
-        squeeze_label = "🔥 SQUEEZE" if indicator_data['volatility']['status'] == "Squeeze" else "NORMAL"
-        st.markdown(f"""
-        <div class="indicator-card" style="border-left-color: {volatility_color};">
-            <div class="card-header">
-                <span class="name">📊 Volatility — Bollinger Bands</span>
-                <span class="signal-badge" style="background: {volatility_color}22; color: {volatility_color};">{squeeze_label}</span>
-            </div>
-            <div class="value">{'🔥 Squeeze Detected!' if indicator_data['volatility']['status'] == 'Squeeze' else 'Normal Volatility'}</div>
-            <div class="explanation">{indicator_data['volatility']['detail']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="indicator-card" style="border-left-color: {momentum_color};">
-            <div class="card-header">
-                <span class="name">📊 Momentum — RSI</span>
-                <span class="signal-badge" style="background: {momentum_color}22; color: {momentum_color};">{indicator_data['momentum']['status'].upper()}</span>
-            </div>
-            <div class="value">RSI: {indicator_data['momentum']['value']:.2f}</div>
-            <div class="explanation">{indicator_data['momentum']['detail']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Get colors for indicators
+        trend_color = "#34D399" if indicator_data["trend"]["status"] == "Bullish" else "#F87171" if indicator_data["trend"]["status"] == "Bearish" else "#FBBF24"
+        momentum_color = "#F87171" if indicator_data["momentum"]["status"] == "Overbought" else "#34D399" if indicator_data["momentum"]["status"] == "Oversold" else "#FBBF24"
+        volatility_color = "#F59E0B" if indicator_data["volatility"]["status"] == "Squeeze" else "#60A5FA"
+        reversal_color = "#F87171" if indicator_data["reversal"]["is_reversal"] else "#34D399" if indicator_data["reversal"]["status"] == "Bullish" else "#FBBF24"
         
-        reversal_label = "⚠️ REVERSAL" if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status'].upper()
-        reversal_color_display = "#F87171" if indicator_data['reversal']['is_reversal'] else reversal_color
-        st.markdown(f"""
-        <div class="indicator-card" style="border-left-color: {reversal_color_display};">
-            <div class="card-header">
-                <span class="name">📊 Reversal — Parabolic SAR</span>
-                <span class="signal-badge" style="background: {reversal_color_display}22; color: {reversal_color_display};">{reversal_label}</span>
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="indicator-card" style="border-left-color: {trend_color};">
+                <div class="card-header">
+                    <span class="name">Trend — SuperTrend</span>
+                    <span class="signal-badge" style="background: {trend_color}22; color: {trend_color};">{indicator_data['trend']['status'].upper()}</span>
+                </div>
+                <div class="value">{indicator_data['trend']['status']}</div>
+                <div class="explanation">{indicator_data['trend']['detail']}</div>
             </div>
-            <div class="value">{'⚠️ Reversal Imminent!' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
-            <div class="explanation">{indicator_data['reversal']['detail']}</div>
+            """, unsafe_allow_html=True)
+            
+            squeeze_label = "🔥 SQUEEZE" if indicator_data['volatility']['status'] == "Squeeze" else "NORMAL"
+            st.markdown(f"""
+            <div class="indicator-card" style="border-left-color: {volatility_color};">
+                <div class="card-header">
+                    <span class="name">Volatility — Bollinger Bands</span>
+                    <span class="signal-badge" style="background: {volatility_color}22; color: {volatility_color};">{squeeze_label}</span>
+                </div>
+                <div class="value">{'Squeeze Detected' if indicator_data['volatility']['status'] == 'Squeeze' else 'Normal Volatility'}</div>
+                <div class="explanation">{indicator_data['volatility']['detail']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="indicator-card" style="border-left-color: {momentum_color};">
+                <div class="card-header">
+                    <span class="name">Momentum — RSI</span>
+                    <span class="signal-badge" style="background: {momentum_color}22; color: {momentum_color};">{indicator_data['momentum']['status'].upper()}</span>
+                </div>
+                <div class="value">{indicator_data['momentum']['status']}</div>
+                <div class="explanation">{indicator_data['momentum']['detail']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            reversal_label = "⚠️ REVERSAL" if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status'].upper()
+            reversal_color_display = "#F87171" if indicator_data['reversal']['is_reversal'] else reversal_color
+            st.markdown(f"""
+            <div class="indicator-card" style="border-left-color: {reversal_color_display};">
+                <div class="card-header">
+                    <span class="name">Reversal — Parabolic SAR</span>
+                    <span class="signal-badge" style="background: {reversal_color_display}22; color: {reversal_color_display};">{reversal_label}</span>
+                </div>
+                <div class="value">{'Reversal Imminent' if indicator_data['reversal']['is_reversal'] else indicator_data['reversal']['status']}</div>
+                <div class="explanation">{indicator_data['reversal']['detail']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Liquidity - Full width
+        st.markdown(f"""
+        <div class="indicator-card-full">
+            <div class="card-header">
+                <span class="name">Liquidity — Volume Profile</span>
+                <span class="signal-badge" style="background: rgba(139, 92, 246, 0.2); color: #A78BFA;">POC</span>
+            </div>
+            <div class="value">{indicator_data['liquidity']['status']}</div>
+            <div class="explanation">{indicator_data['liquidity']['detail']}</div>
         </div>
         """, unsafe_allow_html=True)
-    
-    st.markdown(f"""
-    <div class="indicator-card-full">
-        <div class="card-header">
-            <span class="name">📊 Liquidity — Volume Profile</span>
-            <span class="signal-badge" style="background: rgba(139, 92, 246, 0.2); color: #A78BFA;">POC</span>
-        </div>
-        <div class="value">🎯 POC: ${format_price(indicator_data['liquidity']['value'])}</div>
-        <div class="explanation">{indicator_data['liquidity']['detail']}</div>
-    </div>
-    """, unsafe_allow_html=True)
     
     st.divider()
     
-    if trade_params["type"] != "neutral":
-        trigger_status = "✅ TRIGGER HIT" if trade_params["trigger_hit"] else "⏳ PENDING TRIGGER"
-        trigger_class = "trigger-hit" if trade_params["trigger_hit"] else "trigger-pending"
-        
+    # Trade Plan Box
+    if DEMO_MODE:
         st.markdown(f"""
         <div class="recommendation-box">
-            <div class="title">🤖 {trade_params['title']}</div>
+            <div class="title">📋 Trade Plan</div>
             <div class="content">
                 <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
-                <strong>Entry Trigger:</strong> <span class="{trigger_class}">{trade_params['entry_label']}</span> — {trigger_status}<br>
-                <strong>Stop Loss:</strong> ${format_price(trade_params['stop_loss'])}<br>
-                <strong>Target:</strong> ${format_price(trade_params['target'])}<br>
-                <strong>Strategy:</strong> {trade_params['strategy']}
+                <strong>Analysis:</strong> {trade_params['entry_label']}
             </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Demo notice
+        st.markdown("""
+        <div class="demo-notice">
+            <strong>🔒 Demo Mode</strong> — This is a demonstration of the analysis method. 
+            Exact entry, target, and stop-loss levels are available in the full version.
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div class="recommendation-box">
-            <div class="title">🤖 {trade_params['title']}</div>
-            <div class="content">
-                <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
-                <strong>Entry Trigger:</strong> {trade_params['entry_label']}<br>
-                <strong>Strategy:</strong> {trade_params['strategy']}
+        if trade_params["type"] != "neutral" and trade_params["type"] != "demo":
+            trigger_status = "✅ TRIGGER HIT" if trade_params["trigger_hit"] else "⏳ PENDING TRIGGER"
+            trigger_class = "trigger-hit" if trade_params["trigger_hit"] else "trigger-pending"
+            
+            st.markdown(f"""
+            <div class="recommendation-box">
+                <div class="title">📋 {trade_params['title']}</div>
+                <div class="content">
+                    <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
+                    <strong>Entry Trigger:</strong> <span class="{trigger_class}">{trade_params['entry_label']}</span> — {trigger_status}<br>
+                    <strong>Stop Loss:</strong> ${format_price(trade_params['stop_loss'])}<br>
+                    <strong>Target:</strong> ${format_price(trade_params['target'])}<br>
+                    <strong>Strategy:</strong> {trade_params['strategy']}
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="recommendation-box">
+                <div class="title">📋 {trade_params['title']}</div>
+                <div class="content">
+                    <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
+                    <strong>Strategy:</strong> {trade_params['strategy']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     
-    summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
-    summary += "<br><br><strong>📊 Indicator Breakdown:</strong><br>"
-    summary += f"• <strong>Trend (SuperTrend):</strong> {indicator_data['trend']['status']} — {indicator_data['trend']['detail']}<br>"
-    summary += f"• <strong>Momentum (RSI):</strong> {indicator_data['momentum']['status']} — {indicator_data['momentum']['detail']}<br>"
-    summary += f"• <strong>Volatility (Bollinger):</strong> {indicator_data['volatility']['detail']}<br>"
-    summary += f"• <strong>Reversal (Parabolic SAR):</strong> {indicator_data['reversal']['detail']}<br>"
-    summary += f"• <strong>Liquidity (Volume Profile):</strong> {indicator_data['liquidity']['detail']}"
-    
-    st.markdown(f"""
-    <div class="trade-summary">
-    {summary}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown(f"""
-    <div class="motivation-text">
-        💡 {motivation}
-    </div>
-    """, unsafe_allow_html=True)
-    
+    # Disclaimer
     st.markdown("""
     <div class="disclaimer">
-        ⚠️ <strong>Risk Disclaimer:</strong> This is not financial advice. All trading involves risk. 
+        <strong>Risk Disclaimer:</strong> This is not financial advice. All trading involves risk. 
         Past performance doesn't guarantee future results. Only trade with money you can afford to lose.
     </div>
     """, unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 utc_now = datetime.datetime.now(timezone.utc)
-session_name, volatility_html = get_session_info(utc_now)
+session_name = get_session_info(utc_now)
 
-st.sidebar.markdown("<p class='sidebar-title'>📊 Crypto Market Context</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p class='sidebar-title'>📊 Market Context</p>", unsafe_allow_html=True)
 
 tz_city_names = sorted(TIMEZONE_MAP.keys())
 try: default_ix = tz_city_names.index("Pakistan (PKT)")
 except ValueError: default_ix = 0
 
 selected_tz_name = st.sidebar.selectbox("Select Your Timezone", tz_city_names, index=default_ix)
-selected_tz_pytz = pytz.timezone(TIMEZONE_MAP[selected_tz_name])
+
+if selected_tz_name == "UTC":
+    selected_tz_pytz = pytz.UTC
+else:
+    selected_tz_pytz = pytz.timezone(TIMEZONE_MAP[selected_tz_name])
+
 user_local_time = datetime.datetime.now(selected_tz_pytz)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-item'>
-    <b>🕐 Your Local Time</b><br>
+    <b>Your Local Time</b><br>
     <span class='local-time-info'>{user_local_time.strftime('%H:%M')}</span>
 </div>
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-item'>
-    <b>🌍 Active Session</b><br>
-    <span class='active-session-info'>{session_name}</span><br>
-    <span class='status-volatility-info'>{volatility_html}</span>
+    <b>Active Session</b><br>
+    <span class='active-session-info'>{session_name}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1252,7 +1217,7 @@ overlap_end_local = today_overlap_end.astimezone(selected_tz_pytz)
 
 st.sidebar.markdown(f"""
 <div class='sidebar-item'>
-    <b>⏰ London/NY Overlap (Peak Liquidity)</b><br>
+    <b>London/NY Overlap (Peak Liquidity)</b><br>
     <span style='font-size: 20px; color: #22D3EE; font-weight: 700;'>
         {overlap_start_local.strftime('%H:%M')} - {overlap_end_local.strftime('%H:%M')}
     </span>
@@ -1261,20 +1226,30 @@ st.sidebar.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- MAIN ---
-st.markdown('<div class="main-title">🤖 AI Crypto Trading Chatbot</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📊 Crypto Market Analyzer</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns([1.5, 2.5, 1.5])
 
 with col1:
-    st.markdown("**Select Asset Type**")
-    st.markdown("💰 Crypto")
+    st.markdown("**Asset Type**")
+    st.markdown("Crypto")
 
 with col2:
-    user_input = st.text_input(
-        "Enter Cryptocurrency Ticker",
-        placeholder="e.g., BTC, ETH, SOL, ADA, DOGE",
-        label_visibility="visible"
-    )
+    if DEMO_MODE:
+        # Demo mode: dropdown with only 3 coins
+        coin_options = ['BTC', 'ETH', 'SOL']
+        user_input = st.selectbox(
+            "Select Cryptocurrency",
+            options=coin_options,
+            help="Demo mode: BTC, ETH, SOL available"
+        )
+    else:
+        # Full mode: text input
+        user_input = st.text_input(
+            "Enter Cryptocurrency Ticker",
+            placeholder="e.g., BTC, ETH, SOL, ADA, DOGE",
+            label_visibility="visible"
+        )
 
 with col3:
     show_indicator_details = st.checkbox("Show Indicator Details", value=False)
@@ -1284,7 +1259,7 @@ col_rr1, col_rr2, col_rr3 = st.columns([2, 2, 2])
 
 with col_rr1:
     rr_selection = st.selectbox(
-        "Select Risk:Reward Ratio Profile",
+        "Risk:Reward Ratio",
         list(RISK_REWARD_OPTIONS.keys()),
         index=2
     )
@@ -1313,22 +1288,25 @@ if user_input:
     vs_currency = "usd"
     symbol = user_input.strip().upper()
     
-    with st.spinner(f"Fetching live data for {symbol} from CoinGecko..."):
-        price, price_change = get_asset_price(symbol)
-        
-        if price is not None:
-            # Fetch REAL historical data with REAL volume
-            df = get_historical_data(symbol, days=30)
+    # Check if coin is in demo list (if demo mode)
+    if DEMO_MODE and symbol not in ['BTC', 'ETH', 'SOL']:
+        st.warning("⚠️ Demo mode only supports BTC, ETH, and SOL. Please select one of these.")
+    else:
+        with st.spinner(f"Fetching live data for {symbol} from CoinGecko..."):
+            price, price_change = get_asset_price(symbol)
             
-            if df is not None:
-                indicator_data = calculate_all_indicators(symbol, df)
-                bias = determine_overall_bias(indicator_data)
+            if price is not None:
+                df = get_historical_data(symbol, days=30)
                 
-                display_analysis(
-                    symbol, price, price_change, vs_currency,
-                    indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE, df
-                )
+                if df is not None:
+                    indicator_data = calculate_all_indicators(symbol, df)
+                    bias = determine_overall_bias(indicator_data)
+                    
+                    display_analysis(
+                        symbol, price, price_change, vs_currency,
+                        indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE, df, show_indicator_details
+                    )
+                else:
+                    st.error("❌ Unable to fetch historical data. Please try again.")
             else:
-                st.error("❌ Unable to fetch historical data. Please try again.")
-        else:
-            st.error(f"❌ Unable to fetch price data for {symbol}. Please check the ticker symbol and try again.")
+                st.error(f"❌ Unable to fetch price data for {symbol}. Please check the ticker symbol and try again.")
