@@ -37,7 +37,7 @@ st.set_page_config(
 # --- API KEYS ---
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# --- STYLES - FIXED FOR READABILITY ---
+# --- STYLES ---
 st.markdown("""
 <style>
 /* Base font - clear and readable */
@@ -94,7 +94,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     margin-bottom: 20px;
 }
 
-/* Price Card - Clear and readable */
+/* Price Card */
 .price-card {
     background: #1a2332;
     border-radius: 12px;
@@ -162,7 +162,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     margin: 0 0 12px 0;
 }
 
-/* Indicator Cards - Clean and readable */
+/* Indicator Cards */
 .indicator-card {
     background: #1a2332;
     border-radius: 10px;
@@ -266,6 +266,18 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 .recommendation-box .content strong {
     color: #F59E0B;
 }
+.recommendation-box .trigger-pending {
+    color: #FBBF24;
+    font-weight: 700;
+}
+.recommendation-box .trigger-hit {
+    color: #34D399;
+    font-weight: 700;
+}
+.recommendation-box .current-price-label {
+    color: #9CA3AF;
+    font-weight: 400;
+}
 
 /* Trade Summary */
 .trade-summary {
@@ -306,12 +318,12 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     line-height: 1.6;
 }
 
-/* Color Classes - Bold and clear */
+/* Color Classes */
 .bullish { color: #34D399 !important; font-weight: 700; }
 .bearish { color: #F87171 !important; font-weight: 700; }
 .neutral { color: #FBBF24 !important; font-weight: 700; }
 
-/* Streamlit overrides for better readability */
+/* Streamlit overrides */
 .stMarkdown p, .stMarkdown div {
     color: #E5E7EB !important;
 }
@@ -440,6 +452,61 @@ def get_historical_data(symbol, length=200):
         "Volume": volume
     })
     return df.iloc[-length:].set_index('datetime')
+
+# --- SWING POINT DETECTION ---
+def find_swing_points(df, lookback=30):
+    """
+    Find recent swing highs and lows using the same logic as RSI divergence
+    Returns: resistance (swing high) and support (swing low)
+    """
+    close = df['Close']
+    high = df['High']
+    low = df['Low']
+    
+    # Use last lookback candles
+    if len(close) > lookback:
+        price_array = close.iloc[-lookback:].values
+        high_array = high.iloc[-lookback:].values
+        low_array = low.iloc[-lookback:].values
+    else:
+        price_array = close.values
+        high_array = high.values
+        low_array = low.values
+    
+    swing_highs = []
+    swing_lows = []
+    
+    for i in range(2, len(price_array) - 1):
+        # Swing high using CLOSE price (more reliable than high)
+        is_swing_high = (
+            i >= 2 and i <= len(price_array) - 2 and
+            price_array[i] > price_array[i-1] and price_array[i] > price_array[i-2] and
+            price_array[i] > price_array[i+1]
+        )
+        
+        # Swing low using CLOSE price
+        is_swing_low = (
+            i >= 2 and i <= len(price_array) - 2 and
+            price_array[i] < price_array[i-1] and price_array[i] < price_array[i-2] and
+            price_array[i] < price_array[i+1]
+        )
+        
+        if is_swing_high:
+            swing_highs.append(price_array[i])
+        if is_swing_low:
+            swing_lows.append(price_array[i])
+    
+    # Get the most recent swing high and low
+    resistance = swing_highs[-1] if swing_highs else None
+    support = swing_lows[-1] if swing_lows else None
+    
+    # If no swings found, use the high/low of the lookback period
+    if resistance is None:
+        resistance = max(high_array[-5:])  # Use last 5 high as fallback
+    if support is None:
+        support = min(low_array[-5:])  # Use last 5 low as fallback
+    
+    return resistance, support
 
 # --- INDICATOR FUNCTIONS ---
 def calculate_supertrend(df, period=10, multiplier=3):
@@ -592,7 +659,11 @@ def calculate_bollinger_bands(df, period=20, std_dev=2):
         "status": status,
         "value": band_width,
         "detail": detail,
-        "is_squeeze": is_squeeze
+        "is_squeeze": is_squeeze,
+        "upper": current_upper,
+        "middle": current_middle,
+        "lower": current_lower,
+        "position": position
     }
 
 def calculate_parabolic_sar(df, step=0.02, max_step=0.2):
@@ -741,43 +812,101 @@ def get_session_info(utc_now):
     
     return session_name, f"Status: {status} ({ratio:.0f}% of Avg)"
 
-# --- DISPLAY FUNCTION ---
-def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple):
+# --- TRADE PARAMETERS WITH PROPER ENTRY TRIGGERS ---
+def get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df):
+    """
+    Generate trade parameters with proper entry triggers using support/resistance
+    """
     
-    df = get_historical_data(symbol)
+    # Find support and resistance levels using swing points
+    resistance, support = find_swing_points(df, lookback=30)
+    
+    if resistance is None or support is None:
+        # Fallback: use Bollinger Bands
+        bb_upper = indicator_data['volatility'].get('upper', price * 1.02)
+        bb_lower = indicator_data['volatility'].get('lower', price * 0.98)
+        resistance = resistance or bb_upper
+        support = support or bb_lower
+    
+    # ATR multiplier for stop loss (1.5× ATR is standard)
+    atr_multiplier = 1.5
+    
+    if "Bullish" in bias:
+        # ENTRY TRIGGER: Break above resistance
+        entry_trigger = resistance
+        entry_label = f"Break above ${format_price(entry_trigger)}"
+        
+        # Check if trigger already hit
+        trigger_hit = price > entry_trigger
+        
+        # Calculate stop and target based on entry trigger
+        stop_loss = entry_trigger - (atr_multiplier * atr_val)
+        target = entry_trigger + (atr_multiplier * atr_val * reward_multiple / risk_multiple)
+        
+        trade_params = {
+            "title": "📈 LONG Position Setup",
+            "direction": "LONG",
+            "current_price": price,
+            "entry_trigger": entry_trigger,
+            "entry_label": entry_label,
+            "trigger_hit": trigger_hit,
+            "stop_loss": stop_loss,
+            "target": target,
+            "strategy": "Wait for breakout above resistance level",
+            "type": "bullish"
+        }
+        
+    elif "Bearish" in bias:
+        # ENTRY TRIGGER: Break below support
+        entry_trigger = support
+        entry_label = f"Break below ${format_price(entry_trigger)}"
+        
+        # Check if trigger already hit
+        trigger_hit = price < entry_trigger
+        
+        # Calculate stop and target based on entry trigger
+        stop_loss = entry_trigger + (atr_multiplier * atr_val)
+        target = entry_trigger - (atr_multiplier * atr_val * reward_multiple / risk_multiple)
+        
+        trade_params = {
+            "title": "📉 SHORT Position Setup",
+            "direction": "SHORT",
+            "current_price": price,
+            "entry_trigger": entry_trigger,
+            "entry_label": entry_label,
+            "trigger_hit": trigger_hit,
+            "stop_loss": stop_loss,
+            "target": target,
+            "strategy": "Wait for breakdown below support level",
+            "type": "bearish"
+        }
+        
+    else:
+        # NEUTRAL - No trade setup
+        trade_params = {
+            "title": "⏳ No Trade Setup — Wait for Clarity",
+            "direction": "NEUTRAL",
+            "current_price": price,
+            "entry_trigger": None,
+            "entry_label": "No clear entry signal",
+            "trigger_hit": False,
+            "stop_loss": None,
+            "target": None,
+            "strategy": "Wait for clear breakout or breakdown",
+            "type": "neutral"
+        }
+    
+    return trade_params
+
+# --- DISPLAY FUNCTION ---
+def display_analysis(symbol, price, price_change, vs_currency, indicator_data, bias, risk_multiple, reward_multiple, df):
+    
+    # Calculate ATR
     atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
     atr_val = atr_indicator.average_true_range().iloc[-1] * price / 100
     
-    if "Bullish" in bias:
-        entry = price
-        target = entry + (reward_multiple * atr_val)
-        stop = entry - (risk_multiple * atr_val)
-        trade_params = {
-            "title": "📈 LONG Position Recommended",
-            "action": f"Enter near ${format_price(entry)}",
-            "strategy": "Wait for confirmation or pullback",
-            "target": f"Take profit at ${format_price(target)}",
-            "stop": f"Stop loss below ${format_price(stop)}"
-        }
-    elif "Bearish" in bias:
-        entry = price
-        target = entry - (reward_multiple * atr_val)
-        stop = entry + (risk_multiple * atr_val)
-        trade_params = {
-            "title": "📉 SHORT Position Recommended",
-            "action": f"Enter near ${format_price(entry)}",
-            "strategy": "Short on rallies to resistance",
-            "target": f"Cover short at ${format_price(target)}",
-            "stop": f"Stop loss above ${format_price(stop)}"
-        }
-    else:
-        trade_params = {
-            "title": "⏳ No Trade — Wait for Clarity",
-            "action": "Stay on sidelines, preserve capital",
-            "strategy": "Wait for clear breakout",
-            "target": f"Bullish trigger above ${format_price(price + 2 * atr_val)}",
-            "stop": f"Bearish trigger below ${format_price(price - atr_val)}"
-        }
+    # Get trade parameters with proper entry triggers
+    trade_params = get_trade_parameters(price, atr_val, bias, indicator_data, risk_multiple, reward_multiple, df)
     
     if "Bullish" in bias:
         bias_color = "#34D399"; bias_bg = "rgba(52, 211, 153, 0.15)"; bias_text = "BULLISH 📈"
@@ -890,18 +1019,34 @@ def display_analysis(symbol, price, price_change, vs_currency, indicator_data, b
     
     st.divider()
     
-    # AI Recommendation
-    st.markdown(f"""
-    <div class="recommendation-box">
-        <div class="title">🤖 {trade_params['title']}</div>
-        <div class="content">
-            <strong>Action:</strong> {trade_params['action']}<br>
-            <strong>Target:</strong> {trade_params['target']}<br>
-            <strong>Stop Loss:</strong> {trade_params['stop']}<br>
-            <strong>Strategy:</strong> {trade_params['strategy']}
+    # AI Recommendation with Proper Entry Triggers
+    if trade_params["type"] != "neutral":
+        trigger_status = "✅ TRIGGER HIT" if trade_params["trigger_hit"] else "⏳ PENDING TRIGGER"
+        trigger_class = "trigger-hit" if trade_params["trigger_hit"] else "trigger-pending"
+        
+        st.markdown(f"""
+        <div class="recommendation-box">
+            <div class="title">🤖 {trade_params['title']}</div>
+            <div class="content">
+                <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
+                <strong>Entry Trigger:</strong> <span class="{trigger_class}">{trade_params['entry_label']}</span> — {trigger_status}<br>
+                <strong>Stop Loss:</strong> ${format_price(trade_params['stop_loss'])}<br>
+                <strong>Target:</strong> ${format_price(trade_params['target'])}<br>
+                <strong>Strategy:</strong> {trade_params['strategy']}
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="recommendation-box">
+            <div class="title">🤖 {trade_params['title']}</div>
+            <div class="content">
+                <strong>Current Price:</strong> <span class="current-price-label">${format_price(trade_params['current_price'])}</span><br>
+                <strong>Entry Trigger:</strong> {trade_params['entry_label']}<br>
+                <strong>Strategy:</strong> {trade_params['strategy']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Natural Language Summary
     summary = f"The AI analysis for <strong>{symbol}</strong> indicates an <strong>{bias}</strong> market bias."
@@ -1038,7 +1183,7 @@ if user_input:
             
             display_analysis(
                 symbol, price, price_change, vs_currency,
-                indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE
+                indicator_data, bias, RISK_MULTIPLE, REWARD_MULTIPLE, df
             )
         else:
             st.error(f"❌ Unable to fetch price data for {symbol}. Please check the ticker symbol and try again.")
