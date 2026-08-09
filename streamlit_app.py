@@ -37,23 +37,25 @@ st.set_page_config(
 # --- API KEYS ---
 CG_PUBLIC_API_KEY = st.secrets.get("CG_PUBLIC_API_KEY", "") 
 
-# --- STYLES ---
+# --- STYLES - FIXED FOR READABILITY ---
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-* { font-family: 'Inter', sans-serif; }
+/* Base font - clear and readable */
+* {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
 
 header[data-testid="stHeader"], footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
 [data-testid="stAppViewContainer"] {
-    background: linear-gradient(135deg, #0f1724 0%, #1a2332 50%, #0f1724 100%);
+    background: #0f1724;
     padding-left: 360px !important;
     padding-right: 25px;
 }
 
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0d1520 0%, #162032 100%);
+    background: #0d1520;
     width: 340px !important;
     min-width: 340px !important;
     position: fixed !important;
@@ -62,77 +64,63 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     bottom: 0;
     z-index: 100;
     padding: 0.5rem 1.2rem;
-    border-right: 1px solid rgba(96, 165, 250, 0.15);
-    box-shadow: 8px 0 30px rgba(0,0,0,0.6);
+    border-right: 1px solid rgba(96, 165, 250, 0.1);
 }
 
 .sidebar-title {
-    font-size: 26px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #60A5FA, #34D399);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-size: 24px;
+    font-weight: 700;
+    color: #60A5FA;
     margin-top: 5px;
     margin-bottom: 15px;
 }
 .sidebar-item {
-    background: rgba(31, 41, 55, 0.6);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
+    background: rgba(31, 41, 55, 0.5);
+    border-radius: 10px;
     padding: 10px 14px;
     margin: 6px 0;
-    font-size: 16px;
-    color: #9CA3AF;
-    border: 1px solid rgba(55, 65, 81, 0.5);
+    font-size: 15px;
+    color: #D1D5DB;
+    border: 1px solid rgba(55, 65, 81, 0.3);
 }
-.local-time-info { color: #00FFFF !important; font-weight: 700; }
-.active-session-info { color: #FF8C00 !important; font-weight: 700; }
-.status-volatility-info { color: #34D399 !important; font-weight: 700; }
+.local-time-info { color: #22D3EE !important; font-weight: 700; font-size: 18px; }
+.active-session-info { color: #FBBF24 !important; font-weight: 700; font-size: 18px; }
+.status-volatility-info { color: #34D399 !important; font-weight: 700; font-size: 18px; }
 
 .main-title {
-    font-size: 32px;
-    font-weight: 900;
-    background: linear-gradient(135deg, #60A5FA, #34D399, #60A5FA);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: gradientShift 4s ease-in-out infinite;
+    font-size: 28px;
+    font-weight: 800;
+    color: #F59E0B;
     margin-bottom: 20px;
 }
-@keyframes gradientShift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
 
+/* Price Card - Clear and readable */
 .price-card {
-    background: linear-gradient(135deg, #1a2332 0%, #24304a 100%);
-    border-radius: 16px;
-    padding: 20px 28px;
-    border: 1px solid rgba(96, 165, 250, 0.15);
+    background: #1a2332;
+    border-radius: 12px;
+    padding: 20px 24px;
+    border: 1px solid rgba(55, 65, 81, 0.3);
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 16px;
-    margin-bottom: 24px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    margin-bottom: 20px;
 }
 .price-card .price-section .label {
     font-size: 12px;
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 .price-card .price-section .value {
-    font-size: 34px;
-    font-weight: 800;
+    font-size: 32px;
+    font-weight: 700;
     color: #F59E0B;
-    text-shadow: 0 0 30px rgba(245, 158, 11, 0.15);
 }
 .price-card .price-section .value .currency {
-    font-size: 18px;
+    font-size: 16px;
     color: #9CA3AF;
     font-weight: 400;
 }
@@ -141,7 +129,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 .price-card .change-section .change {
     font-size: 22px;
@@ -149,13 +137,12 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 }
 .bias-badge {
     display: inline-block;
-    padding: 10px 28px;
+    padding: 8px 24px;
     border-radius: 50px;
-    font-size: 20px;
-    font-weight: 800;
+    font-size: 18px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    letter-spacing: 1px;
 }
 
 .section-header {
@@ -163,59 +150,47 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.section-header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(96, 165, 250, 0.2), transparent);
+    letter-spacing: 1px;
+    margin-bottom: 12px;
 }
 
+/* Indicator Grid */
 .indicator-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin: 0 0 14px 0;
+    gap: 12px;
+    margin: 0 0 12px 0;
 }
 
+/* Indicator Cards - Clean and readable */
 .indicator-card {
-    background: linear-gradient(135deg, #1a2332 0%, #1f2a3e 100%);
-    border-radius: 14px;
-    padding: 18px 20px;
-    border-left: 5px solid #374151;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-}
-.indicator-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    background: #1a2332;
+    border-radius: 10px;
+    padding: 16px 18px;
+    border-left: 4px solid #374151;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 .indicator-card .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 .indicator-card .name {
     font-size: 12px;
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
 }
 .indicator-card .signal-badge {
     font-size: 12px;
     font-weight: 700;
-    padding: 3px 14px;
+    padding: 2px 12px;
     border-radius: 20px;
 }
 .indicator-card .value {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: #E5E7EB;
     margin: 4px 0 2px 0;
@@ -223,44 +198,40 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 .indicator-card .explanation {
     font-size: 13px;
     color: #9CA3AF;
-    margin-top: 6px;
+    margin-top: 4px;
     line-height: 1.5;
 }
 
+/* Full width card */
 .indicator-card-full {
-    background: linear-gradient(135deg, #1a2332 0%, #1f2a3e 100%);
-    border-radius: 14px;
-    padding: 18px 20px;
-    border-left: 5px solid #8B5CF6;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    background: #1a2332;
+    border-radius: 10px;
+    padding: 16px 18px;
+    border-left: 4px solid #8B5CF6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     margin-top: 0px;
-}
-.indicator-card-full:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
 }
 .indicator-card-full .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 .indicator-card-full .name {
     font-size: 12px;
     color: #9CA3AF;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
 }
 .indicator-card-full .signal-badge {
     font-size: 12px;
     font-weight: 700;
-    padding: 3px 14px;
+    padding: 2px 12px;
     border-radius: 20px;
 }
 .indicator-card-full .value {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: #E5E7EB;
     margin: 4px 0 2px 0;
@@ -268,75 +239,96 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
 .indicator-card-full .explanation {
     font-size: 13px;
     color: #9CA3AF;
-    margin-top: 6px;
+    margin-top: 4px;
     line-height: 1.5;
 }
 
+/* Recommendation Box */
 .recommendation-box {
-    background: linear-gradient(135deg, #1a2332 0%, #1e2d4a 100%);
-    border-radius: 14px;
-    padding: 22px 26px;
-    margin-top: 20px;
-    border: 1px solid rgba(96, 165, 250, 0.15);
-    border-left: 5px solid #60A5FA;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    background: #1a2332;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    border: 1px solid rgba(55, 65, 81, 0.3);
+    border-left: 4px solid #60A5FA;
 }
 .recommendation-box .title {
     font-size: 18px;
     font-weight: 700;
     color: #60A5FA;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 .recommendation-box .content {
     font-size: 16px;
-    line-height: 1.9;
+    line-height: 1.8;
     color: #E5E7EB;
 }
 .recommendation-box .content strong {
-    color: #FFD700 !important;
+    color: #F59E0B;
 }
 
+/* Trade Summary */
 .trade-summary {
-    font-size: 17px;
-    line-height: 1.9;
+    font-size: 16px;
+    line-height: 1.8;
     margin-top: 12px;
-    margin-bottom: 20px;
-    padding: 18px 22px;
-    background: linear-gradient(135deg, #0f1f2e 0%, #162a3f 100%);
-    border-radius: 12px;
-    border-left: 5px solid #60A5FA;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    margin-bottom: 16px;
+    padding: 16px 20px;
+    background: #0f1f2e;
+    border-radius: 10px;
+    border-left: 4px solid #60A5FA;
 }
 .trade-summary strong {
-    color: #FFD700 !important;
+    color: #F59E0B;
 }
 
+/* Motivation */
 .motivation-text {
     font-size: 16px;
     font-weight: 700;
-    color: #F59E0B;
+    color: #FBBF24;
     text-align: center;
-    padding: 14px 20px;
-    margin-top: 16px;
-    border: 2px solid rgba(245, 158, 11, 0.2);
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+    padding: 12px 16px;
+    margin-top: 14px;
+    border: 2px solid rgba(251, 191, 36, 0.2);
+    border-radius: 10px;
+    background: rgba(251, 191, 36, 0.05);
 }
 
+/* Disclaimer */
 .disclaimer {
     font-size: 12px;
     color: #6B7280;
     text-align: center;
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(55, 65, 81, 0.3);
-    line-height: 1.8;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(55, 65, 81, 0.2);
+    line-height: 1.6;
 }
 
+/* Color Classes - Bold and clear */
 .bullish { color: #34D399 !important; font-weight: 700; }
 .bearish { color: #F87171 !important; font-weight: 700; }
 .neutral { color: #FBBF24 !important; font-weight: 700; }
 
+/* Streamlit overrides for better readability */
+.stMarkdown p, .stMarkdown div {
+    color: #E5E7EB !important;
+}
+.stTextInput label, .stSelectbox label, .stCheckbox label {
+    color: #9CA3AF !important;
+    font-weight: 500 !important;
+}
+.stTextInput input {
+    background-color: #1a2332 !important;
+    color: #E5E7EB !important;
+    border: 1px solid rgba(55, 65, 81, 0.3) !important;
+}
+.stSelectbox div[data-baseweb="select"] {
+    background-color: #1a2332 !important;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
     [data-testid="stAppViewContainer"] {
         padding-left: 0px !important;
@@ -350,7 +342,7 @@ header[data-testid="stHeader"], footer {visibility: hidden !important;}
         align-items: flex-start;
     }
     .main-title {
-        font-size: 24px;
+        font-size: 22px;
     }
 }
 </style>
@@ -379,10 +371,7 @@ def format_price(p):
 # --- COINGECKO API ---
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_crypto_price_coingecko(symbol, api_key=""):
-    """
-    Fetch crypto price from CoinGecko
-    Symbol: e.g., BTC, ETH, SOL
-    """
+    """Fetch crypto price from CoinGecko"""
     base_symbol = symbol.replace("USD", "").replace("USDT", "").lower()
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
@@ -398,70 +387,20 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
         response = requests.get(url, params=params, headers=headers, timeout=10)
         data = response.json()
         
-        # CoinGecko uses coin IDs, not symbols directly
-        # Try to find the coin in the response
         for coin_id, coin_data in data.items():
             if 'usd' in coin_data and float(coin_data['usd']) > 0:
                 price = float(coin_data['usd'])
                 change_percent = float(coin_data.get('usd_24h_change', 0))
                 return price, change_percent
         
-        # If not found, try with symbol mapping
+        # Symbol mapping
         symbol_map = {
-            'btc': 'bitcoin',
-            'eth': 'ethereum',
-            'sol': 'solana',
-            'ada': 'cardano',
-            'xrp': 'ripple',
-            'doge': 'dogecoin',
-            'dot': 'polkadot',
-            'link': 'chainlink',
-            'matic': 'polygon',
-            'uni': 'uniswap',
-            'atom': 'cosmos',
-            'ltc': 'litecoin',
-            'bch': 'bitcoin-cash',
-            'near': 'near',
-            'algo': 'algorand',
-            'vet': 'vechain',
-            'avax': 'avalanche-2',
-            'ftm': 'fantom',
-            'icp': 'internet-computer',
-            'fil': 'filecoin',
-            'egld': 'elrond-erd-2',
-            'xtz': 'tezos',
-            'aave': 'aave',
-            'mkr': 'maker',
-            'comp': 'compound-governance-token',
-            'yfi': 'yearn-finance',
-            'zec': 'zcash',
-            'xlm': 'stellar',
-            'hbar': 'hedera-hashgraph',
-            'etc': 'ethereum-classic',
-            'qnt': 'quant-network',
-            'grt': 'the-graph',
-            'snx': 'synthetix-network-token',
-            '1inch': '1inch',
-            'sushi': 'sushi',
-            'uma': 'uma',
-            'ocean': 'ocean-protocol',
-            'ren': 'ren',
-            'zrx': '0x',
-            'bat': 'basic-attention-token',
-            'knc': 'kyber-network',
-            'enj': 'enjin-coin',
-            'chr': 'chromia',
-            'mana': 'decentraland',
-            'sand': 'the-sandbox',
-            'gala': 'gala',
-            'axs': 'axie-infinity',
-            'slp': 'smooth-love-potion',
-            'ilv': 'illuvium',
-            'rndr': 'render-token',
-            'fet': 'fetch-ai',
-            'agix': 'singularitynet',
-            'hype': 'hype',
-            'pi': 'pi-network'
+            'btc': 'bitcoin', 'eth': 'ethereum', 'sol': 'solana',
+            'ada': 'cardano', 'xrp': 'ripple', 'doge': 'dogecoin',
+            'dot': 'polkadot', 'link': 'chainlink', 'matic': 'polygon',
+            'uni': 'uniswap', 'atom': 'cosmos', 'ltc': 'litecoin',
+            'bch': 'bitcoin-cash', 'near': 'near', 'algo': 'algorand',
+            'avax': 'avalanche-2', 'ftm': 'fantom'
         }
         
         if base_symbol in symbol_map:
@@ -475,13 +414,11 @@ def fetch_crypto_price_coingecko(symbol, api_key=""):
                 return price, change_percent
                 
     except Exception as e:
-        print(f"CoinGecko error: {e}")
         pass
     
     return None, None
 
 def get_asset_price(symbol):
-    """Get price from CoinGecko only"""
     symbol = symbol.upper().replace("USD", "").replace("USDT", "")
     return fetch_crypto_price_coingecko(symbol, CG_PUBLIC_API_KEY)
 
@@ -562,7 +499,7 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
     current_rsi_ma = rsi_ma.iloc[-1]
     
     lookback = 30
-    divergence = "No Divergence Detected"
+    divergence = "No Divergence"
     
     if len(rsi) > lookback:
         rsi_array = rsi.iloc[-lookback:].values
@@ -590,9 +527,9 @@ def calculate_rsi_with_divergence(df, rsi_period=14, ma_period=9):
                 rsi_lows.append((i, rsi_array[i]))
         
         if len(price_highs) >= 2 and price_highs[-1][1] > price_highs[-2][1] and rsi_highs[-1][1] < rsi_highs[-2][1]:
-            divergence = "Bearish Divergence Detected"
+            divergence = "Bearish Divergence"
         if len(price_lows) >= 2 and price_lows[-1][1] < price_lows[-2][1] and rsi_lows[-1][1] > rsi_lows[-2][1]:
-            divergence = "Bullish Divergence Detected"
+            divergence = "Bullish Divergence"
     
     if current_rsi > 70:
         status = "Overbought"
